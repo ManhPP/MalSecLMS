@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sổ tay triển khai — Lab Forensics &amp; Malware Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink0:#F8FAFB; --ink1:#EEF2F5; --ink2:#DBE2E8; --ink3:#B2BDC7;
+    --ink4:#7E8B98; --ink5:#4C5965; --ink6:#2B343D; --ink7:#161C23;
+    --accent:#8B2B1F; --accent-soft:#F3E4E1; --accent-line:#C9847B;
+    --teal:#0F6E56; --teal-soft:#E1F5EE; --blue:#185FA5; --blue-soft:#E6F1FB;
+    --amber:#854F0B; --amber-soft:#F6EBD6; --red:#A32D2D;
+    --serif:"Source Serif 4",Georgia,serif;
+    --sans:"DM Sans",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);color:var(--ink6);background:var(--ink0);line-height:1.6;-webkit-font-smoothing:antialiased;padding:44px 24px 72px}
+  .wrap{max-width:1120px;margin:0 auto}
+
+  header.mast{border-bottom:1px solid var(--ink2);padding-bottom:24px;margin-bottom:28px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+  h1{font-family:var(--serif);font-weight:600;font-size:32px;line-height:1.18;color:var(--ink7);letter-spacing:-.01em}
+  .dek{font-family:var(--serif);font-size:17px;color:var(--ink5);margin-top:10px;max-width:64ch;font-weight:400}
+
+  /* rack */
+  .rack{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:30px}
+  @media (max-width:820px){.rack{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--ink2);border-radius:14px;padding:16px;transition:.35s;box-shadow:0 1px 2px rgba(22,28,35,.03)}
+  .card.lit{box-shadow:0 0 0 2px var(--cardc,var(--accent)),0 6px 20px rgba(22,28,35,.07)}
+  .card .ch{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .card .cname{font-family:var(--sans);font-weight:600;font-size:14.5px;color:var(--ink7)}
+  .card.teal{--cardc:var(--teal)} .card.blue{--cardc:var(--blue)} .card.amber{--cardc:var(--amber)}
+  .card .cname .tag{font-family:var(--mono);font-size:10px;color:var(--cardc);letter-spacing:.05em}
+  .card .csub{font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-bottom:12px}
+  .slot{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--ink3);padding:6px 9px;border-radius:7px;border:1px dashed var(--ink2);margin-bottom:6px;transition:.3s}
+  .slot .tick{width:7px;height:7px;border-radius:50%;background:var(--ink2);flex:none;transition:.3s}
+  .slot.done{color:var(--ink6);border-style:solid;border-color:var(--ink2);background:var(--ink1)}
+  .slot.done .tick{background:var(--cardc,var(--teal))}
+  .slot.active{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+  .slot.active .tick{background:var(--accent);box-shadow:0 0 0 3px rgba(139,43,31,.16);animation:pulse 1.3s ease-in-out infinite}
+  .slot.hot.done{background:#FCEBEB;border-color:#E7A6A6;color:var(--red)}
+  .slot.hot.done .tick{background:var(--red)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(139,43,31,.16)}50%{box-shadow:0 0 0 6px rgba(139,43,31,.05)}}
+  @media (prefers-reduced-motion:reduce){.slot.active .tick{animation:none}}
+
+  /* detail */
+  .detail{background:#fff;border:1px solid var(--ink2);border-radius:14px;padding:26px 28px;min-height:300px}
+  .pno{font-family:var(--mono);font-size:12.5px;color:var(--ink4);letter-spacing:.08em}
+  .pno b{color:var(--accent);font-weight:500}
+  .ptitle{font-family:var(--serif);font-weight:600;font-size:24px;color:var(--ink7);margin:6px 0 14px;line-height:1.25}
+  .badges{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
+  .badge{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:6px;font-weight:500}
+  .badge.m-s1{background:var(--teal-soft);color:var(--teal)}
+  .badge.m-s2{background:var(--blue-soft);color:var(--blue)}
+  .badge.m-nas{background:var(--amber-soft);color:var(--amber)}
+  .badge.sw{background:var(--ink1);color:var(--ink5)}
+  .pintro{font-size:15.5px;color:var(--ink6);margin-bottom:18px;max-width:70ch}
+
+  ol.steps{list-style:none;counter-reset:s}
+  ol.steps>li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:16px}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center}
+  .stxt{font-size:15px;color:var(--ink6)}
+  .stxt strong{color:var(--ink7);font-weight:600}
+  pre{background:var(--ink7);color:#E8EDF1;font-family:var(--mono);font-size:12.5px;line-height:1.65;padding:13px 15px;border-radius:9px;margin-top:9px;overflow-x:auto;white-space:pre}
+  pre .c{color:#8FA3B0}
+  .datanote{margin-top:18px;padding:13px 16px;border-radius:9px;background:#FCEBEB;border-left:3px solid var(--red);font-size:14px;color:var(--ink6)}
+  .datanote b{color:var(--red)}
+
+  /* controls */
+  .progress-rail{height:3px;background:var(--ink1);border-radius:3px;margin:24px 0 0;overflow:hidden}
+  .progress-fill{height:100%;background:var(--accent);width:0;transition:width .5s ease}
+  .controls{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+  button{font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;border-radius:8px;border:1px solid var(--ink2);background:#fff;color:var(--ink6);padding:9px 15px;transition:.15s}
+  button:hover{border-color:var(--ink4);color:var(--ink7)}
+  button.play{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.play:hover{background:#741f15}
+  button:disabled{opacity:.4;cursor:default}
+  .pills{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+  .pill{width:10px;height:10px;border-radius:50%;background:var(--ink2);cursor:pointer;border:none;padding:0;transition:.2s}
+  .pill.active{background:var(--accent);transform:scale(1.3)}
+  .pill:hover{background:var(--ink4)}
+  .foot{font-family:var(--mono);font-size:11px;color:var(--ink4);margin-top:26px;text-align:center;letter-spacing:.03em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="kicker">FUHL · Advanced CyberSecurity Lab — Deployment Playbook</div>
+    <h1>Sổ tay triển khai: máy nào cài gì, từng bước</h1>
+    <p class="dek">2 server (256 GB RAM · 8 TB) + NAS 100 TB. Theo dõi từng phase: phần stack bên dưới sáng dần lên theo đúng thứ tự cài đặt; khung chi tiết kèm lệnh để làm theo.</p>
+  </header>
+
+  <div class="rack" id="rack"></div>
+
+  <div class="detail" id="detail"></div>
+
+  <div class="progress-rail"><div class="progress-fill" id="prog"></div></div>
+  <div class="controls">
+    <button id="prev"><span aria-hidden="true">←</span> Trước</button>
+    <button class="play" id="play"><span id="playTxt">▶ Play</span></button>
+    <button id="next">Sau <span aria-hidden="true">→</span></button>
+    <div class="pills" id="pills"></div>
+  </div>
+  <div class="foot">Proxmox VE 9.2 · Proxmox Backup Server 4.1 · pfSense · Apache Guacamole · CAPEv2 · INetSim · REMnux · FLARE-VM · MISP · Wazuh — open source</div>
+</div>
+
+<script>
+const MACHINES = {
+  s1:{name:"Server 1", tag:"COMPUTE-A", sub:"256 GB · 8 TB NVMe", cls:"teal", slots:[
+    {l:"Proxmox VE 9.2",p:2},{l:"Bridge + VLAN",p:3},{l:"NFS storage",p:5},
+    {l:"pfSense (VM)",p:6},{l:"Guacamole + Keycloak",p:7},{l:"VM phân tích",p:8}]},
+  s2:{name:"Server 2", tag:"COMPUTE-B", sub:"256 GB · 8 TB NVMe", cls:"blue", slots:[
+    {l:"Proxmox + cluster",p:4},{l:"NFS storage",p:5},{l:"CAPEv2 sandbox",p:9},
+    {l:"INetSim",p:10},{l:"MISP · Wazuh",p:11}]},
+  nas:{name:"NAS", tag:"DATA", sub:"100 TB · NFS/iSCSI", cls:"amber", slots:[
+    {l:"Pool + datasets",p:1},{l:"NFS exports",p:1},{l:"vm-templates",p:8},
+    {l:"pbs-datastore",p:11},{l:"malware-zoo",p:12,hot:1},{l:"forensic-images",p:12,hot:1}]}
+};
+
+const P = [
+  { t:"Tổng quan kiến trúc", m:[], sw:["3 thiết bị","5 VLAN"],
+    intro:"Mục tiêu: máy trạm sinh viên chỉ mở trình duyệt; mẫu malware bị nhốt trong VLAN 30/40 do pfSense kiểm soát; toàn bộ dữ liệu nặng nằm trên NAS. Server 1 gánh tầng truy cập + VM phân tích, Server 2 gánh sandbox tự động + dịch vụ, NAS là kho dữ liệu.",
+    steps:[
+      {t:"<strong>VLAN</strong>: 10 mgmt · 20 student · 30 analysis (no internet) · 40 detonate (INetSim) · 50 storage."},
+      {t:"Thứ tự triển khai: NAS → Proxmox 2 node → cluster → pfSense → Guacamole → template → CAPE → INetSim → dịch vụ → nạp dữ liệu."}
+    ]},
+  { t:"NAS — tạo pool, dataset & NFS export", m:["nas"], sw:["ZFS","NFS"],
+    intro:"Làm NAS trước vì mọi máy khác đều mount kho này. Tách dataset theo mức nhạy cảm và đặt quyền export ngay từ đầu.",
+    steps:[
+      {t:"Tạo các dataset; bật <strong>mã hóa</strong> cho kho mẫu sống:",
+       code:"zfs create -o encryption=on -o keyformat=passphrase pool/malware-zoo\nzfs create pool/forensic-images   # tu thi: disk/mem/pcap\nzfs create pool/vm-templates\nzfs create pool/pbs-datastore\nzfs create pool/student-work"},
+      {t:"Khai báo NFS export — kho mẫu & tử thi <strong>chỉ-đọc</strong> và <strong>chỉ tới VLAN 30</strong>:",
+       code:"# /etc/exports  (10.30.0.0/24 = VLAN30, 10.50.0.0/24 = VLAN50 storage)\n/mnt/pool/vm-templates    10.50.0.0/24(rw,sync,no_subtree_check)\n/mnt/pool/pbs-datastore   10.50.0.0/24(rw,sync,no_subtree_check)\n/mnt/pool/malware-zoo     10.30.0.0/24(ro,sync,root_squash)\n/mnt/pool/forensic-images 10.30.0.0/24(ro,sync,root_squash)"}
+    ],
+    data:"VLAN 20 (sinh viên) KHÔNG có dòng nào trong /etc/exports → máy trạm vĩnh viễn không mount được kho mẫu." },
+  { t:"Server 1 — cài Proxmox VE 9.2 (bare metal)", m:["s1"], sw:["Proxmox VE 9.2","Debian 13.5"],
+    intro:"Proxmox VE cài thẳng từ ISO chính thức (đã là Debian bên dưới — KHÔNG cài Ubuntu trước). Ubuntu Server chỉ dùng làm OS bên trong các VM dịch vụ.",
+    steps:[
+      {t:"Tải ISO <strong>Proxmox VE 9.2</strong> (1.71 GB) từ proxmox.com, ghi ra USB, boot máy và cài. Đặt hostname <code>pve-01</code>, IP quản trị thuộc VLAN 10."},
+      {t:"Để ổ 8 TB NVMe làm pool ZFS local cho đĩa VM 'nóng' (snapshot nhanh)."},
+      {t:"Sau cài đặt, chuyển sang repo no-subscription rồi cập nhật:",
+       code:"echo 'deb http://download.proxmox.com/debian/pve trixie pve-no-subscription' \\\n  > /etc/apt/sources.list.d/pve.list\napt update && apt full-upgrade -y"}
+    ]},
+  { t:"Server 1 — cấu hình bridge & VLAN", m:["s1"], sw:["Linux bridge","802.1Q"],
+    intro:"Tạo các bridge VLAN-aware để pfSense và VM gắn đúng phân vùng. Tách hẳn NIC quản trị, NIC VM (trunk) và NIC lưu trữ.",
+    steps:[
+      {t:"Khai báo bridge trong <code>/etc/network/interfaces</code> — <strong>vmbr1</strong> mang trunk các VLAN:",
+       code:"auto vmbr0                 # quan tri (VLAN10)\niface vmbr0 inet static\n    address 10.10.0.11/24\n    bridge-ports enp1s0f0\n\nauto vmbr1                 # trunk VM\niface vmbr1 inet manual\n    bridge-ports enp1s0f1\n    bridge-vlan-aware yes\n    bridge-vids 10,20,30,40\n\nauto vmbr2                 # luu tru (VLAN50, jumbo)\niface vmbr2 inet static\n    address 10.50.0.11/24\n    mtu 9000\n    bridge-ports enp2s0f0"},
+      {t:"Áp dụng: <code>ifreload -a</code>. Trên switch, cổng nối vmbr1 đặt chế độ <strong>trunk</strong> các VLAN tương ứng."}
+    ]},
+  { t:"Server 2 — cài Proxmox & lập cluster", m:["s2"], sw:["Proxmox VE 9.2","Corosync","QDevice"],
+    intro:"Cài Proxmox y hệt Server 1 (hostname pve-02), rồi gộp 2 node thành cluster. Thêm QDevice trên một máy nhỏ để có quorum lẻ — tránh split-brain khi 1 node chết.",
+    steps:[
+      {t:"Trên <strong>pve-01</strong> tạo cluster, trên <strong>pve-02</strong> tham gia:",
+       code:"# pve-01\npvecm create FUHL-LAB\n# pve-02\npvecm add 10.10.0.11        # IP quan tri cua pve-01"},
+      {t:"Dựng QDevice (Raspberry Pi / NUC chạy Debian) cho quorum:",
+       code:"# tren may QDevice\napt install corosync-qnetd\n# tren pve-01\npvecm qdevice setup 10.10.0.50"},
+      {t:"Kiểm tra: <code>pvecm status</code> phải thấy 2 node + 1 qdevice, quorum = 3."}
+    ]},
+  { t:"Gắn NAS làm storage cho cluster", m:["nas","s1","s2"], sw:["NFS","shared storage"],
+    intro:"Mount các export NFS từ NAS làm kho dùng chung toàn cluster — nhờ vậy VM có thể live-migrate giữa 2 node và backup tập trung.",
+    steps:[
+      {t:"Thêm storage (chạy 1 lần trên pve-01, áp cho cả cluster):",
+       code:"pvesm add nfs nas-templates --server 10.50.0.10 \\\n   --export /mnt/pool/vm-templates --content images,iso,vztmpl\npvesm add nfs nas-backup --server 10.50.0.10 \\\n   --export /mnt/pool/pbs-datastore --content backup"},
+      {t:"Đĩa VM 'nóng' đặt trên ZFS local NVMe; golden image & backup đặt trên NAS."}
+    ],
+    data:"Storage VLAN 50 dùng MTU 9000 (jumbo frame) cho throughput NFS/iSCSI cao khi nhiều VM cùng đọc base image." },
+  { t:"Server 1 — dựng pfSense & luật cô lập", m:["s1"], sw:["pfSense (VM)","firewall"],
+    intro:"pfSense là 'người gác'. Tạo VM pfSense, gắn mỗi VLAN một NIC ảo (vmbr1 tag tương ứng), rồi viết luật: vùng phân tích KHÔNG có đường ra.",
+    steps:[
+      {t:"Tạo VM pfSense trên pve-01, thêm các NIC ảo gắn VLAN 10/20/30/40 qua vmbr1."},
+      {t:"Cấu hình luật firewall theo nguyên tắc cô lập:",
+       code:"# Logic luat (pfSense)\nVLAN20 -> WAN   : allow (chi toi portal Guacamole)\nVLAN20 -> VLAN30: BLOCK   (SV khong route thang toi VM)\nVLAN30 -> any   : BLOCK   (chan moi egress: Internet + RFC1918)\nVLAN30 -> VLAN40: ALLOW   (chi duoc noi INetSim)\nVLAN40 -> any   : BLOCK"},
+      {t:"Đặt DNS + gateway của VLAN 30 trỏ về INetSim (cài ở phase sau) để mọi truy vấn malware rơi vào sinkhole."}
+    ],
+    data:"Tùy chọn nâng cao: 'dirty line' (USB 4G) gắn kill-switch, tách hẳn campus, chỉ bật khi cần C2 callback thật cho bài nâng cao." },
+  { t:"Server 1 — triển khai Guacamole + Keycloak", m:["s1"], sw:["Ubuntu LXC","Docker","Guacamole","Keycloak"],
+    intro:"Cổng truy cập clientless: sinh viên vào bằng trình duyệt, Guacamole môi giới RDP/VNC tới VM trong VLAN 30. Gắn 2 NIC: VLAN 20 (sinh viên) + VLAN 30 (tới VM).",
+    steps:[
+      {t:"Tạo LXC Ubuntu Server trên pve-01, cài Docker, deploy stack chính thức:",
+       code:"# guacd + guacamole + postgres\ndocker compose up -d\n# khoi tao schema DB\ndocker run --rm guacamole/guacamole \\\n  /opt/guacamole/bin/initdb.sh --postgresql > initdb.sql"},
+      {t:"Đấu Keycloak làm SSO (OIDC) để xác thực sinh viên và ghi log/record từng phiên."},
+      {t:"Gán container 2 interface: <code>eth0</code> VLAN 20, <code>eth1</code> VLAN 30 — đây là cầu nối duy nhất giữa hai vùng."}
+    ]},
+  { t:"Tạo template phân tích & linked clone", m:["nas","s1"], sw:["FLARE-VM","REMnux","SIFT","Windows victim"],
+    intro:"Dựng các máy mẫu một lần, biến thành template, rồi cấp cho sinh viên bằng linked clone — bung VM mới trong vài giây, tốn rất ít đĩa.",
+    steps:[
+      {t:"Cài FLARE-VM (Windows RE), REMnux (Linux malware), SIFT (forensics), Windows 'victim' hiến tế — mỗi cái 1 VM mẫu."},
+      {t:"Biến VM mẫu thành template, golden disk đặt trên NAS:",
+       code:"qm template 9000            # VM 9000 -> template FLARE-VM"},
+      {t:"Cấp cho từng sinh viên bằng <strong>linked clone</strong>:",
+       code:"qm clone 9000 305 --name flare-sv05 --full 0\n# --full 0 = linked clone: chia se base, chi ghi delta"}
+    ],
+    data:"256 GB RAM/node + linked clone → chạy được ~40–50 VM Windows đồng thời mỗi server; REMnux nhẹ hơn nên mật độ cao hơn nữa." },
+  { t:"Server 2 — cài CAPEv2 sandbox", m:["s2"], sw:["Ubuntu VM","CAPEv2","KVM nested"],
+    intro:"CAPEv2 là sandbox tự động (kế thừa Cuckoo): kích nổ mẫu, ghi hành vi, trích config & ánh xạ ATT&CK. Cần bật nested virtualization để chạy guest bên trong VM.",
+    steps:[
+      {t:"Tạo VM Ubuntu trên pve-02, bật CPU passthrough cho nested virt:",
+       code:"qm set 210 --cpu host       # cho phep KVM long nhau"},
+      {t:"Trong VM, cài CAPEv2 + guest phân tích:",
+       code:"git clone https://github.com/kevoreilly/CAPEv2\ncd CAPEv2 && sudo ./installer/cape2.sh base cape"},
+      {t:"Trỏ network của guest CAPE qua INetSim (phase sau) thay vì Internet thật."}
+    ]},
+  { t:"Server 2 — INetSim: Internet giả lập", m:["s2"], sw:["Ubuntu LXC","INetSim","FakeNet"],
+    intro:"INetSim đứng ở VLAN 40, giả lập DNS/HTTP/SMTP/FTP… Mọi lời gọi C2 của malware bị pfSense chặn ra ngoài rồi rơi vào INetSim, giúp quan sát hành vi mạng an toàn.",
+    steps:[
+      {t:"Tạo LXC Ubuntu ở VLAN 40, cài và cấu hình:",
+       code:"apt install inetsim\n# /etc/inetsim/inetsim.conf\nservice_bind_address   10.40.0.10\ndns_default_ip         10.40.0.10\nstart_service dns\nstart_service http\nstart_service smtp"},
+      {t:"Trên pfSense, đặt DNS server của VLAN 30 = <code>10.40.0.10</code> → mọi domain malware phân giải về INetSim."}
+    ],
+    data:"Đây là lý do VLAN 30 'tưởng' mình có Internet nhưng thực chất nói chuyện với máy giả lập — không một gói tin nào ra ngoài thật." },
+  { t:"Server 2 — MISP, Wazuh, PBS", m:["s2","nas"], sw:["MISP","Wazuh","Proxmox Backup 4.1"],
+    intro:"Lớp dịch vụ hỗ trợ giảng dạy & vận hành: chia sẻ IOC, thu telemetry từ vùng detonate, và sao lưu/rollback.",
+    steps:[
+      {t:"<strong>Proxmox Backup Server 4.1</strong>: dùng datastore NFS trên NAS để sao lưu + rollback snapshot VM tức thì."},
+      {t:"<strong>MISP</strong> (docker) dạy sinh viên chuẩn hóa & chia sẻ IOC; <strong>Wazuh/OpenSearch</strong> thu log hành vi từ guest detonate.",
+       code:"# MISP: misp-project/misp-docker (docker compose)\n# Wazuh: bash wazuh-install.sh -a"}
+    ]},
+  { t:"Đặt mẫu malware & ảnh tử thi + airlock", m:["nas","s1"], sw:["malware-zoo","forensic-images","airlock"],
+    intro:"Bước nhạy cảm nhất. Mẫu sống & ảnh tử thi chỉ xuất hiện trong VLAN 30, ở chế độ chỉ-đọc, và đi vào qua airlock một chiều.",
+    steps:[
+      {t:"Trong VM phân tích (VLAN 30), mount kho mẫu <strong>chỉ-đọc</strong>:",
+       code:"mount -o ro,nolock 10.50.0.10:/mnt/pool/malware-zoo /mnt/zoo\nmount -o ro,nolock 10.50.0.10:/mnt/pool/forensic-images /mnt/tuthi"},
+      {t:"Mẫu lưu dạng zip đặt mật khẩu để AV không nuốt mất:",
+       code:"7z x mau.zip -pinfected      # quy uoc mat khau 'infected'"},
+      {t:"Bài forensics đọc <strong>tử thi</strong> từ <code>/mnt/tuthi</code>: disk image (E01/dd), memory dump (raw/LiME), pcap."},
+      {t:"Airlock một chiều: thư mục drop chỉ-ghi-từ-ngoài / VM chỉ-đọc → mẫu không đi ngược ra được."}
+    ],
+    data:"Nguồn mẫu nên lấy từ kho curated: <b>MalwareBazaar (abuse.ch)</b>, MWDB, theZoo. Kho mã hóa at-rest, tách quyền hoàn toàn khỏi mạng sinh viên." },
+  { t:"Vận hành — một buổi lab nhìn từ hạ tầng", m:["s1","s2","nas"], sw:["live"],
+    intro:"Khi mọi thứ đã dựng xong, một buổi lab chạy như sau — và đây cũng là lúc kiểm chứng cô lập.",
+    steps:[
+      {t:"SV mở trình duyệt → Guacamole (VLAN 20) → được cấp linked clone trong VLAN 30."},
+      {t:"Nạp mẫu từ <code>/mnt/zoo</code> (chỉ-đọc) → phân tích tĩnh → detonate trong CAPE."},
+      {t:"Malware gọi C2 → pfSense DROP → INetSim trả lời giả → CAPE sinh báo cáo IOC → đẩy MISP."},
+      {t:"Hết buổi: PBS rollback VM về snapshot sạch. Không byte nào rời khỏi VLAN 30/40."}
+    ],
+    data:"Kiểm thử cô lập định kỳ: từ VM phân tích thử <code>ping 8.8.8.8</code> và curl ra campus — cả hai PHẢI thất bại." }
+];
+
+let cur=0, playing=false, timer=null;
+const $=id=>document.getElementById(id);
+
+function buildRack(){
+  const r=$("rack"); r.innerHTML="";
+  for(const key of ["s1","s2","nas"]){
+    const m=MACHINES[key];
+    const card=document.createElement("div");
+    card.className="card "+m.cls; card.id="card-"+key;
+    let html=`<div class="ch"><span class="cname">${m.name} <span class="tag">${m.tag}</span></span></div><div class="csub">${m.sub}</div>`;
+    m.slots.forEach((s,i)=>{ html+=`<div class="slot${s.hot?' hot':''}" id="slot-${key}-${i}"><span class="tick"></span>${s.l}</div>`; });
+    card.innerHTML=html; r.appendChild(card);
+  }
+}
+
+function render(i){
+  const p=P[i];
+  // rack states
+  for(const key of ["s1","s2","nas"]){
+    const m=MACHINES[key];
+    $("card-"+key).classList.toggle("lit", p.m.includes(key));
+    m.slots.forEach((s,k)=>{
+      const el=$(`slot-${key}-${k}`);
+      el.classList.toggle("done", i>=s.p);
+      el.classList.toggle("active", i===s.p);
+    });
+  }
+  // detail
+  const badgeMap={s1:["m-s1","Server 1"],s2:["m-s2","Server 2"],nas:["m-nas","NAS"]};
+  let badges=p.m.map(k=>`<span class="badge ${badgeMap[k][0]}">${badgeMap[k][1]}</span>`).join("");
+  badges+=p.sw.map(s=>`<span class="badge sw">${s}</span>`).join("");
+  const d=$("detail");
+  d.innerHTML=`<div class="pno">PHASE <b>${String(i).padStart(2,"0")}</b> / ${String(P.length-1).padStart(2,"0")}</div>
+    <h2 class="ptitle">${p.t}</h2><div class="badges">${badges}</div>
+    <p class="pintro">${p.intro}</p><ol class="steps" id="steps"></ol>`;
+  const ol=$("steps");
+  p.steps.forEach(st=>{
+    const li=document.createElement("li");
+    const span=document.createElement("div"); span.className="stxt"; span.innerHTML=st.t; li.appendChild(span);
+    if(st.code){ const pre=document.createElement("pre"); pre.textContent=st.code; li.appendChild(pre); }
+    ol.appendChild(li);
+  });
+  if(p.data){ const dn=document.createElement("div"); dn.className="datanote"; dn.innerHTML="<b>Dữ liệu &amp; an toàn:</b> "+p.data; d.appendChild(dn); }
+
+  document.querySelectorAll(".pill").forEach((b,k)=>b.classList.toggle("active",k===i));
+  $("prog").style.width=((i+1)/P.length*100)+"%";
+  $("prev").disabled=i===0; $("next").disabled=i===P.length-1;
+}
+
+function go(i){ cur=(i+P.length)%P.length; render(cur); }
+function stopPlay(){ playing=false; clearInterval(timer); $("playTxt").textContent="▶ Play"; }
+function startPlay(){ playing=true; $("playTxt").textContent="❚❚ Tạm dừng";
+  timer=setInterval(()=>{ if(cur===P.length-1){stopPlay();return;} go(cur+1); },5200); }
+
+$("play").onclick=()=>{ if(playing){stopPlay();} else { if(cur===P.length-1) go(0); startPlay(); } };
+$("next").onclick=()=>{ stopPlay(); go(cur+1); };
+$("prev").onclick=()=>{ stopPlay(); go(cur-1); };
+
+const pills=$("pills");
+P.forEach((p,k)=>{ const b=document.createElement("button"); b.className="pill";
+  b.setAttribute("aria-label","Phase "+k+": "+p.t); b.onclick=()=>{stopPlay();go(k);}; pills.appendChild(b); });
+
+buildRack(); render(0);
+</script>
+</body>
+</html>
