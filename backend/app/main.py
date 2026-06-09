@@ -63,6 +63,7 @@ def seed_data():
                 password_hash=get_password_hash("admin123"),
                 full_name="Quản trị viên Hệ thống",
                 role="admin",
+                email="admin@malsec.local",
                 is_active=True
             )
             
@@ -71,6 +72,7 @@ def seed_data():
                 password_hash=get_password_hash("lecturer123"),
                 full_name="TS. Nguyễn Văn A (Giảng viên)",
                 role="lecturer",
+                email="lecturer@malsec.local",
                 is_active=True
             )
             
@@ -79,6 +81,7 @@ def seed_data():
                 password_hash=get_password_hash("student123"),
                 full_name="Trần Văn Minh (Sinh viên 01)",
                 role="student",
+                email="sv01@malsec.local",
                 is_active=True
             )
             
@@ -87,6 +90,7 @@ def seed_data():
                 password_hash=get_password_hash("student123"),
                 full_name="Lê Thị Mai (Sinh viên 02)",
                 role="student",
+                email="sv02@malsec.local",
                 is_active=True
             )
 

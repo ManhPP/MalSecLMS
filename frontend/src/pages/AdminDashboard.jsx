@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [editingUser, setEditingUser] = useState(null) // null = create new
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('student')
   const [isActive, setIsActive] = useState(true)
@@ -85,7 +86,7 @@ export default function AdminDashboard() {
     try {
       let url = '/api/users/'
       let method = 'POST'
-      let body = { username, full_name: fullName, role, is_active: isActive }
+      let body = { username, full_name: fullName, role, is_active: isActive, email }
       
       if (editingUser) {
         url = `/api/users/${editingUser.id}`
@@ -146,12 +147,14 @@ export default function AdminDashboard() {
       setFullName(user.full_name)
       setRole(user.role)
       setIsActive(user.is_active)
+      setEmail(user.email || '')
       setPassword('')
     } else {
       setUsername('')
       setFullName('')
       setRole('student')
       setIsActive(true)
+      setEmail('')
       setPassword('')
     }
     setShowUserModal(true)
@@ -390,6 +393,7 @@ export default function AdminDashboard() {
                   <th>ID</th>
                   <th>Tên đăng nhập (MSSV)</th>
                   <th>Họ và Tên</th>
+                  <th>Email</th>
                   <th>Vai trò (Role)</th>
                   <th>Trạng thái</th>
                   <th style={{ textAlign: 'right' }}>Hành động</th>
@@ -401,6 +405,7 @@ export default function AdminDashboard() {
                     <td>{u.id}</td>
                     <td style={{ fontFamily: 'var(--font-mono)' }}>{u.username}</td>
                     <td style={{ fontWeight: '500' }}>{u.full_name}</td>
+                    <td>{u.email || '—'}</td>
                     <td>
                       <span className={`badge ${u.role === 'admin' ? 'badge-resubmit' : u.role === 'lecturer' ? 'badge-submitted' : 'badge-draft'}`}>
                         {u.role}
@@ -518,6 +523,7 @@ export default function AdminDashboard() {
                         <th>ID</th>
                         <th>Tên sinh viên (MSSV)</th>
                         <th>Họ và Tên</th>
+                        <th>Email</th>
                         <th style={{ textAlign: 'right' }}>Hành động</th>
                       </tr>
                     </thead>
@@ -528,6 +534,7 @@ export default function AdminDashboard() {
                             <td>{student.id}</td>
                             <td style={{ fontFamily: 'var(--font-mono)' }}>{student.username}</td>
                             <td style={{ fontWeight: '500' }}>{student.full_name}</td>
+                            <td>{student.email || '—'}</td>
                             <td style={{ textAlign: 'right' }}>
                               <button 
                                 onClick={() => handleRemoveStudentFromClass(student.id)} 
@@ -628,6 +635,17 @@ export default function AdminDashboard() {
                     placeholder="Ví dụ: Nguyễn Văn A"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Địa chỉ Email</label>
+                  <input 
+                    type="email" 
+                    className="form-input" 
+                    placeholder="Ví dụ: student@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
 
@@ -770,6 +788,7 @@ export default function AdminDashboard() {
                           <tr>
                             <th>MSSV</th>
                             <th>Sinh viên</th>
+                            <th>Email</th>
                             <th>Lớp</th>
                             <th>Kết quả</th>
                           </tr>
@@ -779,6 +798,7 @@ export default function AdminDashboard() {
                             <tr key={i}>
                               <td style={{ fontFamily: 'var(--font-mono)' }}>{d.username}</td>
                               <td>{d.full_name}</td>
+                              <td>{d.email || '—'}</td>
                               <td>{d.class}</td>
                               <td style={{ color: d.status.includes('Tạo mới') ? 'var(--neon-cyan)' : 'var(--neon-emerald)' }}>{d.status}</td>
                             </tr>

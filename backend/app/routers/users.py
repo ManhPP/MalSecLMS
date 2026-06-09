@@ -46,7 +46,8 @@ def create_user(
         password_hash=hashed_password,
         full_name=user_data.full_name,
         role=user_data.role,
-        is_active=user_data.is_active
+        is_active=user_data.is_active,
+        email=user_data.email
     )
     db.add(new_user)
     db.commit()
@@ -80,6 +81,8 @@ def update_user(
         user.full_name = user_data.full_name
     if user_data.role is not None:
         user.role = user_data.role
+    if user_data.email is not None:
+        user.email = user_data.email
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
     if user_data.password is not None and user_data.password != "":

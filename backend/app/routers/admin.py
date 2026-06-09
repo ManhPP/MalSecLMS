@@ -59,6 +59,7 @@ def import_students_csv(
             username = row[0].strip() # MSSV làm username
             full_name = row[1].strip()
             class_name = row[2].strip()
+            email = row[3].strip() if len(row) >= 4 else None
 
             if not username or not full_name or not class_name:
                 skipped_count += 1
@@ -83,6 +84,7 @@ def import_students_csv(
                     password_hash=default_hashed_password,
                     full_name=full_name,
                     role="student",
+                    email=email,
                     is_active=True
                 )
                 db.add(student)
@@ -100,6 +102,7 @@ def import_students_csv(
                 details.append({
                     "username": username,
                     "full_name": full_name,
+                    "email": email,
                     "class": class_name,
                     "status": "Tạo mới & Gán lớp" if is_new_student else "Đã tồn tại & Gán thêm lớp"
                 })

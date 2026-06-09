@@ -23,12 +23,12 @@ docker compose up --build -d
 
 Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú (Data Seeding) ngay khi khởi động CSDL để bạn có thể đăng nhập thử nghiệm ngay lập tức:
 
-| Tên đăng nhập | Mật khẩu | Vai trò (Role) | Chức năng kiểm thử chính |
-| :--- | :--- | :--- | :--- |
-| **`admin`** | `admin123` | **Quản trị viên** | Quản lý người dùng, Gán lớp, Import CSV, Xem Audit Logs. |
-| **`lecturer`** | `lecturer123` | **Giảng viên** | Tạo đề bài Lab động, Chấm điểm Speed Grader chia đôi, Gia hạn cá nhân, Tải Zip. |
-| **`sv01`** | `student123` | **Sinh viên 01** | Làm bài Split-Screen, Tải ảnh chứng cứ, Quét zip, Auto-save nháp. |
-| **`sv02`** | `student123` | **Sinh viên 02** | Nộp bài thực hành lớp AT16-Malware. |
+| Tên đăng nhập | Mật khẩu | Địa chỉ Email | Vai trò (Role) | Chức năng kiểm thử chính |
+| :--- | :--- | :--- | :--- | :--- |
+| **`admin`** | `admin123` | `admin@malsec.local` | **Quản trị viên** | Quản lý người dùng, Gán lớp, Import CSV, Xem Audit Logs. |
+| **`lecturer`** | `lecturer123` | `lecturer@malsec.local` | **Giảng viên** | Tạo đề bài Lab động, Chấm điểm Speed Grader chia đôi, Gia hạn cá nhân, Tải Zip. |
+| **`sv01`** | `student123` | `sv01@malsec.local` | **Sinh viên 01** | Làm bài Split-Screen, Tải ảnh chứng cứ, Quét zip, Auto-save nháp. |
+| **`sv02`** | `student123` | `sv02@malsec.local` | **Sinh viên 02** | Nộp bài thực hành lớp AT16-Malware. |
 
 ---
 
@@ -38,10 +38,10 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
 1. Truy cập [http://localhost](http://localhost) và đăng nhập bằng tài khoản `admin` / `admin123`.
 2. **Quản lý tài khoản:** Xem danh sách người dùng được tải mượt mà. Nhấn "Thêm tài khoản mới" để tạo thử một tài khoản Giảng viên hoặc Sinh viên.
 3. **Quản lý lớp học phần:** Chọn lớp `AT16-Malware` ở cột trái. Cột phải hiển thị danh sách 2 sinh viên `sv01` và `sv02`. Bạn có thể nhập mã ID sinh viên mới vào ô để gán thêm vào lớp.
-4. **Nhập hàng loạt từ file CSV:** Nhấn "Nhập Excel/CSV hàng loạt". Tải lên một file `.csv` thử nghiệm có nội dung sau để kiểm tra tính năng tự động tạo tài khoản và tự động ánh xạ lớp:
+4. **Nhập hàng loạt từ file CSV:** Nhấn "Nhập Excel/CSV hàng loạt". Tải lên một file `.csv` thử nghiệm có nội dung sau để kiểm tra tính năng tự động tạo tài khoản, ánh xạ lớp và nạp địa chỉ Email (cột thứ 4, tùy chọn):
    ```csv
-   AT160105,Trần Hoàng Nam,AT16-Malware
-   AT160110,Phạm Minh Đức,AT16-Forensics
+   AT160105,Trần Hoàng Nam,AT16-Malware,namth@malsec.local
+   AT160110,Phạm Minh Đức,AT16-Forensics,duchm@malsec.local
    ```
    Hệ thống sẽ lập tức trả về bảng tổng hợp kết quả chi tiết từng dòng, tự động băm mật khẩu bảo mật `12345678` cho các tài khoản mới và tạo thêm lớp `AT16-Forensics` nếu chưa có sẵn!
 5. **Nhật ký hệ thống:** Chuyển sang tab "Nhật ký Hoạt động" để quan sát toàn bộ nhật ký kiểm toán (Audit Logs) ghi nhận chính xác thời gian, IP và hành động vừa thực hiện.
