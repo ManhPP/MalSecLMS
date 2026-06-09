@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { 
   BookOpen, Plus, Calendar, FileSpreadsheet, Download, 
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
-  ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw
+  ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
+  School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter
 } from 'lucide-react'
 
 // --- CYBERPUNK MARKDOWN PARSER UTILITIES ---
@@ -105,7 +106,7 @@ export default function InstructorDashboard() {
   const [submissions, setSubmissions] = useState([])
   const [students, setStudents] = useState([]) // For exception dropdown
   
-  // Navigation states: 'dashboard' | 'grading'
+  // Navigation states: 'dashboard' | 'grading' | 'classes'
   const [viewState, setViewState] = useState('dashboard') 
   const [selectedLab, setSelectedLab] = useState(null)
   
@@ -132,6 +133,24 @@ export default function InstructorDashboard() {
   const [extensionStudent, setExtensionStudent] = useState('')
   const [extensionDeadline, setExtensionDeadline] = useState('')
 
+  // Instructor Classes/Students management states
+  const [selectedClass, setSelectedClass] = useState(null)
+  const [studentIdsInput, setStudentIdsInput] = useState('')
+  const [allStudents, setAllStudents] = useState([])
+  const [showStudentModal, setShowStudentModal] = useState(false)
+  const [editingStudent, setEditingStudent] = useState(null)
+  const [studentFullName, setStudentFullName] = useState('')
+  const [studentEmail, setStudentEmail] = useState('')
+  const [studentPassword, setStudentPassword] = useState('')
+  const [studentIsActive, setStudentIsActive] = useState(true)
+  const [studentSearchQuery, setStudentSearchQuery] = useState('')
+
+  // Lab list filter and search states
+  const [labSearchQuery, setLabSearchQuery] = useState('')
+  const [labClassFilter, setLabClassFilter] = useState('')
+  const [labStatusFilter, setLabStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
+  const [labSortOrder, setLabSortOrder] = useState('newest') // 'newest' | 'deadline_asc' | 'deadline_desc' | 'title_asc'
+
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [success, setSuccess] = useState('')
@@ -155,6 +174,12 @@ export default function InstructorDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (cRes.ok) setClasses(await cRes.json())
+
+      // 3. Fetch All Students (for class management search/assign)
+      const sRes = await fetch('/api/users/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (sRes.ok) setAllStudents(await sRes.json())
 
     } catch (err) {
       setError('Lỗi kết nối máy chủ khi lấy danh sách bài Lab')
@@ -401,6 +426,195 @@ export default function InstructorDashboard() {
     setShowLabModal(true)
   }
 
+  // Fetch details of a single class (includes students)
+  const fetchClassDetails = async (classId) => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${classId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSelectedClass(data)
+      }
+    } catch (err) {
+      setError('Lỗi tải chi tiết lớp học')
+    }
+  }
+
+  // Handle assigning students bulk (comma/whitespace separated IDs)
+  const handleAssignStudentsBulk = async (e) => {
+    e.preventDefault()
+    if (!selectedClass || !studentIdsInput) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    const student_ids = studentIdsInput
+      .split(/[\s,]+/)
+      .map(id => parseInt(id.trim()))
+      .filter(id => !isNaN(id))
+
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ student_ids })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm sinh viên vào lớp')
+
+      setSuccess(data.message)
+      setStudentIdsInput('')
+      await fetchClassDetails(selectedClass.id)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Handle assigning a single student from list
+  const handleAssignSingleStudent = async (studentId) => {
+    if (!selectedClass) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ student_ids: [studentId] })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm sinh viên vào lớp')
+
+      setSuccess('Đã thêm sinh viên vào lớp thành công!')
+      await fetchClassDetails(selectedClass.id)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Handle removing student from class
+  const handleRemoveStudentFromClass = async (studentId) => {
+    if (!confirm('Bạn có chắc muốn xóa sinh viên này khỏi lớp?')) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/students/${studentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.detail || 'Lỗi khi xóa sinh viên khỏi lớp')
+      }
+      setSuccess('Đã xóa sinh viên khỏi lớp học phần')
+      await fetchClassDetails(selectedClass.id)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Handle opening student edit modal
+  const handleOpenStudentModal = (student) => {
+    setEditingStudent(student)
+    setStudentFullName(student.full_name)
+    setStudentEmail(student.email || '')
+    setStudentIsActive(student.is_active)
+    setStudentPassword('')
+    setShowStudentModal(true)
+  }
+
+  // Handle saving student profile changes
+  const handleSaveStudentEdit = async (e) => {
+    e.preventDefault()
+    if (!editingStudent) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const body = {
+        full_name: studentFullName,
+        email: studentEmail,
+        is_active: studentIsActive
+      }
+      if (studentPassword) {
+        body.password = studentPassword
+      }
+      const res = await fetch(`/api/users/${editingStudent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi cập nhật thông tin sinh viên')
+
+      setSuccess('Cập nhật tài khoản sinh viên thành công!')
+      setShowStudentModal(false)
+      if (selectedClass) {
+        await fetchClassDetails(selectedClass.id)
+      }
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Lab filtering and sorting logic
+  const filteredLabs = labs.filter(lab => {
+    const matchesSearch = lab.title.toLowerCase().includes(labSearchQuery.toLowerCase()) || 
+                          (lab.description && lab.description.toLowerCase().includes(labSearchQuery.toLowerCase()))
+    
+    const matchesClass = labClassFilter === '' ? true : lab.class_id === parseInt(labClassFilter)
+    
+    const matchesStatus = labStatusFilter === 'all' ? true : 
+                          labStatusFilter === 'active' ? lab.is_active : !lab.is_active
+                          
+    return matchesSearch && matchesClass && matchesStatus
+  }).sort((a, b) => {
+    if (labSortOrder === 'newest') {
+      return b.id - a.id
+    }
+    if (labSortOrder === 'deadline_asc') {
+      return new Date(a.deadline) - new Date(b.deadline)
+    }
+    if (labSortOrder === 'deadline_desc') {
+      return new Date(b.deadline) - new Date(a.deadline)
+    }
+    if (labSortOrder === 'title_asc') {
+      return a.title.localeCompare(b.title)
+    }
+    return 0
+  })
+
   return (
     <div>
       {/* Dynamic Alerts */}
@@ -415,6 +629,37 @@ export default function InstructorDashboard() {
         <div className="plag-alert-banner" style={{ marginBottom: '20px' }}>
           <ShieldAlert size={18} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Tab Navigation (Only shown if not in Speed Grader/grading view) */}
+      {viewState !== 'grading' && (
+        <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '1px', marginBottom: '24px' }}>
+          <button 
+            onClick={() => setViewState('dashboard')} 
+            className={`btn ${viewState === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+          >
+            <BookOpen size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+            Danh sách bài Lab
+          </button>
+          <button 
+            onClick={() => setViewState('classes')} 
+            className={`btn ${viewState === 'classes' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+          >
+            <School size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+            Quản lý Lớp & Sinh viên
+          </button>
+          
+          <button 
+            onClick={fetchData} 
+            className="btn btn-secondary" 
+            style={{ marginLeft: 'auto', padding: '8px 12px' }}
+            title="Làm mới dữ liệu"
+          >
+            <RefreshCw size={16} />
+          </button>
         </div>
       )}
 
@@ -436,6 +681,61 @@ export default function InstructorDashboard() {
             <h3 style={{ fontSize: '18px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
               Danh sách bài Lab giảng dạy
             </h3>
+
+            {/* Search & Filters */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.1)', borderRadius: '8px', border: '1px solid var(--border-color)', alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ paddingLeft: '36px', margin: 0 }}
+                  placeholder="Tìm kiếm theo tiêu đề hoặc mô tả..."
+                  value={labSearchQuery}
+                  onChange={(e) => setLabSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {/* Lớp học phần Filter */}
+                <select 
+                  className="form-select" 
+                  style={{ width: '180px', margin: 0 }}
+                  value={labClassFilter}
+                  onChange={(e) => setLabClassFilter(e.target.value)}
+                >
+                  <option value="">Tất cả Lớp học</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+
+                {/* Trạng thái Filter */}
+                <select 
+                  className="form-select" 
+                  style={{ width: '160px', margin: 0 }}
+                  value={labStatusFilter}
+                  onChange={(e) => setLabStatusFilter(e.target.value)}
+                >
+                  <option value="all">Tất cả Trạng thái</option>
+                  <option value="active">Đang mở (Active)</option>
+                  <option value="inactive">Đã đóng (Inactive)</option>
+                </select>
+
+                {/* Sắp xếp Sort */}
+                <select 
+                  className="form-select" 
+                  style={{ width: '180px', margin: 0 }}
+                  value={labSortOrder}
+                  onChange={(e) => setLabSortOrder(e.target.value)}
+                >
+                  <option value="newest">Mới nhất</option>
+                  <option value="deadline_asc">Hạn nộp tăng dần</option>
+                  <option value="deadline_desc">Hạn nộp giảm dần</option>
+                  <option value="title_asc">Tiêu đề A-Z</option>
+                </select>
+              </div>
+            </div>
             
             <div className="table-container" style={{ margin: 0 }}>
               <table className="cyber-table">
@@ -450,7 +750,7 @@ export default function InstructorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {labs.map(lab => {
+                  {filteredLabs.map(lab => {
                     const cls = classes.find(c => c.id === lab.class_id)
                     return (
                       <tr key={lab.id}>
@@ -486,6 +786,237 @@ export default function InstructorDashboard() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* VIEW 3: CLASS & STUDENT MANAGEMENT */}
+      {viewState === 'classes' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '35% 65%', gap: '20px' }}>
+          
+          {/* Left Side: Classes List */}
+          <div className="cyber-card">
+            <h3 style={{ fontSize: '18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <School size={18} style={{ color: 'var(--neon-cyan)' }} />
+              Các lớp học phụ trách
+            </h3>
+            
+            <div className="table-container" style={{ margin: 0 }}>
+              <table className="cyber-table">
+                <thead>
+                  <tr>
+                    <th>Tên Lớp</th>
+                    <th>Mô tả</th>
+                    <th style={{ textAlign: 'right' }}>Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes.map(c => (
+                    <tr 
+                      key={c.id} 
+                      onClick={() => fetchClassDetails(c.id)}
+                      style={{ cursor: 'pointer', background: selectedClass?.id === c.id ? 'rgba(242, 112, 36, 0.05)' : '' }}
+                    >
+                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{c.name}</td>
+                      <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="badge badge-submitted">SV &rarr;</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {classes.length === 0 && (
+                    <tr>
+                      <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bạn chưa được phân công quản lý lớp học phần nào.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right Side: Selected Class Details & Students List */}
+          <div className="cyber-card">
+            {selectedClass ? (
+              <div>
+                <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    Lớp: {selectedClass.name}
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px' }}>
+                    {selectedClass.description}
+                  </p>
+                </div>
+
+                {/* Grid for student assignment */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                  
+                  {/* Option 1: Search & Assign Student */}
+                  <div style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
+                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Search size={14} />
+                      Tìm & Thêm sinh viên vào lớp
+                    </h4>
+                    
+                    <div style={{ position: 'relative', marginBottom: '10px' }}>
+                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        style={{ paddingLeft: '32px', margin: 0, fontSize: '12.5px' }}
+                        placeholder="Gõ tên hoặc MSSV để tìm..."
+                        value={studentSearchQuery}
+                        onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    
+                    {/* Search Results list */}
+                    <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', padding: '6px' }}>
+                      {(() => {
+                        const existingStudentIds = new Set((selectedClass.users || []).map(u => u.id))
+                        const filteredDbStudents = allStudents.filter(s => {
+                          const matchesQuery = s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()) || 
+                                               s.username.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                          const notInClass = !existingStudentIds.has(s.id)
+                          return matchesQuery && notInClass
+                        })
+
+                        if (studentSearchQuery.length < 1) {
+                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Nhập từ khóa để tìm sinh viên...</div>
+                        }
+
+                        if (filteredDbStudents.length === 0) {
+                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Không tìm thấy sinh viên nào hoặc sinh viên đã thuộc lớp này.</div>
+                        }
+
+                        return filteredDbStudents.map(student => (
+                          <div 
+                            key={student.id} 
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: '13px' }}
+                          >
+                            <div>
+                              <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{student.full_name}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: '6px', fontFamily: 'var(--font-mono)' }}>({student.username})</span>
+                            </div>
+                            <button 
+                              type="button" 
+                              onClick={() => handleAssignSingleStudent(student.id)} 
+                              className="btn btn-primary" 
+                              style={{ padding: '2px 8px', fontSize: '11px' }}
+                            >
+                              Thêm
+                            </button>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Option 2: Bulk Assign by ID */}
+                  <form onSubmit={handleAssignStudentsBulk} style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
+                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={14} />
+                      Thêm hàng loạt bằng mã ID
+                    </h4>
+                    <div className="form-group" style={{ flex: 1, marginBottom: '12px' }}>
+                      <label className="form-label" style={{ fontSize: '12px' }}>Nhập mã ID các Sinh viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        style={{ fontSize: '12.5px' }}
+                        placeholder="Ví dụ: 3, 14, 25"
+                        value={studentIdsInput}
+                        onChange={(e) => setStudentIdsInput(e.target.value)}
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-success" style={{ width: '100%', padding: '8px 16px', fontSize: '13px' }} disabled={actionLoading}>
+                      {actionLoading ? 'Đang thêm...' : 'XÁC NHẬN GÁN SINH VIÊN'}
+                    </button>
+                  </form>
+
+                </div>
+
+                {/* Students List in the class */}
+                {(() => {
+                  const classStudents = (selectedClass.users || []).filter(u => u.role === 'student')
+                  
+                  return (
+                    <div>
+                      <h4 style={{ fontSize: '16px', marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Users size={16} />
+                        Danh sách sinh viên trong lớp ({classStudents.length} sinh viên)
+                      </h4>
+                      <div className="table-container" style={{ margin: 0, maxHeight: '350px', overflowY: 'auto' }}>
+                        <table className="cyber-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>MSSV</th>
+                              <th>Họ và Tên</th>
+                              <th>Email</th>
+                              <th>Trạng thái</th>
+                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classStudents.length > 0 ? (
+                              classStudents.map(student => (
+                                <tr key={student.id}>
+                                  <td>{student.id}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{student.username}</td>
+                                  <td style={{ fontWeight: '500' }}>{student.full_name}</td>
+                                  <td>{student.email || '—'}</td>
+                                  <td>
+                                    <span style={{ 
+                                      color: student.is_active ? 'var(--neon-emerald)' : 'var(--neon-ruby)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontSize: '13px'
+                                    }}>
+                                      {student.is_active ? <Unlock size={14} /> : <Lock size={14} />}
+                                      {student.is_active ? 'Hoạt động' : 'Bị Khóa'}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <button 
+                                      onClick={() => handleOpenStudentModal(student)} 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '4px 8px', fontSize: '12px', marginRight: '6px' }}
+                                      title="Sửa thông tin"
+                                    >
+                                      <Edit2 size={12} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleRemoveStudentFromClass(student.id)} 
+                                      className="btn btn-danger" 
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                      title="Xóa khỏi lớp"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Lớp học phần hiện chưa có sinh viên nào.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+              </div>
+            ) : (
+              <div style={{ height: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '12px' }}>
+                <School size={48} style={{ opacity: 0.3, color: 'var(--neon-cyan)' }} />
+                <span>Chọn một lớp học phần ở bảng bên trái để xem danh sách sinh viên và quản lý lớp.</span>
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
@@ -1054,6 +1585,83 @@ export default function InstructorDashboard() {
                 <button type="button" onClick={() => setShowExtensionModal(false)} className="btn btn-secondary">ĐÓNG</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
                   {actionLoading ? 'ĐANG GIA HẠN...' : 'XÁC NHẬN GIA HẠN CÁ NHÂN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL STUDENT EDIT */}
+      {showStudentModal && editingStudent && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Sửa thông tin tài khoản Sinh viên</h3>
+              <button onClick={() => setShowStudentModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
+            </div>
+            <form onSubmit={handleSaveStudentEdit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Tên đăng nhập (MSSV) - Cố định</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    disabled
+                    value={editingStudent.username}
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Họ và Tên đầy đủ</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    required 
+                    placeholder="Ví dụ: Nguyễn Văn A"
+                    value={studentFullName}
+                    onChange={(e) => setStudentFullName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Địa chỉ Email</label>
+                  <input 
+                    type="email" 
+                    className="form-input" 
+                    placeholder="Ví dụ: student@example.com"
+                    value={studentEmail}
+                    onChange={(e) => setStudentEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Mật khẩu mới (Bỏ trống nếu không đổi)</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="Không đổi mật khẩu..."
+                    value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Trạng thái hoạt động</label>
+                  <select 
+                    className="form-select"
+                    value={studentIsActive ? "true" : "false"}
+                    onChange={(e) => setStudentIsActive(e.target.value === "true")}
+                  >
+                    <option value="true">Hoạt động (Unlock)</option>
+                    <option value="false">Khóa tài khoản (Lock)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowStudentModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="submit" className="btn btn-primary" disabled={actionLoading}>
+                  {actionLoading ? 'ĐANG LƯU...' : 'CẬP NHẬT TÀI KHOẢN'}
                 </button>
               </div>
             </form>

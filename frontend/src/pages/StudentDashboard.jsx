@@ -262,6 +262,11 @@ export default function StudentDashboard() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  // Search & Filter state for Labs
+  const [studentLabSearch, setStudentLabSearch] = useState('')
+  const [studentLabStatusFilter, setStudentLabStatusFilter] = useState('all') // 'all' | 'not_started' | 'draft' | 'resubmit'
+  const [studentLabSort, setStudentLabSort] = useState('deadline_asc') // 'deadline_asc' | 'deadline_desc' | 'title_asc'
+
   // VM Simulator state
   const [vmActive, setVmActive] = useState(true)
   const [vmOs, setVmOs] = useState('FLARE-VM [Windows Security] — RDP Connection Active')
@@ -590,6 +595,43 @@ export default function StudentDashboard() {
     return { text: `Còn ${text}`, isExpired: false }
   }
 
+  // Filter and sort active labs
+  const filteredActiveLabs = activeLabs.filter(lab => {
+    const matchesSearch = lab.title.toLowerCase().includes(studentLabSearch.toLowerCase()) || 
+                          (lab.description && lab.description.toLowerCase().includes(studentLabSearch.toLowerCase()))
+    
+    const sub = lab.submission
+    let matchesStatus = true
+    if (studentLabStatusFilter === 'not_started') {
+      matchesStatus = !sub
+    } else if (studentLabStatusFilter === 'draft') {
+      matchesStatus = sub && sub.status === 'draft'
+    } else if (studentLabStatusFilter === 'resubmit') {
+      matchesStatus = sub && sub.status === 're_submit_requested'
+    }
+    
+    return matchesSearch && matchesStatus
+  }).sort((a, b) => {
+    if (studentLabSort === 'deadline_asc') {
+      return new Date(a.deadline) - new Date(b.deadline)
+    }
+    if (studentLabSort === 'deadline_desc') {
+      return new Date(b.deadline) - new Date(a.deadline)
+    }
+    if (studentLabSort === 'title_asc') {
+      return a.title.localeCompare(b.title)
+    }
+    return 0
+  })
+
+  // Filter and sort graded labs
+  const filteredGradedLabs = gradedLabs.filter(lab => {
+    return lab.title.toLowerCase().includes(studentLabSearch.toLowerCase()) || 
+           (lab.description && lab.description.toLowerCase().includes(studentLabSearch.toLowerCase()))
+  }).sort((a, b) => {
+    return new Date(b.submission?.submitted_at) - new Date(a.submission?.submitted_at)
+  })
+
   return (
     <div>
       {/* Toast Alerts */}
@@ -615,6 +657,48 @@ export default function StudentDashboard() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Mã số Sinh viên: <b>{user.username}</b>{user.email && <> | Email: <b>{user.email}</b></>}. Hãy hoàn thành các bài thực hành phân tích mã độc trước thời hạn.</p>
           </div>
 
+          {/* Search and Filters Bar */}
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', padding: '16px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+              <Terminal size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--neon-cyan)' }} />
+              <input 
+                type="text" 
+                className="form-input" 
+                style={{ paddingLeft: '36px', margin: 0 }}
+                placeholder="Tìm kiếm bài Lab..."
+                value={studentLabSearch}
+                onChange={(e) => setStudentLabSearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Lọc trạng thái làm bài */}
+              <select 
+                className="form-select" 
+                style={{ width: '180px', margin: 0 }}
+                value={studentLabStatusFilter}
+                onChange={(e) => setStudentLabStatusFilter(e.target.value)}
+              >
+                <option value="all">Tất cả Trạng thái</option>
+                <option value="not_started">Chưa bắt đầu</option>
+                <option value="draft">Đang làm nháp</option>
+                <option value="resubmit">Cần làm lại (Re-submit)</option>
+              </select>
+
+              {/* Sắp xếp */}
+              <select 
+                className="form-select" 
+                style={{ width: '180px', margin: 0 }}
+                value={studentLabSort}
+                onChange={(e) => setStudentLabSort(e.target.value)}
+              >
+                <option value="deadline_asc">Hạn nộp tăng dần</option>
+                <option value="deadline_desc">Hạn nộp giảm dần</option>
+                <option value="title_asc">Tên bài Lab A-Z</option>
+              </select>
+            </div>
+          </div>
+
           {/* Active labs checklist */}
           <div className="cyber-card" style={{ marginBottom: '24px' }}>
             <h3 style={{ fontSize: '18px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -634,7 +718,7 @@ export default function StudentDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeLabs.map(lab => {
+                  {filteredActiveLabs.map(lab => {
                     const timer = getRemainingTime(lab)
                     const sub = lab.submission
                     const isExtension = (lab.individual_extensions || {})[user.username] !== undefined
@@ -682,9 +766,9 @@ export default function StudentDashboard() {
                       </tr>
                     )
                   })}
-                  {activeLabs.length === 0 && (
+                  {filteredActiveLabs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Tuyệt vời! Bạn không còn bài thực hành nào cần nộp.</td>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Không tìm thấy bài thực hành nào phù hợp.</td>
                     </tr>
                   )}
                 </tbody>
@@ -711,7 +795,7 @@ export default function StudentDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {gradedLabs.map(lab => {
+                  {filteredGradedLabs.map(lab => {
                     const sub = lab.submission
                     return (
                       <tr key={lab.id}>
@@ -736,9 +820,9 @@ export default function StudentDashboard() {
                       </tr>
                     )
                   })}
-                  {gradedLabs.length === 0 && (
+                  {filteredGradedLabs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài làm nào được chấm điểm.</td>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài làm nào được chấm điểm hoặc không tìm thấy bài phù hợp.</td>
                     </tr>
                   )}
                 </tbody>

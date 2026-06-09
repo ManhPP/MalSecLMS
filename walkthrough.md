@@ -26,7 +26,7 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
 | Tên đăng nhập | Mật khẩu | Địa chỉ Email | Vai trò (Role) | Chức năng kiểm thử chính |
 | :--- | :--- | :--- | :--- | :--- |
 | **`admin`** | `admin123` | `admin@malsec.local` | **Quản trị viên** | Quản lý người dùng, Gán lớp, Import CSV, Xem Audit Logs. |
-| **`lecturer`** | `lecturer123` | `lecturer@malsec.local` | **Giảng viên** | Tạo đề bài Lab động, Chấm điểm Speed Grader chia đôi, Gia hạn cá nhân, Tải Zip. |
+| **`lecturer`** | `lecturer123` | `lecturer@malsec.local` | **Giảng viên** | Quản lý Lớp & Sinh viên (thêm, sửa, xóa), Tìm kiếm & Lọc bài Lab, Tạo đề bài Lab động, Chấm điểm Speed Grader chia đôi, Gia hạn cá nhân, Tải Zip. |
 | **`sv01`** | `student123` | `sv01@malsec.local` | **Sinh viên 01** | Làm bài Split-Screen, Tải ảnh chứng cứ, Quét zip, Auto-save nháp. |
 | **`sv02`** | `student123` | `sv02@malsec.local` | **Sinh viên 02** | Nộp bài thực hành lớp AT16-Malware. |
 
@@ -48,10 +48,19 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
 
 ---
 
-### 👣 Bước 2: Giảng viên ra đề thực hành với Trình thiết kế Form động
+### 👣 Bước 2: Giảng viên quản lý lớp học, quản lý sinh viên & ra đề
 1. Đăng xuất tài khoản Admin, đăng nhập bằng tài khoản `lecturer` / `lecturer123`.
-2. **Danh sách bài Lab:** Quan sát bài Lab mẫu đã được seed sẵn: *"Lab 01: Phân tích Tĩnh Ransomware WannaCry"*.
-3. **Thiết kế bài Lab mới:** Nhấn nút **"Thiết kế bài Lab động mới"**.
+2. **Tìm kiếm & Lọc bài Lab:**
+   * Ngay tại trang chủ, giảng viên có thể nhập từ khóa để tìm kiếm bài Lab, hoặc sử dụng các dropdown lọc theo Lớp học phần, lọc theo Trạng thái (Đang mở / Đã đóng), và sắp xếp (Mới nhất, Hạn nộp tăng/giảm dần, Tiêu đề A-Z).
+3. **Quản lý Lớp & Sinh viên:**
+   * Nhấp chọn tab **"Quản lý Lớp & Sinh viên"** trên thanh điều hướng.
+   * Chọn lớp `AT16-Malware` ở cột bên trái để tải thông tin lớp và danh sách sinh viên hiện tại trong lớp.
+   * **Thêm sinh viên:**
+     * *Cách 1:* Nhập từ khóa tên sinh viên hoặc MSSV vào ô *"Tìm & Thêm sinh viên vào lớp"*. Hệ thống sẽ hiển thị các tài khoản chưa có trong lớp, nhấp nút **"Thêm"** để gán nhanh vào lớp.
+     * *Cách 2:* Nhập chuỗi mã ID sinh viên cách nhau bằng dấu phẩy/khoảng trắng vào ô *"Thêm hàng loạt bằng mã ID"* và bấm xác nhận.
+   * **Sửa thông tin sinh viên:** Nhấn biểu tượng nút **Sửa** (Edit) trên dòng của sinh viên `sv01`. Tại modal hiện ra, giảng viên có thể thay đổi Họ và tên, Email, đặt Mật khẩu mới, hoặc khóa/mở khóa Trạng thái hoạt động của sinh viên này. Bấm lưu để cập nhật (giảng viên chỉ có quyền sửa thông tin sinh viên thuộc các lớp mình phụ trách).
+   * **Xóa sinh viên khỏi lớp:** Nhấn biểu tượng nút **Xóa** (Trash) để gỡ gán sinh viên ra khỏi lớp học phần.
+4. **Thiết kế bài Lab mới:** Nhấn nút **"Thiết kế bài Lab động mới"**.
    * Nhập tiêu đề bài Lab (ví dụ: `Lab 02: Phân tích hành vi Trojan.Win32`).
    * Chọn lớp nhận bài: `AT16-Malware`.
    * Thiết lập hạn nộp (Deadline) và chính sách nộp muộn (Ví dụ: Phạt 0.5% mỗi giờ nộp muộn).
@@ -67,7 +76,10 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
 
 ### 👣 Bước 3: Sinh viên làm bài Split-Screen & Trình soạn thảo Markdown
 1. Đăng xuất, đăng nhập bằng tài khoản sinh viên `sv01` / `student123`.
-2. **Dashboard Sinh viên:** Bạn sẽ thấy danh sách bài Lab 01 đang mở cần làm, kèm theo đồng hồ đếm ngược động màu cam hiển thị chính xác thời gian còn lại (kể cả thời hạn gia hạn cá nhân nếu được gán).
+2. **Dashboard Sinh viên & Bộ lọc bài Lab:**
+   * Tại trang chủ, sinh viên quan sát thấy thanh công cụ tìm kiếm và lọc bài Lab ở trên cùng.
+   * Sinh viên có thể tìm bài Lab theo tiêu đề, lọc theo trạng thái làm bài (Chưa bắt đầu, Đang viết nháp, Cần làm lại) và sắp xếp theo Hạn nộp/Tiêu đề.
+   * Bạn sẽ thấy danh sách bài Lab 01 đang mở cần làm, kèm theo đồng hồ đếm ngược động màu cam hiển thị chính xác thời gian còn lại (kể cả thời hạn gia hạn cá nhân nếu được gán).
 3. **Màn hình làm bài Split-Screen:** Nhấn "Làm bài" tại bài Lab 01:
    * **Bên trái (65%):** Giao diện cổng máy ảo Apache Guacamole kết nối trực tuyến tới FLARE-VM/REMnux. Thử bấm nút **"Rollback VM sạch (PBS)"** để phục hồi máy ảo ban đầu qua Proxmox Backup Server, hoặc bấm "Đổi máy ảo" để chuyển hệ điều hành.
    * **Bên phải (35%):** Form điền báo cáo động được dựng chính xác theo cấu hình bài Lab.

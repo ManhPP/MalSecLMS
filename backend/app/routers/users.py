@@ -2,18 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import User, AuditLog
+from app.models import User, Class, AuditLog
 from app.schemas import UserOut, UserCreate, UserUpdate
-from app.security import require_admin, get_current_user, get_password_hash
+from app.security import require_admin, require_lecturer, get_current_user, get_password_hash
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/", response_model=List[UserOut])
 def get_users(
     db: Session = Depends(get_db), 
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_lecturer)
 ):
-    """API Lấy toàn bộ danh sách tài khoản (Chỉ Admin)"""
+    """API Lấy danh sách tài khoản (Admin lấy tất cả, Giảng viên chỉ lấy Sinh viên)"""
+    if current_user.role == "lecturer":
+        return db.query(User).filter(User.role == "student").order_by(User.id.desc()).all()
     return db.query(User).order_by(User.id.desc()).all()
 
 @router.get("/{user_id}", response_model=UserOut)
@@ -70,16 +72,29 @@ def update_user(
     user_id: int, 
     user_data: UserUpdate, 
     db: Session = Depends(get_db), 
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_lecturer)
 ):
-    """API Cập nhật thông tin tài khoản (Chỉ Admin)"""
+    """API Cập nhật thông tin tài khoản (Admin hoặc Giảng viên quản lý lớp của sinh viên)"""
+    if current_user.role == "lecturer":
+        # Xác thực xem người dùng cần sửa có phải student không
+        student = db.query(User).filter(User.id == user_id, User.role == "student").first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Không tìm thấy sinh viên")
+        # Xác thực xem student có thuộc lớp giảng viên này quản lý không
+        belongs = db.query(Class).filter(
+            Class.users.any(id=current_user.id),
+            Class.users.any(id=student.id)
+        ).first()
+        if not belongs:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần của sinh viên này")
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
         
     if user_data.full_name is not None:
         user.full_name = user_data.full_name
-    if user_data.role is not None:
+    if current_user.role == "admin" and user_data.role is not None:
         user.role = user_data.role
     if user_data.email is not None:
         user.email = user_data.email
