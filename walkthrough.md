@@ -82,8 +82,13 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
    * **Ảnh chụp màn hình:** Tải lên file ảnh `.png`. Backend tự động làm sạch metadata (EXIF) để bảo vệ an toàn.
    * **File mã hóa zip:** Tải lên file `.zip` chứa log. Thử đặt mật khẩu sai cho file zip, hệ thống sẽ từ chối tải lên và yêu cầu đổi về mật khẩu `infected`. Hệ thống cũng sẽ chặn đứng và xóa file lập tức nếu phát hiện file nguy hại dạng `.exe` bên trong.
 8. Nhấn **"Nộp báo cáo chính thức"** và xác nhận.
+9. **Xem lại bài làm đã chấm:** Sau khi Giảng viên chấm điểm bài làm của sinh viên, bài Lab đó sẽ được chuyển xuống phần **"Lịch sử & Kết quả chấm điểm bài Lab"**. Sinh viên có thể click vào nút **"Xem lại bài"** để:
+   * Xem điểm số trực quan nhận được và ý kiến nhận xét chi tiết của Giảng viên (tránh lỗi crash hiển thị do thiếu import Icon `Award`).
+   * Xem lại toàn bộ câu trả lời, checkbox và báo cáo tự luận Markdown đã nộp.
+   * Xem và tải trực tiếp các tệp chứng cứ đã tải lên một cách an toàn bằng cách click vào tên tệp tin tương ứng.
 
 ---
+
 
 ### 👣 Bước 4: Giảng viên chấm bài Speed Grader giàu định dạng
 1. Đăng xuất, đăng nhập lại bằng tài khoản giảng viên `lecturer` / `lecturer123`.

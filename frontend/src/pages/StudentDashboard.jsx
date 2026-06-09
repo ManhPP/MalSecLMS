@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { 
-  BookOpen, Terminal, Clock, FileCheck, CheckCircle2, 
+  BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle 
 } from 'lucide-react'
 import { useAuth } from '../App.jsx'
@@ -595,7 +595,7 @@ export default function StudentDashboard() {
       {/* Toast Alerts */}
       {success && (
         <div className="plag-alert-banner" style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--neon-emerald)', color: 'var(--neon-emerald)', marginBottom: '20px' }}>
-          <CheckCircle2 size={18} />
+          <CheckCircle size={18} />
           <span>{success}</span>
         </div>
       )}
@@ -1013,7 +1013,15 @@ export default function StudentDashboard() {
                         {attachment ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
                             <span style={{ color: 'var(--neon-cyan)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <CheckCircle2 size={15} /> {attachment.original_filename}
+                              <CheckCircle size={15} />
+                              <a 
+                                href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: 'var(--neon-cyan)', textDecoration: 'underline' }}
+                              >
+                                {attachment.original_filename}
+                              </a>
                             </span>
                             {!isReadOnly && (
                               <label style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px' }}>
