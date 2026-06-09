@@ -621,10 +621,10 @@ export default function InstructorDashboard() {
                                 {attachment.original_filename.split('.').pop().toLowerCase() in {png:1, jpg:1, jpeg:1} ? (
                                   <div style={{ background: '#000', padding: '10px', borderRadius: '8px', display: 'inline-block', maxWidth: '100%' }}>
                                     <img 
-                                      src={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}`} 
+                                      src={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`} 
                                       alt="Screenshot" 
                                       style={{ maxWidth: '100%', maxHeight: '350px', borderRadius: '4px', border: '1px solid #374151', cursor: 'zoom-in' }} 
-                                      onClick={() => window.open(`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}`, '_blank')}
+                                      onClick={() => window.open(`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`, '_blank')}
                                     />
                                   </div>
                                 ) : attachment.original_filename.endsWith('.zip') ? (
@@ -648,7 +648,7 @@ export default function InstructorDashboard() {
                                   </div>
                                 ) : (
                                   <a 
-                                    href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true`} 
+                                    href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
                                     className="btn btn-secondary" 
                                     style={{ padding: '6px 12px', fontSize: '12.5px' }}
                                     target="_blank" 

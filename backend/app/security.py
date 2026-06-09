@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.config import settings
@@ -83,3 +83,57 @@ require_admin = RoleChecker(["admin"])
 require_lecturer = RoleChecker(["lecturer", "admin"])
 require_student = RoleChecker(["student"])
 require_any_user = RoleChecker(["admin", "lecturer", "student"])
+
+def get_current_user_flexible(request: Request, db: Session = Depends(get_db)) -> User:
+    """Dependency lấy thông tin User hiện tại từ JWT Token (từ Header hoặc Query Parameter)"""
+    authorization: str = request.headers.get("Authorization")
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    else:
+        token = request.query_params.get("token")
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Không thể xác thực thông tin đăng nhập",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not token:
+        raise credentials_exception
+
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            raise credentials_exception
+        token_data = TokenData(username=username, role=role)
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.username == token_data.username).first()
+    if user is None:
+        raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tài khoản đã bị khóa"
+        )
+    return user
+
+class FlexibleRoleChecker:
+    """Helper class để kiểm tra vai trò người dùng (RBAC) với phương thức xác thực linh hoạt"""
+    def __init__(self, allowed_roles: list):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, current_user: User = Depends(get_current_user_flexible)) -> User:
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền thực hiện hành động này"
+            )
+        return current_user
+
+require_lecturer_flexible = FlexibleRoleChecker(["lecturer", "admin"])
+require_any_user_flexible = FlexibleRoleChecker(["admin", "lecturer", "student"])
+

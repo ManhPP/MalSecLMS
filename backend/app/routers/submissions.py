@@ -5,15 +5,20 @@ import shutil
 from io import BytesIO, StringIO
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from app.database import get_db
 from app.models import Lab, User, Submission, AuditLog, Class
 from app.schemas import SubmissionOut, GradeSubmissionSchema
-from app.security import require_student, require_lecturer, get_current_user, require_any_user
+from app.security import (
+    require_student, require_lecturer, get_current_user, require_any_user,
+    require_any_user_flexible, require_lecturer_flexible
+)
 from app.services.file_service import FileService
 from app.services.plagiarism import PlagiarismService
+from app.config import settings
+
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
 
@@ -272,7 +277,7 @@ def grade_submission(
 def export_grades_csv(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_lecturer)
+    current_user: User = Depends(require_lecturer_flexible)
 ):
     """API Xuất bảng điểm lớp học ra file CSV theo chuẩn định dạng Phòng đào tạo"""
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
@@ -317,7 +322,7 @@ def export_grades_csv(
 def bulk_download_submissions(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_lecturer)
+    current_user: User = Depends(require_lecturer_flexible)
 ):
     """API Tải về toàn bộ bài nộp của cả lớp được đóng gói trong một file .zip duy nhất (Minh chứng đào tạo)"""
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
@@ -378,3 +383,66 @@ def bulk_download_submissions(
     db.commit()
     
     return response
+
+@router.get("/file")
+def get_submission_file(
+    path: str,
+    download: bool = False,
+    current_user: User = Depends(require_any_user_flexible),
+    db: Session = Depends(get_db)
+):
+    """API để xem hoặc tải tệp đính kèm (Yêu cầu đăng nhập, chống Path Traversal)"""
+    # 1. Ngăn chặn Path Traversal
+    normalized_path = os.path.abspath(path)
+    normalized_upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    
+    if not normalized_path.startswith(normalized_upload_dir):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Truy cập bị từ chối: Đường dẫn không hợp lệ"
+        )
+        
+    # 2. Kiểm tra sự tồn tại của tệp
+    if not os.path.exists(normalized_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tệp tin không tồn tại trên hệ thống"
+        )
+        
+    # 3. Phân quyền truy cập tệp cho Sinh viên (Sinh viên chỉ được xem tệp của chính mình)
+    if current_user.role == "student":
+        student_subs = db.query(Submission).filter(Submission.student_id == current_user.id).all()
+        allowed = False
+        for sub in student_subs:
+            attachments = sub.file_attachments or []
+            if any(att.get("filepath") == path for att in attachments):
+                allowed = True
+                break
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền truy cập tệp tin này"
+            )
+
+    # 4. Phục vụ tệp
+    filename = os.path.basename(normalized_path)
+    # Nếu là download, gửi kèm header Content-Disposition
+    if download:
+        return FileResponse(
+            path=normalized_path,
+            filename=filename,
+            media_type="application/octet-stream"
+        )
+        
+    # Xác định media type cơ bản cho hiển thị ảnh
+    ext = filename.split('.')[-1].lower() if '.' in filename else ''
+    media_type = "application/octet-stream"
+    if ext in ['png', 'jpg', 'jpeg']:
+        media_type = f"image/{'jpeg' if ext == 'jpg' else ext}"
+    elif ext == 'pdf':
+        media_type = "application/pdf"
+    elif ext in ['txt', 'log']:
+        media_type = "text/plain"
+        
+    return FileResponse(path=normalized_path, media_type=media_type)
+
