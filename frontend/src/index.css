@@ -1,20 +1,20 @@
 /* --- MALSEC LMS DESIGN SYSTEM (DEEP SPACE CYBERPUNK) --- */
 
 :root {
-  /* Bảng màu chính HSL & Hex */
-  --bg-deep: #080c15;
-  --bg-dark: #0d1321;
-  --bg-card: rgba(17, 24, 39, 0.7);
-  --bg-card-solid: #111827;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(0, 242, 254, 0.2);
+  /* Bảng màu chính (Theme Trắng-Cam FPT University) */
+  --bg-deep: #f3f4f6; /* Nền xám nhạt nhẹ nhàng */
+  --bg-dark: #ffffff; /* Nền trắng sạch sẽ */
+  --bg-card: #ffffff;
+  --bg-card-solid: #ffffff;
+  --border-color: #e5e7eb; /* Đường viền xám nhạt */
+  --border-glow: rgba(242, 112, 36, 0.25); /* Glow màu cam ấm */
 
-  /* Neon Accents */
-  --neon-cyan: #00f2fe;
-  --neon-blue: #3b82f6;
-  --neon-ruby: #ff0844;
-  --neon-emerald: #10b981;
-  --neon-amber: #f59e0b;
+  /* Cam và các màu điểm nhấn */
+  --neon-cyan: #F27024; /* Cam FPT */
+  --neon-blue: #2563eb; /* Xanh dương đậm */
+  --neon-ruby: #dc2626; /* Đỏ đậm cho lỗi/nguy hiểm */
+  --neon-emerald: #10b981; /* Xanh lá cho thành công */
+  --neon-amber: #d97706; /* Vàng hổ phách */
 
   /* Typography */
   --font-title: 'Outfit', 'Segoe UI', sans-serif;
@@ -22,9 +22,9 @@
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
   /* Text Colors */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #1f2937; /* Chữ tối chính */
+  --text-secondary: #4b5563; /* Chữ xám */
+  --text-muted: #9ca3af; /* Chữ nhạt */
 }
 
 * {
@@ -59,8 +59,8 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(0, 242, 254, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(255, 8, 68, 0.03) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(242, 112, 36, 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.02) 0px, transparent 50%);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -87,23 +87,22 @@ h1, h2, h3, h4, h5, h6 {
 /* Glassmorphism Cards */
 .cyber-card {
   background: var(--bg-card);
-  backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cyber-card.glow:hover {
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 15px rgba(0, 242, 254, 0.15);
+  box-shadow: 0 10px 20px rgba(242, 112, 36, 0.08);
   transform: translateY(-2px);
 }
 
 .cyber-card.glow-ruby:hover {
   border-color: var(--neon-ruby);
-  box-shadow: 0 0 15px rgba(255, 8, 68, 0.15);
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.08);
   transform: translateY(-2px);
 }
 
@@ -123,7 +122,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .form-input, .form-textarea, .form-select {
   width: 100%;
-  background: rgba(13, 19, 33, 0.8);
+  background: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
@@ -136,7 +135,7 @@ h1, h2, h3, h4, h5, h6 {
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   outline: none;
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(0, 242, 254, 0.2);
+  box-shadow: 0 0 8px rgba(242, 112, 36, 0.2);
 }
 
 .form-input::placeholder, .form-textarea::placeholder {
@@ -151,8 +150,9 @@ h1, h2, h3, h4, h5, h6 {
 .form-textarea.code-font {
   font-family: var(--font-mono);
   font-size: 13.5px;
-  background-color: #05080f;
-  border-color: rgba(0, 242, 254, 0.15);
+  background-color: #f8fafc;
+  border-color: var(--border-color);
+  color: #0f172a;
 }
 
 /* Buttons */
@@ -172,47 +172,51 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #00f2fe, #4facfe);
-  color: #080c15;
+  background: linear-gradient(135deg, #F27024, #ff8c42);
+  color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+  box-shadow: 0 4px 12px rgba(242, 112, 36, 0.2);
 }
 
 .btn-primary:hover:not(:disabled) {
   opacity: 0.95;
-  box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+  box-shadow: 0 6px 16px rgba(242, 112, 36, 0.35);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: transparent;
+  background: #ffffff;
   border-color: var(--border-color);
   color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: #f3f4f6;
   border-color: var(--text-secondary);
 }
 
 .btn-danger {
   background: var(--neon-ruby);
   color: white;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #e10037;
-  box-shadow: 0 0 15px rgba(255, 8, 68, 0.35);
+  background: #b91c1c;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
 }
 
 .btn-success {
   background: var(--neon-emerald);
-  color: #080c15;
+  color: white;
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #0ea672;
+  background: #059669;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
 }
 
 .btn:disabled {
@@ -222,9 +226,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Headers & Navigation */
 .cyber-header {
-  background: rgba(8, 12, 21, 0.85);
-  backdrop-filter: blur(12px);
+  background: #ffffff;
   border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   padding: 16px 24px;
   position: sticky;
   top: 0;
@@ -245,16 +249,16 @@ h1, h2, h3, h4, h5, h6 {
   gap: 10px;
   font-size: 20px;
   font-weight: 700;
-  color: white;
+  color: var(--neon-cyan);
   text-decoration: none;
-  background: linear-gradient(135deg, #fff, #a5f3fc);
+  background: linear-gradient(135deg, #F27024, #ff8c42);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .brand-icon {
   color: var(--neon-cyan);
-  filter: drop-shadow(0 0 5px rgba(0, 242, 254, 0.6));
+  filter: drop-shadow(0 2px 4px rgba(242, 112, 36, 0.2));
 }
 
 .nav-links {
@@ -288,8 +292,8 @@ h1, h2, h3, h4, h5, h6 {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #00f2fe);
-  color: #080c15;
+  background: linear-gradient(135deg, #F27024, #ff8c42);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -327,27 +331,27 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .badge-draft {
-  background: rgba(148, 163, 184, 0.1);
-  border-color: rgba(148, 163, 184, 0.2);
-  color: var(--text-secondary);
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #4b5563;
 }
 
 .badge-submitted {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #2563eb;
 }
 
 .badge-graded {
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(16, 185, 129, 0.08);
   border-color: rgba(16, 185, 129, 0.2);
-  color: #34d399;
+  color: #059669;
 }
 
 .badge-resubmit {
-  background: rgba(255, 8, 68, 0.1);
-  border-color: rgba(255, 8, 68, 0.2);
-  color: var(--neon-ruby);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.2);
+  color: #dc2626;
 }
 
 /* Table Style */
@@ -366,7 +370,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .cyber-table th {
-  background: rgba(13, 19, 33, 0.6);
+  background: #f9fafb;
   padding: 14px 16px;
   font-family: var(--font-title);
   color: var(--text-secondary);
@@ -391,8 +395,8 @@ h1, h2, h3, h4, h5, h6 {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(5, 8, 15, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -402,13 +406,13 @@ h1, h2, h3, h4, h5, h6 {
 
 .modal-content {
   background: var(--bg-card-solid);
-  border: 1px solid var(--border-glow);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 0 30px rgba(0, 242, 254, 0.15);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .modal-header {
@@ -459,7 +463,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  background: rgba(13, 19, 33, 0.6);
+  background: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 20px;

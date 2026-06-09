@@ -145,9 +145,9 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
   };
 
   return (
-    <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', background: '#05080f' }}>
+    <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg-dark)' }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(13, 19, 33, 0.8)', borderBottom: '1px solid var(--border-color)', padding: '6px 12px', flexWrap: 'wrap', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-deep)', borderBottom: '1px solid var(--border-color)', padding: '6px 12px', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <button 
             type="button" 
@@ -202,7 +202,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             type="button" 
             onClick={() => setIsPreview(false)} 
             className="btn" 
-            style={{ padding: '4px 10px', fontSize: '11.5px', background: !isPreview ? 'var(--neon-cyan)' : 'transparent', color: !isPreview ? '#080c15' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
+            style={{ padding: '4px 10px', fontSize: '11.5px', background: !isPreview ? 'var(--neon-cyan)' : 'transparent', color: !isPreview ? '#ffffff' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
           >
             Viết bài
           </button>
@@ -210,7 +210,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             type="button" 
             onClick={() => setIsPreview(true)} 
             className="btn" 
-            style={{ padding: '4px 10px', fontSize: '11.5px', background: isPreview ? 'var(--neon-cyan)' : 'transparent', color: isPreview ? '#080c15' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
+            style={{ padding: '4px 10px', fontSize: '11.5px', background: isPreview ? 'var(--neon-cyan)' : 'transparent', color: isPreview ? '#ffffff' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
           >
             Xem trước
           </button>

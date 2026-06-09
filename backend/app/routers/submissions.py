@@ -311,8 +311,11 @@ def export_grades_csv(
             ])
 
     f.seek(0)
+    csv_content = f.getvalue()
+    csv_bytes = csv_content.encode("utf-8-sig")
+    
     response = StreamingResponse(
-        iter([f.getvalue()]),
+        iter([csv_bytes]),
         media_type="text/csv"
     )
     response.headers["Content-Disposition"] = f"attachment; filename=Bang_diem_lab_{lab_id}.csv"
