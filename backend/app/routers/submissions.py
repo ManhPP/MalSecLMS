@@ -229,6 +229,15 @@ def get_all_submissions_for_lab(
     current_user: User = Depends(require_lecturer)
 ):
     """API Lấy toàn bộ danh sách bài nộp của một bài lab (Giảng viên/Admin)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
+            
     return db.query(Submission).filter(Submission.lab_id == lab_id).order_by(Submission.submitted_at.desc()).all()
 
 @router.post("/{submission_id}/grade", response_model=SubmissionOut)
@@ -242,6 +251,14 @@ def grade_submission(
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài làm")
+
+    if current_user.role == "lecturer":
+        lab = db.query(Lab).filter(Lab.id == submission.lab_id).first()
+        if not lab:
+            raise HTTPException(status_code=404, detail="Không tìm thấy bài lab của bài nộp này")
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài nộp này")
 
     if grading.request_resubmit:
         submission.status = "re_submit_requested"
@@ -283,6 +300,11 @@ def export_grades_csv(
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
 
     submissions = db.query(Submission).filter(
         Submission.lab_id == lab_id,
@@ -331,6 +353,11 @@ def bulk_download_submissions(
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
 
     submissions = db.query(Submission).filter(
         Submission.lab_id == lab_id,
@@ -412,7 +439,7 @@ def get_submission_file(
             detail="Tệp tin không tồn tại trên hệ thống"
         )
         
-    # 3. Phân quyền truy cập tệp cho Sinh viên (Sinh viên chỉ được xem tệp của chính mình)
+    # 3. Phân quyền truy cập tệp
     if current_user.role == "student":
         student_subs = db.query(Submission).filter(Submission.student_id == current_user.id).all()
         allowed = False
@@ -425,6 +452,22 @@ def get_submission_file(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Bạn không có quyền truy cập tệp tin này"
+            )
+    elif current_user.role == "lecturer":
+        lecturer_class_ids = [c.id for c in current_user.classes]
+        allowed = False
+        all_subs = db.query(Submission).all()
+        for sub in all_subs:
+            attachments = sub.file_attachments or []
+            if any(att.get("filepath") == path for att in attachments):
+                lab = db.query(Lab).filter(Lab.id == sub.lab_id).first()
+                if lab and lab.class_id in lecturer_class_ids:
+                    allowed = True
+                    break
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không quản lý lớp học chứa bài nộp có tệp tin này"
             )
 
     # 4. Phục vụ tệp

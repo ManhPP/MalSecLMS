@@ -106,9 +106,10 @@ def seed_data():
             db.commit()
             db.refresh(class_at16)
 
-            # Gán sinh viên vào lớp
+            # Gán sinh viên và giảng viên vào lớp
             class_at16.users.append(student1)
             class_at16.users.append(student2)
+            class_at16.users.append(lecturer_user)
             db.commit()
 
             # 3. Tạo bài Lab mẫu kèm Thiết kế Form động hoàn chỉnh

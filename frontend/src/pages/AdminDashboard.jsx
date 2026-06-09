@@ -38,6 +38,7 @@ export default function AdminDashboard() {
   // Selected class detail for Student Assignment
   const [selectedClass, setSelectedClass] = useState(null)
   const [studentIdsInput, setStudentIdsInput] = useState('') // CSV string of IDs
+  const [lecturerIdsInput, setLecturerIdsInput] = useState('') // CSV string of lecturer IDs
 
   // Fetch initial data
   const fetchData = async () => {
@@ -253,6 +254,70 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       setError('Lỗi khi xóa sinh viên')
+    }
+  }
+
+  const handleAssignLecturers = async (e) => {
+    e.preventDefault()
+    if (!selectedClass || !lecturerIdsInput) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    const lecturer_ids = lecturerIdsInput
+      .split(/[\s,]+/)
+      .map(id => parseInt(id.trim()))
+      .filter(id => !isNaN(id))
+
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/lecturers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ lecturer_ids })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm giảng viên vào lớp')
+
+      setSuccess(data.message)
+      setLecturerIdsInput('')
+      
+      // Refresh selected class details
+      const detailRes = await fetch(`/api/classes/${selectedClass.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (detailRes.ok) setSelectedClass(await detailRes.json())
+      
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleRemoveLecturerFromClass = async (lecturerId) => {
+    if (!confirm('Bạn có chắc xóa giảng viên này khỏi lớp?')) return
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/lecturers/${lecturerId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        // Refresh selected class details
+        const detailRes = await fetch(`/api/classes/${selectedClass.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (detailRes.ok) setSelectedClass(await detailRes.json())
+        fetchData()
+      }
+    } catch (err) {
+      setError('Lỗi khi xóa giảng viên')
     }
   }
 
@@ -496,64 +561,132 @@ export default function AdminDashboard() {
                   {selectedClass.description}
                 </p>
 
-                {/* Form gán học sinh vào lớp */}
-                <form onSubmit={handleAssignStudents} style={{ marginBottom: '28px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán sinh viên vào lớp học phần</h4>
-                  <div className="form-group" style={{ marginBottom: '12px' }}>
-                    <label className="form-label">Nhập mã ID các Sinh viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Ví dụ: 3, 4, 15, 20"
-                      value={studentIdsInput}
-                      onChange={(e) => setStudentIdsInput(e.target.value)}
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-success" style={{ padding: '8px 16px' }} disabled={actionLoading}>
-                    {actionLoading ? 'ĐANG THÊM...' : 'XÁC NHẬN GÁN SINH VIÊN'}
-                  </button>
-                </form>
+                {(() => {
+                  const classStudents = (selectedClass.users || []).filter(u => u.role === 'student');
+                  const classLecturers = (selectedClass.users || []).filter(u => u.role === 'lecturer');
+                  
+                  return (
+                    <div>
+                      {/* Form gán giảng viên vào lớp */}
+                      <form onSubmit={handleAssignLecturers} style={{ marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán giảng viên quản lý lớp</h4>
+                        <div className="form-group" style={{ marginBottom: '12px' }}>
+                          <label className="form-label">Nhập mã ID các Giảng viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Ví dụ: 2, 5"
+                            value={lecturerIdsInput}
+                            onChange={(e) => setLecturerIdsInput(e.target.value)}
+                          />
+                        </div>
+                        <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px' }} disabled={actionLoading}>
+                          {actionLoading ? 'ĐANG GÁN...' : 'XÁC NHẬN GÁN GIẢNG VIÊN'}
+                        </button>
+                      </form>
 
-                {/* Danh sách sinh viên thuộc lớp */}
-                <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách sinh viên trong lớp ({selectedClass.users?.length || 0} SV)</h4>
-                <div className="table-container" style={{ margin: 0, maxHeight: '350px', overflowY: 'auto' }}>
-                  <table className="cyber-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Tên sinh viên (MSSV)</th>
-                        <th>Họ và Tên</th>
-                        <th>Email</th>
-                        <th style={{ textAlign: 'right' }}>Hành động</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedClass.users && selectedClass.users.length > 0 ? (
-                        selectedClass.users.map(student => (
-                          <tr key={student.id}>
-                            <td>{student.id}</td>
-                            <td style={{ fontFamily: 'var(--font-mono)' }}>{student.username}</td>
-                            <td style={{ fontWeight: '500' }}>{student.full_name}</td>
-                            <td>{student.email || '—'}</td>
-                            <td style={{ textAlign: 'right' }}>
-                              <button 
-                                onClick={() => handleRemoveStudentFromClass(student.id)} 
-                                className="btn btn-danger" 
-                                style={{ padding: '4px 8px', fontSize: '11px' }}
-                              >
-                                Xóa khỏi lớp
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có sinh viên nào trong lớp này.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      {/* Form gán học sinh vào lớp */}
+                      <form onSubmit={handleAssignStudents} style={{ marginBottom: '28px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán sinh viên vào lớp học phần</h4>
+                        <div className="form-group" style={{ marginBottom: '12px' }}>
+                          <label className="form-label">Nhập mã ID các Sinh viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Ví dụ: 3, 4, 15, 20"
+                            value={studentIdsInput}
+                            onChange={(e) => setStudentIdsInput(e.target.value)}
+                          />
+                        </div>
+                        <button type="submit" className="btn btn-success" style={{ padding: '8px 16px' }} disabled={actionLoading}>
+                          {actionLoading ? 'ĐANG THÊM...' : 'XÁC NHẬN GÁN SINH VIÊN'}
+                        </button>
+                      </form>
+
+                      {/* Danh sách giảng viên quản lý lớp */}
+                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách giảng viên phụ trách ({classLecturers.length} GV)</h4>
+                      <div className="table-container" style={{ margin: '0 0 28px 0', maxHeight: '200px', overflowY: 'auto' }}>
+                        <table className="cyber-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Tên đăng nhập</th>
+                              <th>Họ và Tên</th>
+                              <th>Email</th>
+                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classLecturers.length > 0 ? (
+                              classLecturers.map(lecturer => (
+                                <tr key={lecturer.id}>
+                                  <td>{lecturer.id}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{lecturer.username}</td>
+                                  <td style={{ fontWeight: '500' }}>{lecturer.full_name}</td>
+                                  <td>{lecturer.email || '—'}</td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <button 
+                                      onClick={() => handleRemoveLecturerFromClass(lecturer.id)} 
+                                      className="btn btn-danger" 
+                                      style={{ padding: '4px 8px', fontSize: '11px' }}
+                                    >
+                                      Xóa khỏi lớp
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có giảng viên nào phụ trách lớp này.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Danh sách sinh viên thuộc lớp */}
+                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách sinh viên trong lớp ({classStudents.length} SV)</h4>
+                      <div className="table-container" style={{ margin: 0, maxHeight: '350px', overflowY: 'auto' }}>
+                        <table className="cyber-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Tên sinh viên (MSSV)</th>
+                              <th>Họ và Tên</th>
+                              <th>Email</th>
+                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classStudents.length > 0 ? (
+                              classStudents.map(student => (
+                                <tr key={student.id}>
+                                  <td>{student.id}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{student.username}</td>
+                                  <td style={{ fontWeight: '500' }}>{student.full_name}</td>
+                                  <td>{student.email || '—'}</td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <button 
+                                      onClick={() => handleRemoveStudentFromClass(student.id)} 
+                                      className="btn btn-danger" 
+                                      style={{ padding: '4px 8px', fontSize: '11px' }}
+                                    >
+                                      Xóa khỏi lớp
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có sinh viên nào trong lớp này.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>

@@ -14,6 +14,8 @@ def get_classes(
     current_user: User = Depends(require_lecturer)
 ):
     """API Lấy danh sách lớp học phần (Giảng viên/Admin)"""
+    if current_user.role == "lecturer":
+        return db.query(Class).filter(Class.users.any(id=current_user.id)).order_by(Class.id.desc()).all()
     return db.query(Class).order_by(Class.id.desc()).all()
 
 @router.get("/{class_id}", response_model=ClassWithStudents)
@@ -26,6 +28,8 @@ def get_class(
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
     return class_
 
 @router.post("/", response_model=ClassOut, status_code=status.HTTP_201_CREATED)
@@ -104,6 +108,9 @@ def assign_students_to_class(
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
         
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
+        
     student_ids = payload.get("student_ids", [])
     students = db.query(User).filter(User.id.in_(student_ids), User.role == "student").all()
     
@@ -138,6 +145,9 @@ def remove_student_from_class(
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
         
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
+        
     student = db.query(User).filter(User.id == student_id, User.role == "student").first()
     if not student:
         raise HTTPException(status_code=404, detail="Không tìm thấy sinh viên")
@@ -147,3 +157,58 @@ def remove_student_from_class(
         db.commit()
         
     return {"message": "Đã xóa sinh viên khỏi lớp học phần"}
+
+@router.post("/{class_id}/lecturers", status_code=status.HTTP_200_OK)
+def assign_lecturers_to_class(
+    class_id: int,
+    payload: Dict[str, List[int]], # {"lecturer_ids": [1, 2]}
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Gán giảng viên quản lý lớp (Chỉ Admin)"""
+    class_ = db.query(Class).filter(Class.id == class_id).first()
+    if not class_:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        
+    lecturer_ids = payload.get("lecturer_ids", [])
+    lecturers = db.query(User).filter(User.id.in_(lecturer_ids), User.role == "lecturer").all()
+    
+    # Gán giảng viên vào lớp
+    for lecturer in lecturers:
+        if lecturer not in class_.users:
+            class_.users.append(lecturer)
+    db.commit()
+    
+    # Ghi log hoạt động
+    log = AuditLog(
+        user_id=current_user.id,
+        action="assign_lecturers",
+        target=f"Gán {len(lecturers)} giảng viên vào quản lý lớp {class_.name}",
+        ip_address="127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+    
+    return {"message": f"Đã gán {len(lecturers)} giảng viên vào quản lý lớp học phần"}
+
+@router.delete("/{class_id}/lecturers/{lecturer_id}", status_code=status.HTTP_200_OK)
+def remove_lecturer_from_class(
+    class_id: int,
+    lecturer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Xóa giảng viên khỏi lớp học phần (Chỉ Admin)"""
+    class_ = db.query(Class).filter(Class.id == class_id).first()
+    if not class_:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        
+    lecturer = db.query(User).filter(User.id == lecturer_id, User.role == "lecturer").first()
+    if not lecturer:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giảng viên")
+        
+    if lecturer in class_.users:
+        class_.users.remove(lecturer)
+        db.commit()
+        
+    return {"message": "Đã xóa giảng viên khỏi lớp học phần"}

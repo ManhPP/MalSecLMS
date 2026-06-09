@@ -14,6 +14,9 @@ def get_all_labs(
     current_user: User = Depends(require_lecturer)
 ):
     """API Lấy toàn bộ danh sách bài lab (Giảng viên/Admin)"""
+    if current_user.role == "lecturer":
+        class_ids = [c.id for c in current_user.classes]
+        return db.query(Lab).filter(Lab.class_id.in_(class_ids)).order_by(Lab.id.desc()).all()
     return db.query(Lab).order_by(Lab.id.desc()).all()
 
 @router.get("/class/{class_id}", response_model=List[LabOut])
@@ -23,7 +26,6 @@ def get_labs_by_class(
     current_user: User = Depends(require_any_user)
 ):
     """API Lấy danh sách bài lab theo lớp học phần"""
-    # Nếu là student, kiểm tra xem họ có thuộc lớp học đó hay không
     if current_user.role == "student":
         belongs = db.query(Class).filter(
             Class.id == class_id, 
@@ -31,8 +33,17 @@ def get_labs_by_class(
         ).first()
         if not belongs:
             raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần này")
-            
-    return db.query(Lab).filter(Lab.class_id == class_id, Lab.is_active == True).order_by(Lab.id.desc()).all()
+        return db.query(Lab).filter(Lab.class_id == class_id, Lab.is_active == True).order_by(Lab.id.desc()).all()
+    elif current_user.role == "lecturer":
+        belongs = db.query(Class).filter(
+            Class.id == class_id,
+            Class.users.any(id=current_user.id)
+        ).first()
+        if not belongs:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần này")
+        return db.query(Lab).filter(Lab.class_id == class_id).order_by(Lab.id.desc()).all()
+    else: # admin
+        return db.query(Lab).filter(Lab.class_id == class_id).order_by(Lab.id.desc()).all()
 
 @router.get("/student/active", response_model=List[LabOut])
 def get_active_student_labs(
@@ -82,6 +93,9 @@ def create_lab(
     if not class_exists:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học phần")
         
+    if current_user.role == "lecturer" and current_user not in class_exists.users:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền tạo bài lab cho lớp học phần này")
+        
     new_lab = Lab(
         title=lab_data.title,
         description=lab_data.description,
@@ -121,6 +135,11 @@ def update_lab(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
         
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
+            
     if lab_data.title is not None:
         lab.title = lab_data.title
     if lab_data.description is not None:
@@ -140,6 +159,8 @@ def update_lab(
         class_exists = db.query(Class).filter(Class.id == lab_data.class_id).first()
         if not class_exists:
             raise HTTPException(status_code=404, detail="Không tìm thấy lớp học phần")
+        if current_user.role == "lecturer" and current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần mới này")
         lab.class_id = lab_data.class_id
         
     db.commit()
@@ -157,6 +178,11 @@ def delete_lab(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
         
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
+            
     db.delete(lab)
     db.commit()
     return {"message": "Xóa bài lab thành công"}
@@ -173,6 +199,11 @@ def update_individual_extensions(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
         
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
+            
     # Cập nhật gia hạn cá nhân
     current_extensions = dict(lab.individual_extensions or {})
     for student_username, deadline_str in extensions.items():
