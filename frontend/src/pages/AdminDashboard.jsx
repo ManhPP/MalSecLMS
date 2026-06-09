@@ -484,7 +484,7 @@ export default function AdminDashboard() {
           <div className="cyber-card">
             {selectedClass ? (
               <div>
-                <h3 style={{ fontSize: '20px', color: 'white', marginBottom: '4px' }}>
+                <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
                   Lớp: {selectedClass.name}
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', marginBottom: '24px' }}>

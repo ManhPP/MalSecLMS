@@ -85,7 +85,7 @@ export default function Login() {
           }}>
             <Terminal size={32} />
           </div>
-          <h2 style={{ fontSize: '24px', color: '#fff', marginBottom: '6px' }}>MALSEC PORTAL</h2>
+          <h2 style={{ fontSize: '24px', color: 'var(--text-primary)', marginBottom: '6px' }}>MALSEC PORTAL</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px' }}>
             Hệ thống Quản lý Báo cáo Lab & Phân tích Mã độc
           </p>

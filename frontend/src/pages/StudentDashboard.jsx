@@ -67,11 +67,11 @@ const parseMarkdown = (text) => {
         {lines.map((line, lIdx) => {
           // Tiêu đề 3: ### Title
           if (line.startsWith('### ')) {
-            return <h4 key={lIdx} style={{ fontSize: '15px', color: 'white', marginTop: '16px', marginBottom: '8px', fontWeight: '600', borderLeft: '3px solid var(--neon-cyan)', paddingLeft: '8px', textAlign: 'left' }}>{line.slice(4)}</h4>;
+            return <h4 key={lIdx} style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '16px', marginBottom: '8px', fontWeight: '600', borderLeft: '3px solid var(--neon-cyan)', paddingLeft: '8px', textAlign: 'left' }}>{line.slice(4)}</h4>;
           }
           // Tiêu đề 2: ## Title
           if (line.startsWith('## ')) {
-            return <h3 key={lIdx} style={{ fontSize: '17px', color: 'white', marginTop: '18px', marginBottom: '10px', fontWeight: '600', textAlign: 'left' }}>{line.slice(3)}</h3>;
+            return <h3 key={lIdx} style={{ fontSize: '17px', color: 'var(--text-primary)', marginTop: '18px', marginBottom: '10px', fontWeight: '600', textAlign: 'left' }}>{line.slice(3)}</h3>;
           }
           
           // Danh mục: - Item hoặc * Item
@@ -611,7 +611,7 @@ export default function StudentDashboard() {
       {viewState === 'dashboard' && (
         <div>
           <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '24px', color: 'white' }}>Chào {user.full_name}!</h2>
+            <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Chào {user.full_name}!</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Mã số Sinh viên: <b>{user.username}</b>. Hãy hoàn thành các bài thực hành phân tích mã độc trước thời hạn.</p>
           </div>
 
@@ -757,7 +757,7 @@ export default function StudentDashboard() {
               &larr; Về Dashboard
             </button>
             <div>
-              <h3 style={{ fontSize: '18px', color: 'white' }}>{selectedLab.title}</h3>
+              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{selectedLab.title}</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>MSSV: {user.username} | Trạng thái: <b>{submissionStatus}</b></p>
             </div>
 
@@ -883,7 +883,7 @@ export default function StudentDashboard() {
             {/* Split Right (35%): Dynamic Report Submission Form */}
             <div className="split-right" style={{ height: '100%', overflowY: 'auto' }}>
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', color: 'white', marginBottom: '4px' }}>Phiếu làm báo cáo</h3>
+                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Phiếu làm báo cáo</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Điền câu trả lời và đính kèm tệp chứng cứ bên dưới.</p>
               </div>
 

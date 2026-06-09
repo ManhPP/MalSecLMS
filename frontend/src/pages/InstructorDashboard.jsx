@@ -63,10 +63,10 @@ const parseMarkdown = (text) => {
       <div key={index}>
         {lines.map((line, lIdx) => {
           if (line.startsWith('### ')) {
-            return <h4 key={lIdx} style={{ fontSize: '15px', color: 'white', marginTop: '16px', marginBottom: '8px', fontWeight: '600', borderLeft: '3px solid var(--neon-cyan)', paddingLeft: '8px', textAlign: 'left' }}>{line.slice(4)}</h4>;
+            return <h4 key={lIdx} style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '16px', marginBottom: '8px', fontWeight: '600', borderLeft: '3px solid var(--neon-cyan)', paddingLeft: '8px', textAlign: 'left' }}>{line.slice(4)}</h4>;
           }
           if (line.startsWith('## ')) {
-            return <h3 key={lIdx} style={{ fontSize: '17px', color: 'white', marginTop: '18px', marginBottom: '10px', fontWeight: '600', textAlign: 'left' }}>{line.slice(3)}</h3>;
+            return <h3 key={lIdx} style={{ fontSize: '17px', color: 'var(--text-primary)', marginTop: '18px', marginBottom: '10px', fontWeight: '600', textAlign: 'left' }}>{line.slice(3)}</h3>;
           }
           
           if (line.startsWith('- ') || line.startsWith('* ')) {
@@ -423,7 +423,7 @@ export default function InstructorDashboard() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '24px', color: 'white' }}>Chào thầy cô!</h2>
+              <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Chào thầy cô!</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Quản lý ra đề bài Lab động, chấm điểm Speed Grader và theo dõi tiến độ nộp bài.</p>
             </div>
             <button onClick={openCreateLabModal} className="btn btn-primary">
@@ -498,7 +498,7 @@ export default function InstructorDashboard() {
               <ArrowLeft size={16} /> Quay lại
             </button>
             <div>
-              <h2 style={{ fontSize: '20px', color: 'white' }}>{selectedLab.title}</h2>
+              <h2 style={{ fontSize: '20px', color: 'var(--text-primary)' }}>{selectedLab.title}</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Chấm bài báo cáo lớp thực hành</p>
             </div>
 
@@ -540,7 +540,7 @@ export default function InstructorDashboard() {
                   {/* Hiển thị chi tiết cảnh báo đạo văn */}
                   {activeSubmission.is_plagiarized && (
                     <div className="plag-alert-banner" style={{ display: 'block', padding: '16px' }}>
-                      <h4 style={{ fontWeight: '600', marginBottom: '8px', color: 'white' }}>Phát hiện nghi vấn trùng lặp nội dung:</h4>
+                      <h4 style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--neon-ruby)' }}>Phát hiện nghi vấn trùng lặp nội dung:</h4>
                       <ul style={{ paddingLeft: '16px', fontSize: '13px' }}>
                         {activeSubmission.plagiarism_details?.map((d, i) => (
                           <li key={i} style={{ marginBottom: '6px' }}>
@@ -558,7 +558,7 @@ export default function InstructorDashboard() {
 
                     return (
                       <div key={field.id} style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px dashed var(--border-color)' }}>
-                        <h4 style={{ fontSize: '15px', color: '#fff', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {field.type === 'text' && <FileText size={16} style={{ color: 'var(--neon-blue)' }} />}
                           {field.type === 'select' && <BookOpen size={16} style={{ color: 'var(--neon-emerald)' }} />}
                           {field.type === 'checkbox' && <CheckSquare size={16} style={{ color: 'var(--neon-emerald)' }} />}
@@ -672,7 +672,7 @@ export default function InstructorDashboard() {
               {/* Right Screen (35%): Score panel & Nav */}
               <div className="split-right">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '18px', color: 'white' }}>Bảng điểm và Đánh giá</h3>
+                  <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>Bảng điểm và Đánh giá</h3>
                   <button onClick={() => { setActiveSubmission(null); setActiveSubIndex(-1); }} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
                     Đóng Split
                   </button>
