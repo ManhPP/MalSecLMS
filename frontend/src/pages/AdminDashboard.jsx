@@ -749,7 +749,7 @@ export default function AdminDashboard() {
               <div className="modal-body">
                 <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                   Hệ thống hỗ trợ nhập tự động hàng loạt tài khoản sinh viên và tự động tạo/gán lớp học phần.
-                  Yêu cầu định dạng tệp tin CSV có 3 cột: <b>MSSV, Họ và tên, Lớp học phần</b>.
+                  Yêu cầu định dạng tệp tin CSV gồm ít nhất 3 cột (hoặc 4 cột để nạp địa chỉ Email): <b>MSSV, Họ và tên, Lớp học phần, Email (tùy chọn)</b>.
                   Mật khẩu đăng nhập mặc định cho các sinh viên mới tạo sẽ là <b>12345678</b>.
                 </p>
 

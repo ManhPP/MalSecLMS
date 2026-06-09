@@ -49,6 +49,7 @@ const Layout = ({ children }) => {
               </div>
               <div className="user-info">
                 <span className="user-name">{user.full_name}</span>
+                {user.email && <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', textTransform: 'lowercase', margin: '2px 0', opacity: 0.8 }}>{user.email}</span>}
                 <span className="user-role-badge">{user.role}</span>
               </div>
               <button 

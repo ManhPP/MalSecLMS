@@ -44,7 +44,8 @@ def login(login_data: LoginSchema, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "role": user.role,
         "full_name": user.full_name,
-        "username": user.username
+        "username": user.username,
+        "email": user.email
     }
 
 # Endpoint hỗ trợ OAuth2 Swagger UI login

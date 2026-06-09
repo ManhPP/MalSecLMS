@@ -612,7 +612,7 @@ export default function StudentDashboard() {
         <div>
           <div style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Chào {user.full_name}!</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Mã số Sinh viên: <b>{user.username}</b>. Hãy hoàn thành các bài thực hành phân tích mã độc trước thời hạn.</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Mã số Sinh viên: <b>{user.username}</b>{user.email && <> | Email: <b>{user.email}</b></>}. Hãy hoàn thành các bài thực hành phân tích mã độc trước thời hạn.</p>
           </div>
 
           {/* Active labs checklist */}
