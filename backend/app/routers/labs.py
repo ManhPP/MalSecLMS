@@ -105,7 +105,8 @@ def create_lab(
         individual_extensions=lab_data.individual_extensions,
         class_id=lab_data.class_id,
         created_by_id=current_user.id,
-        is_active=lab_data.is_active
+        is_active=lab_data.is_active,
+        enable_vm=lab_data.enable_vm
     )
     db.add(new_lab)
     db.commit()
@@ -154,6 +155,8 @@ def update_lab(
         lab.individual_extensions = lab_data.individual_extensions
     if lab_data.is_active is not None:
         lab.is_active = lab_data.is_active
+    if lab_data.enable_vm is not None:
+        lab.enable_vm = lab_data.enable_vm
     if lab_data.class_id is not None:
         # Check class exists
         class_exists = db.query(Class).filter(Class.id == lab_data.class_id).first()

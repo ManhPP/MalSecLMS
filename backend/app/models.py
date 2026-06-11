@@ -62,6 +62,7 @@ class Lab(Base):
     individual_extensions = Column(JSONB, nullable=True, server_default='{}')
     
     is_active = Column(Boolean, default=True)
+    enable_vm = Column(Boolean, default=True, server_default='true', nullable=False)
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

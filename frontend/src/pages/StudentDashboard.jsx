@@ -872,100 +872,116 @@ export default function StudentDashboard() {
           </div>
 
           {/* Split Screen Container */}
-          <div className="split-container" style={{ flex: 1, minHeight: 0 }}>
+          <div 
+            className="split-container" 
+            style={{ 
+              flex: 1, 
+              minHeight: 0,
+              ...(selectedLab.enable_vm === false ? { display: 'flex', justifyContent: 'center' } : {})
+            }}
+          >
             
             {/* Split Left (65%): Mind-blowing Apache Guacamole RDP connection simulator */}
-            <div className="split-left" style={{ height: '100%' }}>
-              <div className="vm-screen-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                
-                {/* RDP Window Top bar */}
-                <div className="vm-header-bar">
-                  <div className="vm-title">
-                    <Monitor size={15} />
-                    <span>{vmOs}</span>
-                  </div>
-                  <div className="vm-actions">
-                    <button 
-                      type="button" 
-                      onClick={() => runVmCommand('change_os')} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '4px 8px', fontSize: '11px', background: '#374151', border: 'none', color: '#fff' }}
-                    >
-                      Đổi máy ảo (Win/Linux)
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => runVmCommand('rollback')} 
-                      className="btn btn-danger" 
-                      style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                      title="Phục hồi trạng thái máy ảo ban đầu qua Proxmox Backup Server"
-                    >
-                      <RotateCcw size={11} /> Rollback VM sạch (PBS)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Virtual Desktop Display Simulator */}
-                <div style={{ 
-                  flex: 1, 
-                  background: '#090d16', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  justifyContent: 'center', 
-                  alignItems: 'center',
-                  position: 'relative',
-                  border: '1px solid #1f2937'
-                }}>
-                  {/* Glowing Grid background inside VM screen to feel virtual */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundImage: 'linear-gradient(rgba(18, 24, 38, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(18, 24, 38, 0.4) 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
-                    pointerEvents: 'none'
-                  }} />
-
-                  {/* Windows / Linux Desktop HUD */}
-                  <div style={{ textAlign: 'center', zIndex: 1, padding: '24px' }}>
-                    <Terminal size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.5))' }} />
-                    <h4 style={{ fontSize: '18px', color: '#fff', marginBottom: '8px' }}>APACHE GUACAMOLE MOCK CONSOLE</h4>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', margin: '0 auto 20px' }}>
-                      Mô phỏng máy ảo phân tích mã độc VLAN 30 chạy bên trong hạ tầng Proxmox của nhà trường.
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                      <span className="badge badge-graded">Port 443 HTTPS Active</span>
-                      <span className="badge badge-submitted">Network Isolation Enforced</span>
+            {selectedLab.enable_vm !== false && (
+              <div className="split-left" style={{ height: '100%' }}>
+                <div className="vm-screen-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  
+                  {/* RDP Window Top bar */}
+                  <div className="vm-header-bar">
+                    <div className="vm-title">
+                      <Monitor size={15} />
+                      <span>{vmOs}</span>
+                    </div>
+                    <div className="vm-actions">
+                      <button 
+                        type="button" 
+                        onClick={() => runVmCommand('change_os')} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '4px 8px', fontSize: '11px', background: '#374151', border: 'none', color: '#fff' }}
+                      >
+                        Đổi máy ảo (Win/Linux)
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => runVmCommand('rollback')} 
+                        className="btn btn-danger" 
+                        style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
+                        title="Phục hồi trạng thái máy ảo ban đầu qua Proxmox Backup Server"
+                      >
+                        <RotateCcw size={11} /> Rollback VM sạch (PBS)
+                      </button>
                     </div>
                   </div>
 
-                  {/* Virtual RDP Connection Log HUD */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '16px',
-                    left: '16px',
-                    right: '16px',
-                    background: 'rgba(0,0,0,0.85)',
-                    border: '1px solid rgba(0, 242, 254, 0.15)',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    maxHeight: '140px',
-                    overflowY: 'auto',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '11px',
-                    color: '#86efac',
-                    textAlign: 'left'
+                  {/* Virtual Desktop Display Simulator */}
+                  <div style={{ 
+                    flex: 1, 
+                    background: '#090d16', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    position: 'relative',
+                    border: '1px solid #1f2937'
                   }}>
-                    {vmLogs.map((log, i) => (
-                      <div key={i} style={{ marginBottom: '4px' }}>{log}</div>
-                    ))}
-                  </div>
-                </div>
+                    {/* Glowing Grid background inside VM screen to feel virtual */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundImage: 'linear-gradient(rgba(18, 24, 38, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(18, 24, 38, 0.4) 1px, transparent 1px)',
+                      backgroundSize: '20px 20px',
+                      pointerEvents: 'none'
+                    }} />
 
+                    {/* Windows / Linux Desktop HUD */}
+                    <div style={{ textAlign: 'center', zIndex: 1, padding: '24px' }}>
+                      <Terminal size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.5))' }} />
+                      <h4 style={{ fontSize: '18px', color: '#fff', marginBottom: '8px' }}>APACHE GUACAMOLE MOCK CONSOLE</h4>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', margin: '0 auto 20px' }}>
+                        Mô phỏng máy ảo phân tích mã độc VLAN 30 chạy bên trong hạ tầng Proxmox của nhà trường.
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                        <span className="badge badge-graded">Port 443 HTTPS Active</span>
+                        <span className="badge badge-submitted">Network Isolation Enforced</span>
+                      </div>
+                    </div>
+
+                    {/* Virtual RDP Connection Log HUD */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '16px',
+                      left: '16px',
+                      right: '16px',
+                      background: 'rgba(0,0,0,0.85)',
+                      border: '1px solid rgba(0, 242, 254, 0.15)',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      maxHeight: '140px',
+                      overflowY: 'auto',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      color: '#86efac',
+                      textAlign: 'left'
+                    }}>
+                      {vmLogs.map((log, i) => (
+                        <div key={i} style={{ marginBottom: '4px' }}>{log}</div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Split Right (35%): Dynamic Report Submission Form */}
-            <div className="split-right" style={{ height: '100%', overflowY: 'auto' }}>
+            <div 
+              className="split-right" 
+              style={{ 
+                height: '100%', 
+                overflowY: 'auto',
+                ...(selectedLab.enable_vm === false ? { width: '100%', maxWidth: '800px' } : {})
+              }}
+            >
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Phiếu làm báo cáo</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Điền câu trả lời và đính kèm tệp chứng cứ bên dưới.</p>

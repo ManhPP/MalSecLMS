@@ -159,6 +159,7 @@ def seed_data():
                 },
                 individual_extensions={},
                 is_active=True,
+                enable_vm=True,
                 class_id=class_at16.id,
                 created_by_id=lecturer_user.id
             )

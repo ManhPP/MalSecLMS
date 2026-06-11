@@ -127,6 +127,7 @@ export default function InstructorDashboard() {
   const [penaltyPerHour, setPenaltyPerHour] = useState(0.5)
   const [maxPenalty, setMaxPenalty] = useState(30.0)
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
+  const [enableVm, setEnableVm] = useState(true)
 
   // Individual Extension State
   const [showExtensionModal, setShowExtensionModal] = useState(false)
@@ -393,7 +394,8 @@ export default function InstructorDashboard() {
             max_penalty_percent: parseFloat(maxPenalty)
           },
           class_id: parseInt(classId),
-          is_active: true
+          is_active: true,
+          enable_vm: enableVm
         })
       })
 
@@ -418,6 +420,7 @@ export default function InstructorDashboard() {
     setAllowLate(true)
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
+    setEnableVm(true)
     setFormFields([
       { id: 'q_md5', type: 'text', label: 'Mã băm MD5/SHA256 của malware', required: true },
       { id: 'q_asm', type: 'textarea', label: 'Báo cáo đoạn mã Assembly phân tích cơ chế độc hại', required: true },
@@ -1414,7 +1417,7 @@ export default function InstructorDashboard() {
                     />
                   </div>
 
-                  <div className="form-group" style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', paddingBottom: '4px' }}>
+                  <div className="form-group" style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', paddingBottom: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <input 
                         type="checkbox" 
@@ -1423,6 +1426,16 @@ export default function InstructorDashboard() {
                         onChange={(e) => setAllowLate(e.target.checked)}
                       />
                       <label htmlFor="allowLateCheck" style={{ fontSize: '13.5px', cursor: 'pointer' }}>Cho phép nộp muộn</label>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="enableVmCheck" 
+                        checked={enableVm}
+                        onChange={(e) => setEnableVm(e.target.checked)}
+                      />
+                      <label htmlFor="enableVmCheck" style={{ fontSize: '13.5px', cursor: 'pointer', color: 'var(--neon-cyan)', fontWeight: '500' }}>Bật kết nối Máy ảo (VM)</label>
                     </div>
                   </div>
                 </div>
