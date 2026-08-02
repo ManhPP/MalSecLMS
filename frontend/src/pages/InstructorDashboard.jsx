@@ -128,6 +128,28 @@ export default function InstructorDashboard() {
   const [maxPenalty, setMaxPenalty] = useState(30.0)
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
   const [enableVm, setEnableVm] = useState(true)
+  const [templateVmid, setTemplateVmid] = useState(101)
+  const [pveTemplates, setPveTemplates] = useState([
+    { vmid: 101, name: "Win-1 (Windows 10 Sandbox)", status: "template" },
+    { vmid: 104, name: "Win10 (Custom FLARE-VM)", status: "template" }
+  ])
+
+
+  const fetchPveTemplates = async () => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/labs/templates/proxmox', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data && data.length > 0) setPveTemplates(data)
+      }
+    } catch (err) {
+      console.error("Lỗi lấy danh sách PVE templates:", err)
+    }
+  }
+
 
   // Individual Extension State
   const [showExtensionModal, setShowExtensionModal] = useState(false)
@@ -395,7 +417,8 @@ export default function InstructorDashboard() {
           },
           class_id: parseInt(classId),
           is_active: true,
-          enable_vm: enableVm
+          enable_vm: enableVm,
+          template_vmid: parseInt(templateVmid)
         })
       })
 
@@ -421,6 +444,8 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
     setEnableVm(true)
+    setTemplateVmid(101)
+    fetchPveTemplates()
     setFormFields([
       { id: 'q_md5', type: 'text', label: 'Mã băm MD5/SHA256 của malware', required: true },
       { id: 'q_asm', type: 'textarea', label: 'Báo cáo đoạn mã Assembly phân tích cơ chế độc hại', required: true },
@@ -428,6 +453,7 @@ export default function InstructorDashboard() {
     ])
     setShowLabModal(true)
   }
+
 
   // Fetch details of a single class (includes students)
   const fetchClassDetails = async (classId) => {
@@ -1439,6 +1465,27 @@ export default function InstructorDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {enableVm && (
+                  <div style={{ padding: '12px 16px', background: 'rgba(0, 243, 255, 0.05)', borderRadius: '6px', border: '1px solid var(--neon-cyan)', marginBottom: '16px' }}>
+                    <label className="form-label" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🖥️ Chọn Máy ảo Mẫu Proxmox (Template VM)
+                    </label>
+                    <select 
+                      className="form-input" 
+                      style={{ marginTop: '6px', background: '#0f172a', color: '#fff', borderColor: 'var(--neon-cyan)' }}
+                      value={templateVmid}
+                      onChange={(e) => setTemplateVmid(parseInt(e.target.value))}
+                    >
+                      {pveTemplates.map(t => (
+                        <option key={t.vmid} value={t.vmid}>
+                          VM {t.vmid} - {t.name} ({t.status || 'Template'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
 
                 {allowLate && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>

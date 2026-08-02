@@ -63,7 +63,9 @@ class Lab(Base):
     
     is_active = Column(Boolean, default=True)
     enable_vm = Column(Boolean, default=True, server_default='true', nullable=False)
+    template_vmid = Column(Integer, default=101, server_default='101', nullable=True)
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
+
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

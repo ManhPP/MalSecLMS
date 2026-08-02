@@ -232,3 +232,73 @@ def update_individual_extensions(
     db.commit()
     
     return lab
+
+# --- PROXMOX & GUACAMOLE VM ENDPOINTS ---
+
+@router.get("/templates/proxmox", response_model=List[Dict[str, Any]])
+def get_proxmox_templates(
+    current_user: User = Depends(require_lecturer)
+):
+    """API Lấy danh sách VM Templates từ Proxmox VE (Giảng viên/Admin)"""
+    from app.services.vm_service import get_available_templates
+    return get_available_templates()
+
+@router.post("/{lab_id}/vm-session")
+def get_or_create_vm_session(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_user)
+):
+    """API Sinh máy ảo cho sinh viên và trả về URL nhúng Apache Guacamole (HMAC)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        
+    if not lab.enable_vm:
+        raise HTTPException(status_code=400, detail="Bài lab này không yêu cầu máy ảo thực hành")
+        
+    from app.services.vm_service import provision_student_vm, generate_guacamole_auth_json_url
+    
+    template_vmid = lab.template_vmid or 101
+    ip_address, vmid = provision_student_vm(
+        student_username=current_user.username,
+        lab_id=lab.id,
+        template_vmid=template_vmid
+    )
+    print(f"[VM-SESSION] user={current_user.username} lab={lab_id} vmid={vmid} ip={ip_address}", flush=True)
+    
+
+    
+    guacamole_url = generate_guacamole_auth_json_url(
+        ip_address=ip_address,
+        student_username=current_user.username,
+        protocol="rdp",
+        username="win1",
+        password="KhongQuanLieu"
+    )
+
+
+    
+    return {
+        "status": "ready",
+        "vmid": vmid,
+        "ip_address": ip_address,
+        "guacamole_url": guacamole_url,
+        "template_vmid": template_vmid
+    }
+
+@router.post("/{lab_id}/vm-rollback")
+def rollback_vm_session(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_user)
+):
+    """API Khôi phục máy ảo về trạng thái sạch ban đầu cho sinh viên"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        
+    from app.services.vm_service import rollback_student_vm
+    success = rollback_student_vm(student_username=current_user.username, lab_id=lab.id)
+    return {"message": "Đã gửi yêu cầu khôi phục máy ảo về bản sạch thành công", "success": success}
+

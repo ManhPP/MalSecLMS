@@ -24,4 +24,20 @@ class Settings:
     KEYCLOAK_REALM: str = os.getenv("KEYCLOAK_REALM", "malsec")
     KEYCLOAK_CLIENT_ID: str = os.getenv("KEYCLOAK_CLIENT_ID", "malsec-lms")
 
+    # Proxmox VE API Configuration
+    PVE_API_HOST: str = os.getenv("PVE_API_HOST", "10.0.80.10")
+    PVE_API_USER: str = os.getenv("PVE_API_USER", "root@pam")
+    PVE_TOKEN_NAME: str = os.getenv("PVE_TOKEN_NAME", "malsec-token")
+    PVE_TOKEN_VALUE: str = os.getenv("PVE_TOKEN_VALUE", "a363ce9d-3a08-451e-b5c5-45122b94c563")
+
+
+    # Guacamole Encrypted JSON & HMAC Configuration
+    GUAC_BASE_URL: str = os.getenv("GUAC_BASE_URL", "/guacamole/")
+    GUAC_HMAC_SECRET: str = os.getenv("GUAC_HMAC_SECRET", "MySuperSecretKeyForGuacHMAC2026!")
+    GUAC_JSON_SECRET: str = os.getenv("GUAC_JSON_SECRET", "545361e2e0cdc7a516ad17d27b1ba77c")
+
+
+
+
 settings = Settings()
+

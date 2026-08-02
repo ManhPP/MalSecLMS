@@ -79,6 +79,7 @@ class LabBase(BaseModel):
     individual_extensions: Optional[Dict[str, str]] = {}
     is_active: Optional[bool] = True
     enable_vm: Optional[bool] = True
+    template_vmid: Optional[int] = 101
     class_id: int
 
 class LabCreate(LabBase):
@@ -93,7 +94,9 @@ class LabUpdate(BaseModel):
     individual_extensions: Optional[Dict[str, str]] = None
     is_active: Optional[bool] = None
     enable_vm: Optional[bool] = None
+    template_vmid: Optional[int] = None
     class_id: Optional[int] = None
+
 
 class LabOut(LabBase):
     id: int

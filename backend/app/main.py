@@ -52,8 +52,17 @@ def read_root():
 def seed_data():
     db = SessionLocal()
     try:
+        # Auto-migration: Đảm bảo cột template_vmid đã tồn tại trong CSDL PostgreSQL
+        try:
+            from sqlalchemy import text
+            db.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS template_vmid INTEGER DEFAULT 101;"))
+            db.commit()
+        except Exception as e:
+            print(f"Auto migration template_vmid: {e}")
+
         # Kiểm tra xem đã có người dùng nào chưa, nếu chưa thì seed dữ liệu mẫu
         user_count = db.query(User).count()
+
         if user_count == 0:
             print("Đang khởi tạo dữ liệu mẫu (Seeding Data)...")
 

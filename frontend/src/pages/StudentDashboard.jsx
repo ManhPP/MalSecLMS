@@ -267,12 +267,55 @@ export default function StudentDashboard() {
   const [studentLabStatusFilter, setStudentLabStatusFilter] = useState('all') // 'all' | 'not_started' | 'draft' | 'resubmit'
   const [studentLabSort, setStudentLabSort] = useState('deadline_asc') // 'deadline_asc' | 'deadline_desc' | 'title_asc'
 
-  // VM Simulator state
+  // VM Simulator & Real Proxmox Guacamole state
   const [vmActive, setVmActive] = useState(true)
   const [vmOs, setVmOs] = useState('FLARE-VM [Windows Security] — RDP Connection Active')
-  const [vmLogs, setVmLogs] = useState(['[+] RDP: Connecting to 10.30.0.15:3389...', '[+] SSO: Keycloak OIDC Token accepted.', '[+] Guac: Protocol RDP v1.1.2 Handshake OK.', '[+] VM: System Active. Anti-VM malware isolation standard active.'])
+  const [vmLogs, setVmLogs] = useState(['[+] RDP: Connecting to Proxmox VLAN 30...', '[+] SSO: Keycloak OIDC Token accepted.', '[+] Guac: Protocol RDP v1.1.2 Handshake OK.', '[+] VM: System Active. Anti-VM malware isolation standard active.'])
+  const [guacamoleUrl, setGuacamoleUrl] = useState('')
+  const [vmLoading, setVmLoading] = useState(false)
+  const [vmError, setVmError] = useState('')
+  const [vmInfo, setVmInfo] = useState(null)
+
+  const fetchVmSession = async (labId) => {
+    setVmLoading(true)
+    setVmError('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${labId}/vm-session`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Không thể tạo phiên kết nối máy ảo')
+      setGuacamoleUrl(data.guacamole_url)
+      setVmInfo(data)
+      setVmOs(`Windows Sandbox (VM ${data.vmid} - ${data.ip_address})`)
+    } catch (err) {
+      setVmError(err.message)
+    } finally {
+      setVmLoading(false)
+    }
+  }
+
+  const handleRollbackVm = async () => {
+    if (!selectedLab) return
+    if (!confirm('Bạn có chắc chắn muốn khôi phục máy ảo về bản sạch không?')) return
+    setVmLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      await fetch(`/api/labs/${selectedLab.id}/vm-rollback`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      await fetchVmSession(selectedLab.id)
+    } catch (err) {
+      alert('Lỗi khôi phục máy ảo: ' + err.message)
+      setVmLoading(false)
+    }
+  }
 
   const autoSaveTimerRef = useRef(null)
+
 
   // Fetch initial labs list
   const fetchStudentLabs = async () => {
@@ -409,12 +452,17 @@ export default function StudentDashboard() {
       
       setViewState('doing_lab')
       setLastSavedTime(new Date().toLocaleTimeString('vi-VN'))
+
+      if (lab.enable_vm !== false) {
+        fetchVmSession(lab.id)
+      }
     } catch (err) {
       setError('Lỗi khi tải trạng thái làm bài')
     } finally {
       setLoading(false)
     }
   }
+
 
   // Direct manual save draft
   const handleManualSaveDraft = async () => {
@@ -895,25 +943,38 @@ export default function StudentDashboard() {
                     <div className="vm-actions">
                       <button 
                         type="button" 
-                        onClick={() => runVmCommand('change_os')} 
+                        onClick={() => fetchVmSession(selectedLab.id)} 
                         className="btn btn-secondary" 
+                        disabled={vmLoading}
                         style={{ padding: '4px 8px', fontSize: '11px', background: '#374151', border: 'none', color: '#fff' }}
                       >
-                        Đổi máy ảo (Win/Linux)
+                        {vmLoading ? 'Đang khởi tạo VM...' : 'Tải lại kết nối VM'}
                       </button>
+                      {guacamoleUrl && (
+                        <a 
+                          href={guacamoleUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="btn btn-secondary" 
+                          style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--neon-cyan)', border: 'none', color: '#000', fontWeight: 'bold', textDecoration: 'none' }}
+                        >
+                          Cửa sổ mới ↗
+                        </a>
+                      )}
                       <button 
                         type="button" 
-                        onClick={() => runVmCommand('rollback')} 
+                        onClick={handleRollbackVm} 
                         className="btn btn-danger" 
+                        disabled={vmLoading}
                         style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                        title="Phục hồi trạng thái máy ảo ban đầu qua Proxmox Backup Server"
+                        title="Khôi phục máy ảo về trạng thái sạch ban đầu trên Proxmox"
                       >
-                        <RotateCcw size={11} /> Rollback VM sạch (PBS)
+                        <RotateCcw size={11} /> Rollback VM sạch (Proxmox)
                       </button>
                     </div>
                   </div>
 
-                  {/* Virtual Desktop Display Simulator */}
+                  {/* Real Guacamole RDP / Proxmox VM Display */}
                   <div style={{ 
                     flex: 1, 
                     background: '#090d16', 
@@ -922,52 +983,43 @@ export default function StudentDashboard() {
                     justifyContent: 'center', 
                     alignItems: 'center',
                     position: 'relative',
-                    border: '1px solid #1f2937'
+                    border: '1px solid #1f2937',
+                    overflow: 'hidden'
                   }}>
-                    {/* Glowing Grid background inside VM screen to feel virtual */}
-                    <div style={{
-                      position: 'absolute',
-                      top: 0, left: 0, right: 0, bottom: 0,
-                      backgroundImage: 'linear-gradient(rgba(18, 24, 38, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(18, 24, 38, 0.4) 1px, transparent 1px)',
-                      backgroundSize: '20px 20px',
-                      pointerEvents: 'none'
-                    }} />
-
-                    {/* Windows / Linux Desktop HUD */}
-                    <div style={{ textAlign: 'center', zIndex: 1, padding: '24px' }}>
-                      <Terminal size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.5))' }} />
-                      <h4 style={{ fontSize: '18px', color: '#fff', marginBottom: '8px' }}>APACHE GUACAMOLE MOCK CONSOLE</h4>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', margin: '0 auto 20px' }}>
-                        Mô phỏng máy ảo phân tích mã độc VLAN 30 chạy bên trong hạ tầng Proxmox của nhà trường.
-                      </p>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                        <span className="badge badge-graded">Port 443 HTTPS Active</span>
-                        <span className="badge badge-submitted">Network Isolation Enforced</span>
+                    {vmLoading ? (
+                      <div style={{ textAlign: 'center', color: 'var(--neon-cyan)', padding: '24px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚡ Đang khởi tạo máy ảo Proxmox & Cấp quyền Guacamole...</div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Đang kết nối Linked Clone trong dải mạng VLAN 30 cách ly...</p>
                       </div>
-                    </div>
-
-                    {/* Virtual RDP Connection Log HUD */}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '16px',
-                      left: '16px',
-                      right: '16px',
-                      background: 'rgba(0,0,0,0.85)',
-                      border: '1px solid rgba(0, 242, 254, 0.15)',
-                      borderRadius: '6px',
-                      padding: '12px',
-                      maxHeight: '140px',
-                      overflowY: 'auto',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '11px',
-                      color: '#86efac',
-                      textAlign: 'left'
-                    }}>
-                      {vmLogs.map((log, i) => (
-                        <div key={i} style={{ marginBottom: '4px' }}>{log}</div>
-                      ))}
-                    </div>
+                    ) : vmError ? (
+                      <div style={{ textAlign: 'center', color: 'var(--neon-ruby)', padding: '24px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚠️ {vmError}</div>
+                        <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '6px 16px', marginTop: '12px' }}>
+                          Thử lại kết nối
+                        </button>
+                      </div>
+                    ) : guacamoleUrl ? (
+                      <iframe 
+                        key={guacamoleUrl}
+                        src={guacamoleUrl} 
+                        title="Apache Guacamole Proxmox VDI Desktop"
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        allow="clipboard-read; clipboard-write; fullscreen"
+                      />
+                    ) : (
+                      <div style={{ textAlign: 'center', zIndex: 1, padding: '24px' }}>
+                        <Terminal size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.5))' }} />
+                        <h4 style={{ fontSize: '18px', color: '#fff', marginBottom: '8px' }}>APACHE GUACAMOLE VDI LAB</h4>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', margin: '0 auto 20px' }}>
+                          Máy ảo phân tích mã độc VLAN 30 chạy bên trong hạ tầng Proxmox VE.
+                        </p>
+                        <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '8px 20px' }}>
+                          Khởi động kết nối Máy ảo
+                        </button>
+                      </div>
+                    )}
                   </div>
+
 
                 </div>
               </div>
