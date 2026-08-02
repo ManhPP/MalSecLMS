@@ -157,7 +157,10 @@ def update_lab(
         lab.is_active = lab_data.is_active
     if lab_data.enable_vm is not None:
         lab.enable_vm = lab_data.enable_vm
+    if lab_data.template_vmid is not None:
+        lab.template_vmid = lab_data.template_vmid
     if lab_data.class_id is not None:
+
         # Check class exists
         class_exists = db.query(Class).filter(Class.id == lab_data.class_id).first()
         if not class_exists:

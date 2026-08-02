@@ -119,7 +119,9 @@ export default function InstructorDashboard() {
 
   // Dynamic Form Builder State
   const [showLabModal, setShowLabModal] = useState(false)
+  const [editingLab, setEditingLab] = useState(null)
   const [labTitle, setLabTitle] = useState('')
+
   const [labDesc, setLabDesc] = useState('')
   const [classId, setClassId] = useState('')
   const [deadline, setDeadline] = useState('')
@@ -387,7 +389,7 @@ export default function InstructorDashboard() {
     setFormFields(updated)
   }
 
-  const handleCreateLab = async (e) => {
+  const handleSaveLab = async (e) => {
     e.preventDefault()
     if (formFields.length === 0) {
       setError('Vui lòng tạo ít nhất một trường câu hỏi cho bài báo cáo!')
@@ -399,34 +401,40 @@ export default function InstructorDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
-      const res = await fetch('/api/labs/', {
-        method: 'POST',
+      const payload = {
+        title: labTitle,
+        description: labDesc,
+        form_fields: formFields,
+        deadline: new Date(deadline).toISOString(),
+        late_policy: {
+          allow_late: allowLate,
+          penalty_per_hour_percent: parseFloat(penaltyPerHour),
+          max_penalty_percent: parseFloat(maxPenalty)
+        },
+        class_id: parseInt(classId),
+        is_active: true,
+        enable_vm: enableVm,
+        template_vmid: parseInt(templateVmid)
+      }
+
+      const url = editingLab ? `/api/labs/${editingLab.id}` : '/api/labs/'
+      const method = editingLab ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          title: labTitle,
-          description: labDesc,
-          form_fields: formFields,
-          deadline: new Date(deadline).toISOString(),
-          late_policy: {
-            allow_late: allowLate,
-            penalty_per_hour_percent: parseFloat(penaltyPerHour),
-            max_penalty_percent: parseFloat(maxPenalty)
-          },
-          class_id: parseInt(classId),
-          is_active: true,
-          enable_vm: enableVm,
-          template_vmid: parseInt(templateVmid)
-        })
+        body: JSON.stringify(payload)
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi lưu bài lab động')
+      if (!res.ok) throw new Error(data.detail || 'Lỗi lưu bài lab')
 
-      setSuccess('Đã xuất bản bài tập Lab cùng Form báo cáo động thành công!')
+      setSuccess(editingLab ? 'Đã cập nhật cấu hình bài Lab thành công!' : 'Đã xuất bản bài tập Lab cùng Form báo cáo động thành công!')
       setShowLabModal(false)
+      setEditingLab(null)
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -436,6 +444,7 @@ export default function InstructorDashboard() {
   }
 
   const openCreateLabModal = () => {
+    setEditingLab(null)
     setLabTitle('')
     setLabDesc('')
     setClassId(classes[0]?.id || '')
@@ -453,6 +462,55 @@ export default function InstructorDashboard() {
     ])
     setShowLabModal(true)
   }
+
+  const openEditLabModal = (lab) => {
+    setEditingLab(lab)
+    setLabTitle(lab.title || '')
+    setLabDesc(lab.description || '')
+    setClassId(lab.class_id || (classes[0]?.id || ''))
+    
+    if (lab.deadline) {
+      const d = new Date(lab.deadline)
+      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      setDeadline(localIso)
+    } else {
+      setDeadline('')
+    }
+
+    setAllowLate(lab.late_policy?.allow_late ?? true)
+    setPenaltyPerHour(lab.late_policy?.penalty_per_hour_percent ?? 0.5)
+    setMaxPenalty(lab.late_policy?.max_penalty_percent ?? 30.0)
+    setFormFields(lab.form_fields || [])
+    setEnableVm(lab.enable_vm !== false)
+    setTemplateVmid(lab.template_vmid || 101)
+    fetchPveTemplates()
+    setShowLabModal(true)
+  }
+
+  const handleDeleteLab = async (labId, labTitle) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa bài Lab "${labTitle}" không?\nTất cả báo cáo bài làm của sinh viên cho bài lab này cũng sẽ bị loại bỏ.`)) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/labs/${labId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi xóa bài Lab')
+
+      setSuccess(`Đã xóa bài Lab "${labTitle}" thành công!`)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
 
 
   // Fetch details of a single class (includes students)
@@ -775,7 +833,7 @@ export default function InstructorDashboard() {
                     <th>Thời hạn (Deadline)</th>
                     <th>Chính sách phạt nộp muộn</th>
                     <th>Trạng thái</th>
-                    <th style={{ textAlign: 'right' }}>Chấm điểm</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác & Chấm bài</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -799,13 +857,32 @@ export default function InstructorDashboard() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button onClick={() => fetchSubmissions(lab)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                            Chấm bài &rarr;
-                          </button>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button 
+                              onClick={() => openEditLabModal(lab)} 
+                              className="btn btn-secondary" 
+                              style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
+                              title="Chỉnh sửa bài Lab"
+                            >
+                              <Edit2 size={13} style={{ marginRight: '4px' }} /> Sửa
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteLab(lab.id, lab.title)} 
+                              className="btn btn-danger" 
+                              style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
+                              title="Xóa bài Lab"
+                            >
+                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Xóa
+                            </button>
+                            <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                              Chấm bài &rarr;
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
                   })}
+
                   {labs.length === 0 && (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài Lab nào được thiết kế. Bấm nút phía trên để tạo.</td>
@@ -1386,10 +1463,11 @@ export default function InstructorDashboard() {
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '800px' }}>
             <div className="modal-header">
-              <h3>Thiết kế bài Lab và Báo cáo động mới</h3>
+              <h3>{editingLab ? 'Chỉnh sửa cấu hình & Nội dung bài Lab' : 'Thiết kế bài Lab và Báo cáo động mới'}</h3>
               <button onClick={() => setShowLabModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
-            <form onSubmit={handleCreateLab}>
+            <form onSubmit={handleSaveLab}>
+
               <div className="modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
@@ -1593,8 +1671,9 @@ export default function InstructorDashboard() {
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowLabModal(false)} className="btn btn-secondary">ĐÓNG</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG ĐĂNG BÀI...' : 'CẤU HÌNH & GIAO BÀI LAB'}
+                  {actionLoading ? 'ĐANG LƯU...' : editingLab ? 'LƯU THAY ĐỔI' : 'CẤU HÌNH & GIAO BÀI LAB'}
                 </button>
+
               </div>
             </form>
           </div>
