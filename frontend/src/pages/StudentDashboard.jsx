@@ -773,14 +773,30 @@ export default function StudentDashboard() {
 
                     return (
                       <tr key={lab.id}>
-                        <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
-                          {lab.title}
+                        <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
+                          <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px' }}>{lab.title}</div>
+                          {lab.description && (
+                            <div style={{ 
+                              fontSize: '12.5px', 
+                              color: 'var(--text-secondary)', 
+                              fontWeight: 'normal',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              lineHeight: '1.45',
+                              marginTop: '2px'
+                            }}>
+                              {lab.description}
+                            </div>
+                          )}
                           {isExtension && (
-                            <span className="badge badge-submitted" style={{ marginLeft: '8px', fontSize: '9.5px', padding: '2px 6px' }}>
+                            <span className="badge badge-submitted" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9.5px', padding: '2px 6px' }}>
                               Được thầy gia hạn riêng
                             </span>
                           )}
                         </td>
+
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
                           {isExtension 
                             ? new Date(lab.individual_extensions[user.username]).toLocaleString('vi-VN')
@@ -1034,10 +1050,39 @@ export default function StudentDashboard() {
                 ...(selectedLab.enable_vm === false ? { width: '100%', maxWidth: '800px' } : {})
               }}
             >
+              {/* Lab Description / Instructions Card */}
+              {selectedLab.description && (
+                <div className="cyber-card" style={{ 
+                  marginBottom: '20px', 
+                  padding: '16px', 
+                  background: 'rgba(0, 242, 254, 0.03)', 
+                  border: '1px solid rgba(0, 242, 254, 0.25)',
+                  borderRadius: '8px'
+                }}>
+                  <h4 style={{ 
+                    fontSize: '14.5px', 
+                    color: 'var(--neon-cyan)', 
+                    fontWeight: '600', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    marginBottom: '10px',
+                    borderBottom: '1px dashed rgba(0, 242, 254, 0.2)',
+                    paddingBottom: '8px'
+                  }}>
+                    <BookOpen size={16} /> Đề bài & Hướng dẫn chi tiết từ Giảng viên
+                  </h4>
+                  <div style={{ fontSize: '13.5px', color: 'var(--text-primary)', lineHeight: '1.65' }}>
+                    {parseMarkdown(selectedLab.description)}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Phiếu làm báo cáo</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Điền câu trả lời và đính kèm tệp chứng cứ bên dưới.</p>
               </div>
+
 
               {/* Show graded score & comments if graded */}
               {submissionStatus === 'graded' && score !== null && (
