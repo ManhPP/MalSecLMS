@@ -37,7 +37,8 @@ def provision_student_vm(student_username: str, lab_id: int, template_vmid: int 
     """
     node = "pve01"
     student_num = int("".join(filter(str.isdigit, student_username)) or "1")
-    new_vmid = 30000 + (student_num * 50) + lab_id
+    new_vmid = 10000 + (student_num * 10) + lab_id
+
     
     proxmox = get_pve_client()
     ip_address = None
@@ -270,8 +271,9 @@ def generate_guacamole_hmac_url(
 def rollback_student_vm(student_username: str, lab_id: int) -> bool:
     """Tắt và xóa VM của sinh viên để clone lại từ đầu ở lần đăng nhập tới"""
     student_num = int("".join(filter(str.isdigit, student_username)) or "1")
-    new_vmid = 30000 + (student_num * 50) + lab_id
+    new_vmid = 10000 + (student_num * 10) + lab_id
     node = "pve01"
+
     
     proxmox = get_pve_client()
     if proxmox:
@@ -310,29 +312,41 @@ def rollback_student_vm(student_username: str, lab_id: int) -> bool:
 
 
 def get_available_templates() -> List[Dict[str, Any]]:
-    """Lấy danh sách các VM Template khả dụng trên Proxmox"""
+    """Lấy danh sách các VM Template khả dụng nằm trong dải VMID quy hoạch trên Proxmox (mặc định 1000 - 2000)"""
     proxmox = get_pve_client()
     templates = []
+    min_vmid = getattr(settings, "TEMPLATE_VMID_MIN", 1000)
+    max_vmid = getattr(settings, "TEMPLATE_VMID_MAX", 2000)
+
     if proxmox:
         try:
             resources = proxmox.cluster.resources.get(type="vm")
             for res in resources:
-                if res.get("template") == 1:
+                vmid = res.get("vmid")
+                name = res.get("name", f"VM {vmid}")
+                is_template = res.get("template") in [1, True, "1"]
+
+                # CHỈ LẤY CÁC MÁY NẰM CHÍNH XÁC TRONG DẢI VMID QUY HOẠCH [1000 - 2000]
+                if min_vmid <= vmid <= max_vmid:
                     templates.append({
-                        "vmid": res.get("vmid"),
-                        "name": res.get("name"),
-                        "status": res.get("status")
+                        "vmid": vmid,
+                        "name": f"{name} ({'Template' if is_template else 'Base VM'})",
+                        "status": "template" if is_template else res.get("status")
                     })
         except Exception as e:
             print(f"[!] Error fetching PVE templates: {e}")
             
     if not templates:
-        # Fallback danh sách template chuẩn của Malware Lab
+        # Fallback danh sách template thuộc dải 1000-2000
         templates = [
-            {"vmid": 101, "name": "Win-1 (Windows 10 Sandbox)", "status": "template"},
-            {"vmid": 104, "name": "Win10 (Custom FLARE-VM)", "status": "template"}
+            {"vmid": 1001, "name": "Win-1 (Windows 10 Sandbox)", "status": "template"},
+            {"vmid": 1004, "name": "Win10 (Custom FLARE-VM)", "status": "template"},
+            {"vmid": 1002, "name": "ubuntu-1 (Linux Sandbox)", "status": "template"}
         ]
     return templates
+
+
+
 
 def list_lab_vms(lab_id: int, students: List[Any]) -> List[Dict[str, Any]]:
     """Lấy thông tin và trạng thái thực tế của tất cả máy ảo sinh viên thuộc về bài lab này"""
@@ -343,7 +357,8 @@ def list_lab_vms(lab_id: int, students: List[Any]) -> List[Dict[str, Any]]:
     for student in students:
         student_username = student.username
         student_num = int("".join(filter(str.isdigit, student_username)) or "1")
-        vmid = 30000 + (student_num * 50) + lab_id
+        vmid = 10000 + (student_num * 10) + lab_id
+
 
         vm_item = {
             "student_id": student.id,
@@ -376,6 +391,14 @@ def list_lab_vms(lab_id: int, students: List[Any]) -> List[Dict[str, Any]]:
 
 def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     """Bật / Tắt / Xóa sạch máy ảo sinh viên trên Proxmox"""
+    # 🚨 BẢO VỆ AN TOÀN HỆ THỐNG: Khóa cứng dải VMID sinh viên (10000 - 20000)
+    if not (10000 <= vmid <= 20000):
+        print(f"[SECURITY BLOCKED] Từ chối thao tác trên VMID {vmid} ngoài dải sinh viên (10000 - 20000)!")
+        return {
+            "success": False, 
+            "message": f"BẢO VỆ AN TOÀN HỆ THỐNG: Hệ thống từ chối thao tác/xóa VMID {vmid} do nằm ngoài dải máy ảo sinh viên quy hoạch (10000 - 20000)!"
+        }
+
     node = "pve01"
     proxmox = get_pve_client()
     if not proxmox:
@@ -384,10 +407,10 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     try:
         if action == "start":
             proxmox.nodes(node).qemu(vmid).status.start.post()
-            return {"success": True, "message": f"Đã gửi lệnh bật máy ảo {vmid}"}
+            return {"success": True, "message": f"Đã gửi lệnh bật máy ảo sinh viên {vmid}"}
         elif action == "stop":
             proxmox.nodes(node).qemu(vmid).status.stop.post()
-            return {"success": True, "message": f"Đã gửi lệnh tắt máy ảo {vmid}"}
+            return {"success": True, "message": f"Đã gửi lệnh tắt máy ảo sinh viên {vmid}"}
         elif action in ["purge", "delete"]:
             try:
                 proxmox.nodes(node).qemu(vmid).status.stop.post()
@@ -395,9 +418,10 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
             except Exception:
                 pass
             proxmox.nodes(node).qemu(vmid).delete(purge=1)
-            return {"success": True, "message": f"Đã xóa hoàn toàn máy ảo {vmid} khỏi Proxmox cluster"}
+            return {"success": True, "message": f"Đã xóa hoàn toàn máy ảo sinh viên {vmid} khỏi Proxmox cluster"}
         else:
             return {"success": False, "message": "Hành động không hợp lệ"}
     except Exception as e:
         return {"success": False, "message": f"Lỗi thao tác máy ảo {vmid}: {str(e)}"}
+
 

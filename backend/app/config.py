@@ -30,14 +30,14 @@ class Settings:
     PVE_TOKEN_NAME: str = os.getenv("PVE_TOKEN_NAME", "malsec-token")
     PVE_TOKEN_VALUE: str = os.getenv("PVE_TOKEN_VALUE", "a363ce9d-3a08-451e-b5c5-45122b94c563")
 
+    # Designated Template VMID Range Configuration (1000 - 2000)
+    TEMPLATE_VMID_MIN: int = int(os.getenv("TEMPLATE_VMID_MIN", "1000"))
+    TEMPLATE_VMID_MAX: int = int(os.getenv("TEMPLATE_VMID_MAX", "2000"))
+
 
     # Guacamole Encrypted JSON & HMAC Configuration
     GUAC_BASE_URL: str = os.getenv("GUAC_BASE_URL", "/guacamole/")
     GUAC_HMAC_SECRET: str = os.getenv("GUAC_HMAC_SECRET", "MySuperSecretKeyForGuacHMAC2026!")
     GUAC_JSON_SECRET: str = os.getenv("GUAC_JSON_SECRET", "545361e2e0cdc7a516ad17d27b1ba77c")
 
-
-
-
 settings = Settings()
-

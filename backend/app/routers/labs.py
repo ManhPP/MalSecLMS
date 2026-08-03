@@ -343,7 +343,14 @@ def control_lab_vm(
     if not action:
         raise HTTPException(status_code=400, detail="Thiếu thuộc tính action")
 
+    if not (10000 <= vmid <= 20000):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"BẢO VỆ AN TOÀN HỆ THỐNG: Hệ thống từ chối thao tác/xóa VMID {vmid} do nằm ngoài dải máy ảo sinh viên quy hoạch (10000 - 20000)!"
+        )
+
     from app.services.vm_service import control_student_vm
+
     result = control_student_vm(vmid, action)
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["message"])

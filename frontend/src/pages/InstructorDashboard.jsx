@@ -131,11 +131,13 @@ export default function InstructorDashboard() {
   const [maxPenalty, setMaxPenalty] = useState(30.0)
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
   const [enableVm, setEnableVm] = useState(true)
-  const [templateVmid, setTemplateVmid] = useState(101)
+  const [templateVmid, setTemplateVmid] = useState(1001)
   const [pveTemplates, setPveTemplates] = useState([
-    { vmid: 101, name: "Win-1 (Windows 10 Sandbox)", status: "template" },
-    { vmid: 104, name: "Win10 (Custom FLARE-VM)", status: "template" }
+    { vmid: 1001, name: "Win-1 (Windows 10 Sandbox)", status: "template" },
+    { vmid: 1004, name: "Win10 (Custom FLARE-VM)", status: "template" },
+    { vmid: 1002, name: "ubuntu-1 (Linux Sandbox)", status: "template" }
   ])
+
 
   // VM Manager Modal State
   const [showVmManagerModal, setShowVmManagerModal] = useState(false)
@@ -461,7 +463,7 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
     setEnableVm(true)
-    setTemplateVmid(101)
+    setTemplateVmid(1001)
     fetchPveTemplates()
     setFormFields([
       { id: 'q_md5', type: 'text', label: 'Mã băm MD5/SHA256 của malware', required: true },
@@ -490,7 +492,8 @@ export default function InstructorDashboard() {
     setMaxPenalty(lab.late_policy?.max_penalty_percent ?? 30.0)
     setFormFields(lab.form_fields || [])
     setEnableVm(lab.enable_vm !== false)
-    setTemplateVmid(lab.template_vmid || 101)
+    setTemplateVmid(lab.template_vmid || 1001)
+
     fetchPveTemplates()
     setShowLabModal(true)
   }
@@ -1660,8 +1663,13 @@ export default function InstructorDashboard() {
                         </option>
                       ))}
                     </select>
+                    <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                      📌 Máy ảo mẫu tạo Lab lấy từ dải quy hoạch VMID <b>1000 – 2000</b>. Máy ảo của sinh viên clone ra khi làm bài nằm ở dải <b>10000 – 20000</b>.
+                    </p>
+
                   </div>
                 )}
+
 
 
                 {allowLate && (
