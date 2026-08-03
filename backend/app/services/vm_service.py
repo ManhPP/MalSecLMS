@@ -333,3 +333,71 @@ def get_available_templates() -> List[Dict[str, Any]]:
             {"vmid": 104, "name": "Win10 (Custom FLARE-VM)", "status": "template"}
         ]
     return templates
+
+def list_lab_vms(lab_id: int, students: List[Any]) -> List[Dict[str, Any]]:
+    """Lấy thông tin và trạng thái thực tế của tất cả máy ảo sinh viên thuộc về bài lab này"""
+    node = "pve01"
+    proxmox = get_pve_client()
+    vm_list = []
+
+    for student in students:
+        student_username = student.username
+        student_num = int("".join(filter(str.isdigit, student_username)) or "1")
+        vmid = 30000 + (student_num * 50) + lab_id
+
+        vm_item = {
+            "student_id": student.id,
+            "student_username": student_username,
+            "student_full_name": student.full_name,
+            "vmid": vmid,
+            "ip_address": "10.30.0.100",
+            "status": "not_created",
+            "name": f"lab-{lab_id}-{student_username}",
+            "cpu": 0,
+            "mem": 0,
+            "maxmem": 0,
+            "uptime": 0
+        }
+
+        if proxmox:
+            try:
+                st = proxmox.nodes(node).qemu(vmid).status.current.get()
+                vm_item["status"] = st.get("status", "stopped")
+                vm_item["cpu"] = round(st.get("cpu", 0) * 100, 1)
+                vm_item["mem"] = round(st.get("mem", 0) / (1024 * 1024), 0)
+                vm_item["maxmem"] = round(st.get("maxmem", 0) / (1024 * 1024), 0)
+                vm_item["uptime"] = st.get("uptime", 0)
+            except Exception:
+                vm_item["status"] = "not_created"
+
+        vm_list.append(vm_item)
+
+    return vm_list
+
+def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
+    """Bật / Tắt / Xóa sạch máy ảo sinh viên trên Proxmox"""
+    node = "pve01"
+    proxmox = get_pve_client()
+    if not proxmox:
+        return {"success": False, "message": "Không thể kết nối Proxmox VE API"}
+
+    try:
+        if action == "start":
+            proxmox.nodes(node).qemu(vmid).status.start.post()
+            return {"success": True, "message": f"Đã gửi lệnh bật máy ảo {vmid}"}
+        elif action == "stop":
+            proxmox.nodes(node).qemu(vmid).status.stop.post()
+            return {"success": True, "message": f"Đã gửi lệnh tắt máy ảo {vmid}"}
+        elif action in ["purge", "delete"]:
+            try:
+                proxmox.nodes(node).qemu(vmid).status.stop.post()
+                time.sleep(2)
+            except Exception:
+                pass
+            proxmox.nodes(node).qemu(vmid).delete(purge=1)
+            return {"success": True, "message": f"Đã xóa hoàn toàn máy ảo {vmid} khỏi Proxmox cluster"}
+        else:
+            return {"success": False, "message": "Hành động không hợp lệ"}
+    except Exception as e:
+        return {"success": False, "message": f"Lỗi thao tác máy ảo {vmid}: {str(e)}"}
+

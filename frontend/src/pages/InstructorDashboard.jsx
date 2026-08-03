@@ -3,8 +3,9 @@ import {
   BookOpen, Plus, Calendar, FileSpreadsheet, Download, 
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
-  School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter
+  School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play
 } from 'lucide-react'
+
 
 // --- CYBERPUNK MARKDOWN PARSER UTILITIES ---
 const renderInlineFormatting = (text) => {
@@ -135,6 +136,13 @@ export default function InstructorDashboard() {
     { vmid: 101, name: "Win-1 (Windows 10 Sandbox)", status: "template" },
     { vmid: 104, name: "Win10 (Custom FLARE-VM)", status: "template" }
   ])
+
+  // VM Manager Modal State
+  const [showVmManagerModal, setShowVmManagerModal] = useState(false)
+  const [selectedLabForVm, setSelectedLabForVm] = useState(null)
+  const [studentVms, setStudentVms] = useState([])
+  const [vmActionLoading, setVmActionLoading] = useState(false)
+
 
 
   const fetchPveTemplates = async () => {
@@ -511,6 +519,56 @@ export default function InstructorDashboard() {
     }
   }
 
+  // VM Manager Handlers
+  const fetchLabVms = async (labId) => {
+    setVmActionLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${labId}/vms`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setStudentVms(await res.json())
+      }
+    } catch (err) {
+      setError('Lỗi khi truy vấn danh sách máy ảo sinh viên')
+    } finally {
+      setVmActionLoading(false)
+    }
+  }
+
+  const openVmManagerModal = async (lab) => {
+    setSelectedLabForVm(lab)
+    setShowVmManagerModal(true)
+    fetchLabVms(lab.id)
+  }
+
+  const handleControlVm = async (labId, vmid, action, studentName) => {
+    const actionText = action === 'purge' ? 'xóa sạch hoàn toàn' : action === 'start' ? 'bật' : 'tắt'
+    if (action === 'purge' && !confirm(`Bạn có chắc chắn muốn xóa sạch máy ảo (VM ${vmid}) của sinh viên ${studentName} không?\nKhối máy ảo này sẽ được xóa 100% khỏi Proxmox cluster để sinh viên clone lại máy sạch!`)) return
+
+    setVmActionLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${labId}/vms/${vmid}/control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác máy ảo')
+      setSuccess(data.message)
+      fetchLabVms(labId)
+    } catch (err) {
+      setError(err.message)
+      setVmActionLoading(false)
+    }
+  }
+
+
 
 
   // Fetch details of a single class (includes students)
@@ -858,6 +916,16 @@ export default function InstructorDashboard() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            {lab.enable_vm !== false && (
+                              <button 
+                                onClick={() => openVmManagerModal(lab)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
+                                title="Quản lý & Xóa máy ảo sinh viên"
+                              >
+                                <Monitor size={13} style={{ marginRight: '4px' }} /> Máy ảo
+                              </button>
+                            )}
                             <button 
                               onClick={() => openEditLabModal(lab)} 
                               className="btn btn-secondary" 
@@ -878,6 +946,7 @@ export default function InstructorDashboard() {
                               Chấm bài &rarr;
                             </button>
                           </div>
+
                         </td>
                       </tr>
                     )
@@ -1807,6 +1876,122 @@ export default function InstructorDashboard() {
           </div>
         </div>
       )}
+      {/* MODAL VM MANAGER FOR LAB */}
+      {showVmManagerModal && selectedLabForVm && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '900px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Monitor size={18} style={{ color: 'var(--neon-cyan)' }} />
+                Quản lý Máy ảo Sinh viên — Bài Lab: {selectedLabForVm.title}
+              </h3>
+              <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Danh sách máy ảo Proxmox VE đang được cấp phát cho sinh viên làm bài thực hành này.
+                </p>
+                <button 
+                  onClick={() => fetchLabVms(selectedLabForVm.id)} 
+                  className="btn btn-secondary" 
+                  disabled={vmActionLoading}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  <RefreshCw size={13} style={{ marginRight: '4px' }} /> Làm mới danh sách
+                </button>
+              </div>
+
+              <div className="table-container" style={{ margin: 0, maxHeight: '400px', overflowY: 'auto' }}>
+                <table className="cyber-table" style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>Sinh viên (MSSV)</th>
+                      <th>VMID</th>
+                      <th>Địa chỉ IP</th>
+                      <th>Trạng thái Proxmox</th>
+                      <th>Tài nguyên (CPU/RAM)</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác điều khiển</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentVms.map(vm => (
+                      <tr key={vm.vmid}>
+                        <td>
+                          <div style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{vm.student_full_name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{vm.student_username}</div>
+                        </td>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>{vm.vmid}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{vm.ip_address}</td>
+                        <td>
+                          <span className={`badge ${
+                            vm.status === 'running' ? 'badge-submitted' :
+                            vm.status === 'stopped' ? 'badge-resubmit' : 'badge-draft'
+                          }`}>
+                            {vm.status === 'running' ? '🟢 RUNNING' :
+                             vm.status === 'stopped' ? '🔴 STOPPED' : '⚪ CHƯA TẠO'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                          {vm.status === 'running' ? `${vm.cpu}% CPU | ${vm.mem}/${vm.maxmem} MB` : '—'}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            {vm.status === 'stopped' && (
+                              <button 
+                                onClick={() => handleControlVm(selectedLabForVm.id, vm.vmid, 'start', vm.student_full_name)}
+                                className="btn btn-success" 
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                disabled={vmActionLoading}
+                                title="Bật máy ảo"
+                              >
+                                <Play size={12} style={{ marginRight: '3px' }} /> Bật
+                              </button>
+                            )}
+                            {vm.status === 'running' && (
+                              <button 
+                                onClick={() => handleControlVm(selectedLabForVm.id, vm.vmid, 'stop', vm.student_full_name)}
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '11px', background: '#475569', border: 'none' }}
+                                disabled={vmActionLoading}
+                                title="Tắt máy ảo"
+                              >
+                                🛑 Tắt
+                              </button>
+                            )}
+                            {vm.status !== 'not_created' && (
+                              <button 
+                                onClick={() => handleControlVm(selectedLabForVm.id, vm.vmid, 'purge', vm.student_full_name)}
+                                className="btn btn-danger" 
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                disabled={vmActionLoading}
+                                title="Xóa sạch máy ảo khỏi Proxmox"
+                              >
+                                <Trash2 size={12} style={{ marginRight: '3px' }} /> Xóa máy ảo
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {studentVms.length === 0 && (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          Lớp học này chưa có sinh viên hoặc chưa được gán sinh viên.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">ĐÓNG</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

@@ -305,3 +305,59 @@ def rollback_vm_session(
     success = rollback_student_vm(student_username=current_user.username, lab_id=lab.id)
     return {"message": "Đã gửi yêu cầu khôi phục máy ảo về bản sạch thành công", "success": success}
 
+@router.get("/{lab_id}/vms")
+def get_lab_student_vms(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Lấy danh sách máy ảo sinh viên thuộc bài lab (Giảng viên/Admin)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "lecturer" and current_user not in lab.class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý bài lab này")
+
+    class_students = [u for u in lab.class_.users if u.role == "student"]
+    from app.services.vm_service import list_lab_vms
+    return list_lab_vms(lab_id, class_students)
+
+@router.post("/{lab_id}/vms/{vmid}/control")
+def control_lab_vm(
+    lab_id: int,
+    vmid: int,
+    payload: Dict[str, str], # {"action": "start"|"stop"|"purge"}
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Điều khiển / Bật / Tắt / Xóa sạch máy ảo sinh viên (Giảng viên/Admin)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "lecturer" and current_user not in lab.class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý bài lab này")
+
+    action = payload.get("action")
+    if not action:
+        raise HTTPException(status_code=400, detail="Thiếu thuộc tính action")
+
+    from app.services.vm_service import control_student_vm
+    result = control_student_vm(vmid, action)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+
+    # Ghi log hoạt động
+    log = AuditLog(
+        user_id=current_user.id,
+        action=f"vm_{action}",
+        target=f"Thao tác {action} trên máy ảo VMID {vmid} thuộc Lab {lab.title}",
+        ip_address="127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+
+    return result
+
+
