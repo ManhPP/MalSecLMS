@@ -568,6 +568,36 @@ export default function InstructorDashboard() {
     }
   }
 
+  const handleBatchControlVm = async (labId, action) => {
+    const isPurge = action === 'purge_all'
+    const confirmMsg = isPurge 
+      ? `⚠️ CẢNH BÁO NGUY HẠI: Bạn có CHẮC CHẮN muốn XÓA SẠCH 100% tất cả máy ảo của toàn bộ sinh viên trong bài Lab này không?\nTất cả máy ảo sinh viên trên Proxmox cluster sẽ bị tiêu hủy hoàn toàn!`
+      : `Bạn có chắc muốn TẮT TẤT CẢ các máy ảo đang chạy của sinh viên trong bài Lab này không?`
+
+    if (!confirm(confirmMsg)) return
+
+    setVmActionLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${labId}/vms/batch-control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi điều khiển hàng loạt')
+      setSuccess(data.message)
+      fetchLabVms(labId)
+    } catch (err) {
+      setError(err.message)
+      setVmActionLoading(false)
+    }
+  }
+
+
 
 
 
@@ -1888,19 +1918,40 @@ export default function InstructorDashboard() {
               <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <div className="modal-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
                   Danh sách máy ảo Proxmox VE đang được cấp phát cho sinh viên làm bài thực hành này.
                 </p>
-                <button 
-                  onClick={() => fetchLabVms(selectedLabForVm.id)} 
-                  className="btn btn-secondary" 
-                  disabled={vmActionLoading}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  <RefreshCw size={13} style={{ marginRight: '4px' }} /> Làm mới danh sách
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    onClick={() => handleBatchControlVm(selectedLabForVm.id, 'stop_all')} 
+                    className="btn btn-secondary" 
+                    disabled={vmActionLoading}
+                    style={{ padding: '6px 12px', fontSize: '12px', background: '#475569', border: 'none' }}
+                    title="Tắt tất cả máy ảo đang chạy"
+                  >
+                    🛑 Tắt tất cả máy ảo
+                  </button>
+                  <button 
+                    onClick={() => handleBatchControlVm(selectedLabForVm.id, 'purge_all')} 
+                    className="btn btn-danger" 
+                    disabled={vmActionLoading}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                    title="Xóa tất cả máy ảo khỏi Proxmox cluster"
+                  >
+                    <Trash2 size={13} style={{ marginRight: '4px' }} /> Xóa tất cả máy ảo
+                  </button>
+                  <button 
+                    onClick={() => fetchLabVms(selectedLabForVm.id)} 
+                    className="btn btn-secondary" 
+                    disabled={vmActionLoading}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                  >
+                    <RefreshCw size={13} style={{ marginRight: '4px' }} /> Làm mới
+                  </button>
+                </div>
               </div>
+
 
               <div className="table-container" style={{ margin: 0, maxHeight: '400px', overflowY: 'auto' }}>
                 <table className="cyber-table" style={{ fontSize: '13px' }}>

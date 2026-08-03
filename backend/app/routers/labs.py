@@ -360,4 +360,54 @@ def control_lab_vm(
 
     return result
 
+@router.post("/{lab_id}/vms/batch-control")
+def batch_control_lab_vms(
+    lab_id: int,
+    payload: Dict[str, str], # {"action": "stop_all" | "purge_all"}
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Điều khiển hàng loạt: Tắt tất cả hoặc Xóa tất cả máy ảo sinh viên (Giảng viên/Admin)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "lecturer" and current_user not in lab.class_.users:
+        raise HTTPException(status_code=403, detail="Bạn không quản lý bài lab này")
+
+    action = payload.get("action")
+    if action not in ["stop_all", "purge_all"]:
+        raise HTTPException(status_code=400, detail="Hành động hàng loạt không hợp lệ")
+
+    class_students = [u for u in lab.class_.users if u.role == "student"]
+    from app.services.vm_service import list_lab_vms, control_student_vm
+
+    vms = list_lab_vms(lab_id, class_students)
+    affected_count = 0
+
+    for vm in vms:
+        vmid = vm["vmid"]
+        status = vm["status"]
+        if action == "stop_all" and status == "running":
+            control_student_vm(vmid, "stop")
+            affected_count += 1
+        elif action == "purge_all" and status != "not_created":
+            control_student_vm(vmid, "purge")
+            affected_count += 1
+
+    action_text = "tắt tất cả" if action == "stop_all" else "xóa sạch tất cả"
+    msg = f"Đã gửi lệnh {action_text} ({affected_count} máy ảo) thuộc bài Lab {lab.title}"
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action=f"vm_batch_{action}",
+        target=msg,
+        ip_address="127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+
+    return {"success": True, "message": msg, "affected_count": affected_count}
+
+
 
