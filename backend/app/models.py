@@ -39,7 +39,8 @@ class Class(Base):
 
     # Relationships
     users = relationship('User', secondary=user_class_association, back_populates='classes')
-    labs = relationship('Lab', back_populates='class_')
+    labs = relationship('Lab', back_populates='class_', cascade='all, delete-orphan')
+
 
 class Lab(Base):
     __tablename__ = 'labs'

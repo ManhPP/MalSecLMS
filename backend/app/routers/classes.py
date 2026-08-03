@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict
+from typing import List, Dict, Any
+
 from app.database import get_db
 from app.models import Class, User, AuditLog
 from app.schemas import ClassOut, ClassCreate, ClassWithStudents
@@ -92,18 +93,30 @@ def delete_class(
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
         
+    # 1. Xóa các bài nộp thuộc về bài lab của lớp này
+    lab_ids = [lab.id for lab in class_.labs]
+    if lab_ids:
+        from app.models import Submission
+        db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).delete(synchronize_session=False)
+
+    # 2. Xóa các bài lab thuộc lớp này
+    from app.models import Lab
+    db.query(Lab).filter(Lab.class_id == class_id).delete(synchronize_session=False)
+
+    # 3. Xóa lớp học
     db.delete(class_)
     db.commit()
     return {"message": "Xóa lớp học phần thành công"}
 
+
 @router.post("/{class_id}/students", status_code=status.HTTP_200_OK)
 def assign_students_to_class(
     class_id: int,
-    payload: Dict[str, List[int]], # {"student_ids": [1, 2, 3]}
+    payload: Dict[str, Any], # {"usernames": ["sv01", "sv02"]} or {"student_ids": [1, 2]}
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Gán danh sách sinh viên vào lớp (Giảng viên/Admin)"""
+    """API Gán danh sách sinh viên vào lớp theo Username hoặc ID (Giảng viên/Admin)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
@@ -112,12 +125,25 @@ def assign_students_to_class(
         raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
         
     student_ids = payload.get("student_ids", [])
-    students = db.query(User).filter(User.id.in_(student_ids), User.role == "student").all()
+    usernames = payload.get("usernames", [])
     
-    # Gán sinh viên vào lớp (tránh trùng lặp)
+    filters = [User.role == "student"]
+    if student_ids and usernames:
+        filters.append((User.id.in_(student_ids)) | (User.username.in_(usernames)))
+    elif usernames:
+        filters.append(User.username.in_(usernames))
+    elif student_ids:
+        filters.append(User.id.in_(student_ids))
+    else:
+        return {"message": "Không có sinh viên nào được cung cấp"}
+
+    students = db.query(User).filter(*filters).all()
+    
+    added_count = 0
     for student in students:
         if student not in class_.users:
             class_.users.append(student)
+            added_count += 1
             
     db.commit()
     
@@ -125,13 +151,13 @@ def assign_students_to_class(
     log = AuditLog(
         user_id=current_user.id,
         action="assign_students",
-        target=f"Gán {len(students)} sinh viên vào lớp {class_.name}",
+        target=f"Gán {added_count} sinh viên vào lớp {class_.name}",
         ip_address="127.0.0.1"
     )
     db.add(log)
     db.commit()
     
-    return {"message": f"Đã thêm {len(students)} sinh viên vào lớp học phần"}
+    return {"message": f"Đã thêm {added_count} sinh viên vào lớp học phần"}
 
 @router.delete("/{class_id}/students/{student_id}", status_code=status.HTTP_200_OK)
 def remove_student_from_class(
@@ -161,35 +187,49 @@ def remove_student_from_class(
 @router.post("/{class_id}/lecturers", status_code=status.HTTP_200_OK)
 def assign_lecturers_to_class(
     class_id: int,
-    payload: Dict[str, List[int]], # {"lecturer_ids": [1, 2]}
+    payload: Dict[str, Any], # {"usernames": ["gv01"]} or {"lecturer_ids": [1]}
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Gán giảng viên quản lý lớp (Chỉ Admin)"""
+    """API Gán giảng viên quản lý lớp theo Username hoặc ID (Chỉ Admin)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
         
     lecturer_ids = payload.get("lecturer_ids", [])
-    lecturers = db.query(User).filter(User.id.in_(lecturer_ids), User.role == "lecturer").all()
+    usernames = payload.get("usernames", [])
     
-    # Gán giảng viên vào lớp
+    filters = [User.role == "lecturer"]
+    if lecturer_ids and usernames:
+        filters.append((User.id.in_(lecturer_ids)) | (User.username.in_(usernames)))
+    elif usernames:
+        filters.append(User.username.in_(usernames))
+    elif lecturer_ids:
+        filters.append(User.id.in_(lecturer_ids))
+    else:
+        return {"message": "Không có giảng viên nào được cung cấp"}
+
+    lecturers = db.query(User).filter(*filters).all()
+    
+    added_count = 0
     for lecturer in lecturers:
         if lecturer not in class_.users:
             class_.users.append(lecturer)
+            added_count += 1
     db.commit()
     
     # Ghi log hoạt động
     log = AuditLog(
         user_id=current_user.id,
         action="assign_lecturers",
-        target=f"Gán {len(lecturers)} giảng viên vào quản lý lớp {class_.name}",
+        target=f"Gán {added_count} giảng viên vào quản lý lớp {class_.name}",
         ip_address="127.0.0.1"
     )
     db.add(log)
     db.commit()
     
-    return {"message": f"Đã gán {len(lecturers)} giảng viên vào quản lý lớp học phần"}
+    return {"message": f"Đã gán {added_count} giảng viên vào quản lý lớp học phần"}
+
 
 @router.delete("/{class_id}/lecturers/{lecturer_id}", status_code=status.HTTP_200_OK)
 def remove_lecturer_from_class(

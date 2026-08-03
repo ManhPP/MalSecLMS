@@ -23,8 +23,10 @@ export default function AdminDashboard() {
   const [isActive, setIsActive] = useState(true)
 
   const [showClassModal, setShowClassModal] = useState(false)
+  const [editingClass, setEditingClass] = useState(null)
   const [className, setClassName] = useState('')
   const [classDesc, setClassDesc] = useState('')
+
 
   const [showImportModal, setShowImportModal] = useState(false)
   const [importFile, setImportFile] = useState(null)
@@ -37,8 +39,11 @@ export default function AdminDashboard() {
 
   // Selected class detail for Student Assignment
   const [selectedClass, setSelectedClass] = useState(null)
-  const [studentIdsInput, setStudentIdsInput] = useState('') // CSV string of IDs
-  const [lecturerIdsInput, setLecturerIdsInput] = useState('') // CSV string of lecturer IDs
+  const [studentIdsInput, setStudentIdsInput] = useState('') // CSV string of IDs/usernames
+  const [lecturerIdsInput, setLecturerIdsInput] = useState('') // CSV string of lecturer IDs/usernames
+  const [hideStudentSuggestions, setHideStudentSuggestions] = useState(false)
+  const [hideLecturerSuggestions, setHideLecturerSuggestions] = useState(false)
+
 
   // Fetch initial data
   const fetchData = async () => {
@@ -162,6 +167,18 @@ export default function AdminDashboard() {
   }
 
   // Class CRUD handlers
+  const handleOpenClassModal = (cls = null) => {
+    setEditingClass(cls)
+    if (cls) {
+      setClassName(cls.name)
+      setClassDesc(cls.description || '')
+    } else {
+      setClassName('')
+      setClassDesc('')
+    }
+    setShowClassModal(true)
+  }
+
   const handleSaveClass = async (e) => {
     e.preventDefault()
     setActionLoading(true)
@@ -170,8 +187,11 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
-      const res = await fetch('/api/classes/', {
-        method: 'POST',
+      const url = editingClass ? `/api/classes/${editingClass.id}` : '/api/classes/'
+      const method = editingClass ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -180,10 +200,11 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi tạo lớp học phần')
+      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác lớp học phần')
 
-      setSuccess('Tạo lớp học phần thành công!')
+      setSuccess(editingClass ? 'Cập nhật thông tin lớp học phần thành công!' : 'Tạo lớp học phần mới thành công!')
       setShowClassModal(false)
+      setEditingClass(null)
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -191,6 +212,38 @@ export default function AdminDashboard() {
       setActionLoading(false)
     }
   }
+
+  const handleDeleteClass = async (classId, clsName) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa lớp học phần "${clsName}" không?\nHành động này không thể hoàn tác!`)) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/classes/${classId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json() : { detail: await res.text() }
+
+      if (!res.ok) throw new Error(data.detail || 'Lỗi khi xóa lớp học phần')
+
+      setSuccess(`Xóa lớp học phần "${clsName}" thành công!`)
+      if (selectedClass?.id === classId) {
+        setSelectedClass(null)
+      }
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+
+  }
+
 
   const handleAssignStudents = async (e) => {
     e.preventDefault()
@@ -200,11 +253,9 @@ export default function AdminDashboard() {
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
-    // Parse IDs (split by comma or whitespace, convert to ints)
-    const student_ids = studentIdsInput
-      .split(/[\s,]+/)
-      .map(id => parseInt(id.trim()))
-      .filter(id => !isNaN(id))
+    const items = studentIdsInput.split(/[\s,]+/).map(s => s.trim()).filter(Boolean)
+    const student_ids = items.map(x => parseInt(x)).filter(x => !isNaN(x) && String(x) === items.find(i => i === String(x)))
+    const usernames = items.filter(x => isNaN(parseInt(x)) || String(parseInt(x)) !== x)
 
     try {
       const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
@@ -213,7 +264,7 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ student_ids })
+        body: JSON.stringify({ student_ids, usernames })
       })
 
       const data = await res.json()
@@ -265,10 +316,9 @@ export default function AdminDashboard() {
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
-    const lecturer_ids = lecturerIdsInput
-      .split(/[\s,]+/)
-      .map(id => parseInt(id.trim()))
-      .filter(id => !isNaN(id))
+    const items = lecturerIdsInput.split(/[\s,]+/).map(s => s.trim()).filter(Boolean)
+    const lecturer_ids = items.map(x => parseInt(x)).filter(x => !isNaN(x) && String(x) === items.find(i => i === String(x)))
+    const usernames = items.filter(x => isNaN(parseInt(x)) || String(parseInt(x)) !== x)
 
     try {
       const res = await fetch(`/api/classes/${selectedClass.id}/lecturers`, {
@@ -277,7 +327,7 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ lecturer_ids })
+        body: JSON.stringify({ lecturer_ids, usernames })
       })
 
       const data = await res.json()
@@ -299,6 +349,7 @@ export default function AdminDashboard() {
       setActionLoading(false)
     }
   }
+
 
   const handleRemoveLecturerFromClass = async (lecturerId) => {
     if (!confirm('Bạn có chắc xóa giảng viên này khỏi lớp?')) return
@@ -511,7 +562,7 @@ export default function AdminDashboard() {
           <div className="cyber-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '18px' }}>Các lớp học</h3>
-              <button onClick={() => setShowClassModal(true)} className="btn btn-primary" style={{ padding: '8px 12px' }}>
+              <button onClick={() => handleOpenClassModal(null)} className="btn btn-primary" style={{ padding: '8px 12px' }}>
                 <Plus size={16} /> Tạo lớp
               </button>
             </div>
@@ -522,7 +573,7 @@ export default function AdminDashboard() {
                   <tr>
                     <th>Tên Lớp</th>
                     <th>Mô tả</th>
-                    <th style={{ textAlign: 'right' }}>Chi tiết</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -541,10 +592,34 @@ export default function AdminDashboard() {
                       <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{c.name}</td>
                       <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className="badge badge-submitted">SV &rarr;</span>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenClassModal(c)
+                            }} 
+                            className="btn btn-secondary" 
+                            style={{ padding: '4px 8px', fontSize: '11px', background: '#334155', border: 'none' }}
+                            title="Sửa thông tin lớp"
+                          >
+                            <Edit2 size={12} style={{ marginRight: '3px' }} /> Sửa
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteClass(c.id, c.name)
+                            }} 
+                            className="btn btn-danger" 
+                            style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
+                            title="Xóa lớp học"
+                          >
+                            <Trash2 size={12} style={{ marginRight: '3px' }} /> Xóa
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>
@@ -570,15 +645,90 @@ export default function AdminDashboard() {
                       {/* Form gán giảng viên vào lớp */}
                       <form onSubmit={handleAssignLecturers} style={{ marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán giảng viên quản lý lớp</h4>
-                        <div className="form-group" style={{ marginBottom: '12px' }}>
-                          <label className="form-label">Nhập mã ID các Giảng viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                        <div className="form-group" style={{ marginBottom: '12px', position: 'relative' }}>
+                          <label className="form-label">Nhập Tên đăng nhập (Username) hoặc ID Giảng viên (Phân cách bằng dấu phẩy)</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Ví dụ: 2, 5"
+                            placeholder="Ví dụ: gv01, gv_an, 2"
                             value={lecturerIdsInput}
-                            onChange={(e) => setLecturerIdsInput(e.target.value)}
+                            onChange={(e) => {
+                              setLecturerIdsInput(e.target.value)
+                              setHideLecturerSuggestions(false)
+                            }}
                           />
+                          {(() => {
+                            if (hideLecturerSuggestions) return null;
+                            const lastToken = lecturerIdsInput.split(/[\s,]+/).pop()?.trim() || '';
+                            const suggestions = lastToken.length >= 1 
+                              ? users.filter(u => 
+                                  u.role === 'lecturer' && 
+                                  !classLecturers.some(cl => cl.id === u.id) &&
+                                  (u.username.toLowerCase().includes(lastToken.toLowerCase()) || 
+                                   u.full_name.toLowerCase().includes(lastToken.toLowerCase()))
+                                ).slice(0, 6)
+                              : [];
+
+                            if (suggestions.length === 0) return null;
+
+                            return (
+                              <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                zIndex: 100,
+                                background: '#1e293b',
+                                border: '1px solid #38bdf8',
+                                borderRadius: '8px',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.9)',
+                                marginTop: '4px',
+                                maxHeight: '220px',
+                                overflowY: 'auto'
+                              }}>
+                                {suggestions.map(u => (
+                                  <div 
+                                    key={u.id}
+                                    onClick={() => {
+                                      const parts = lecturerIdsInput.split(/[\s,]+/);
+                                      parts.pop();
+                                      const prefix = parts.filter(Boolean).join(', ');
+                                      setLecturerIdsInput(prefix ? `${prefix}, ${u.username}, ` : `${u.username}, `);
+                                      setHideLecturerSuggestions(true);
+                                    }}
+                                    style={{
+                                      padding: '10px 14px',
+                                      cursor: 'pointer',
+                                      borderBottom: '1px solid #334155',
+                                      display: 'flex',
+                                      justify: 'space-between',
+                                      alignItems: 'center',
+                                      fontSize: '13.5px',
+                                      transition: 'background 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#334155'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <div>
+                                      <span style={{ fontWeight: '700', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>{u.username}</span>
+                                      <span style={{ marginLeft: '10px', color: '#f8fafc', fontWeight: '500' }}>{u.full_name}</span>
+                                    </div>
+                                    <span style={{ 
+                                      fontSize: '12px', 
+                                      color: '#38bdf8', 
+                                      fontWeight: '600',
+                                      background: 'rgba(56, 189, 248, 0.15)',
+                                      padding: '3px 8px',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(56, 189, 248, 0.3)'
+                                    }}>
+                                      + Chọn
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px' }} disabled={actionLoading}>
                           {actionLoading ? 'ĐANG GÁN...' : 'XÁC NHẬN GÁN GIẢNG VIÊN'}
@@ -588,20 +738,97 @@ export default function AdminDashboard() {
                       {/* Form gán học sinh vào lớp */}
                       <form onSubmit={handleAssignStudents} style={{ marginBottom: '28px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán sinh viên vào lớp học phần</h4>
-                        <div className="form-group" style={{ marginBottom: '12px' }}>
-                          <label className="form-label">Nhập mã ID các Sinh viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                        <div className="form-group" style={{ marginBottom: '12px', position: 'relative' }}>
+                          <label className="form-label">Nhập Username / MSSV hoặc ID Sinh viên (Phân cách bằng dấu phẩy)</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Ví dụ: 3, 4, 15, 20"
+                            placeholder="Ví dụ: sv01, sv02, 20210001"
                             value={studentIdsInput}
-                            onChange={(e) => setStudentIdsInput(e.target.value)}
+                            onChange={(e) => {
+                              setStudentIdsInput(e.target.value)
+                              setHideStudentSuggestions(false)
+                            }}
                           />
+                          {(() => {
+                            if (hideStudentSuggestions) return null;
+                            const lastToken = studentIdsInput.split(/[\s,]+/).pop()?.trim() || '';
+                            const suggestions = lastToken.length >= 1 
+                              ? users.filter(u => 
+                                  u.role === 'student' && 
+                                  !classStudents.some(cs => cs.id === u.id) &&
+                                  (u.username.toLowerCase().includes(lastToken.toLowerCase()) || 
+                                   u.full_name.toLowerCase().includes(lastToken.toLowerCase()))
+                                ).slice(0, 6)
+                              : [];
+
+                            if (suggestions.length === 0) return null;
+
+                            return (
+                              <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                zIndex: 100,
+                                background: '#1e293b',
+                                border: '1px solid #38bdf8',
+                                borderRadius: '8px',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.9)',
+                                marginTop: '4px',
+                                maxHeight: '220px',
+                                overflowY: 'auto'
+                              }}>
+                                {suggestions.map(u => (
+                                  <div 
+                                    key={u.id}
+                                    onClick={() => {
+                                      const parts = studentIdsInput.split(/[\s,]+/);
+                                      parts.pop();
+                                      const prefix = parts.filter(Boolean).join(', ');
+                                      setStudentIdsInput(prefix ? `${prefix}, ${u.username}, ` : `${u.username}, `);
+                                      setHideStudentSuggestions(true);
+                                    }}
+                                    style={{
+                                      padding: '10px 14px',
+                                      cursor: 'pointer',
+                                      borderBottom: '1px solid #334155',
+                                      display: 'flex',
+                                      justify: 'space-between',
+                                      alignItems: 'center',
+                                      fontSize: '13.5px',
+                                      transition: 'background 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#334155'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <div>
+                                      <span style={{ fontWeight: '700', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>{u.username}</span>
+                                      <span style={{ marginLeft: '10px', color: '#f8fafc', fontWeight: '500' }}>{u.full_name}</span>
+                                    </div>
+                                    <span style={{ 
+                                      fontSize: '12px', 
+                                      color: '#38bdf8', 
+                                      fontWeight: '600',
+                                      background: 'rgba(56, 189, 248, 0.15)',
+                                      padding: '3px 8px',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(56, 189, 248, 0.3)'
+                                    }}>
+                                      + Chọn
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <button type="submit" className="btn btn-success" style={{ padding: '8px 16px' }} disabled={actionLoading}>
                           {actionLoading ? 'ĐANG THÊM...' : 'XÁC NHẬN GÁN SINH VIÊN'}
                         </button>
                       </form>
+
+
 
                       {/* Danh sách giảng viên quản lý lớp */}
                       <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách giảng viên phụ trách ({classLecturers.length} GV)</h4>
@@ -832,7 +1059,7 @@ export default function AdminDashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Tạo lớp học phần mới</h3>
+              <h3>{editingClass ? 'Chỉnh sửa thông tin lớp học phần' : 'Tạo lớp học phần mới'}</h3>
               <button onClick={() => setShowClassModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveClass}>
@@ -862,9 +1089,10 @@ export default function AdminDashboard() {
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowClassModal(false)} className="btn btn-secondary">ĐÓNG</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG TẠO...' : 'TẠO LỚP HỌC'}
+                  {actionLoading ? 'ĐANG LƯU...' : editingClass ? 'LƯU THAY ĐỔI' : 'TẠO LỚP HỌC'}
                 </button>
               </div>
+
             </form>
           </div>
         </div>
