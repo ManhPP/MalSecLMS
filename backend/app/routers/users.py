@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models import User, Class, AuditLog
 from app.schemas import UserOut, UserCreate, UserUpdate
 from app.security import require_admin, require_lecturer, get_current_user, get_password_hash
+from app.request_utils import get_client_ip
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -32,7 +33,8 @@ def get_user(
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(
-    user_data: UserCreate, 
+    user_data: UserCreate,
+    request: Request,
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
@@ -60,7 +62,7 @@ def create_user(
         user_id=current_user.id,
         action="create_user",
         target=f"Tạo người dùng: {new_user.username} (Role: {new_user.role})",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -69,8 +71,9 @@ def create_user(
 
 @router.put("/{user_id}", response_model=UserOut)
 def update_user(
-    user_id: int, 
-    user_data: UserUpdate, 
+    user_id: int,
+    user_data: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_lecturer)
 ):
@@ -111,7 +114,7 @@ def update_user(
         user_id=current_user.id,
         action="update_user",
         target=f"Cập nhật tài khoản: {user.username}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -120,7 +123,8 @@ def update_user(
 
 @router.delete("/{user_id}", status_code=status.HTTP_200_OK)
 def delete_user(
-    user_id: int, 
+    user_id: int,
+    request: Request,
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
@@ -140,7 +144,7 @@ def delete_user(
         user_id=current_user.id,
         action="delete_user",
         target=f"Xóa tài khoản: {user.username}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()

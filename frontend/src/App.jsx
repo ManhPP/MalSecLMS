@@ -13,6 +13,11 @@ const AuthContext = createContext(null)
 
 export const useAuth = () => useContext(AuthContext)
 
+const clearGuacamoleAuth = () => {
+  localStorage.removeItem('GUAC_AUTH_TOKEN')
+  sessionStorage.removeItem('GUAC_AUTH_TOKEN')
+}
+
 // Layout chung cho Portal sau khi đăng nhập
 const Layout = ({ children }) => {
   const { user, logout } = useAuth()
@@ -136,6 +141,7 @@ export default function App() {
 
   // Khôi phục phiên làm việc từ LocalStorage
   useEffect(() => {
+    clearGuacamoleAuth()
     const storedUser = localStorage.getItem('malsec_user')
     const token = localStorage.getItem('malsec_token')
     if (storedUser && token) {
@@ -145,12 +151,14 @@ export default function App() {
   }, [])
 
   const login = (userData, token) => {
+    clearGuacamoleAuth()
     localStorage.setItem('malsec_user', JSON.stringify(userData))
     localStorage.setItem('malsec_token', token)
     setUser(userData)
   }
 
   const logout = () => {
+    clearGuacamoleAuth()
     localStorage.removeItem('malsec_user')
     localStorage.removeItem('malsec_token')
     setUser(null)

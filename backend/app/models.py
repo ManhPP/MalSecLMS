@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
+from app.config import settings
 from app.database import Base
 
 # Bảng trung gian n-n giữa Người dùng và Lớp học
@@ -64,7 +65,15 @@ class Lab(Base):
     
     is_active = Column(Boolean, default=True)
     enable_vm = Column(Boolean, default=True, server_default='true', nullable=False)
-    template_vmid = Column(Integer, default=101, server_default='101', nullable=True)
+    template_vmid = Column(
+        Integer, default=lambda: settings.DEFAULT_TEMPLATE_VMID, nullable=False
+    )
+    vm_protocol = Column(
+        String, default=lambda: settings.DEFAULT_VM_PROTOCOL, nullable=False
+    )
+    vm_port = Column(Integer, default=lambda: settings.DEFAULT_VM_PORT, nullable=False)
+    vm_username = Column(String, nullable=True)
+    vm_password = Column(String, nullable=True)
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)

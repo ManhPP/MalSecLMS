@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models import Class, User, AuditLog
 from app.schemas import ClassOut, ClassCreate, ClassWithStudents
 from app.security import require_lecturer, require_admin
+from app.request_utils import get_client_ip
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -35,7 +36,8 @@ def get_class(
 
 @router.post("/", response_model=ClassOut, status_code=status.HTTP_201_CREATED)
 def create_class(
-    class_data: ClassCreate, 
+    class_data: ClassCreate,
+    request: Request,
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
@@ -57,7 +59,7 @@ def create_class(
         user_id=current_user.id,
         action="create_class",
         target=f"Tạo lớp học: {new_class.name}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -113,6 +115,7 @@ def delete_class(
 def assign_students_to_class(
     class_id: int,
     payload: Dict[str, Any], # {"usernames": ["sv01", "sv02"]} or {"student_ids": [1, 2]}
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -152,7 +155,7 @@ def assign_students_to_class(
         user_id=current_user.id,
         action="assign_students",
         target=f"Gán {added_count} sinh viên vào lớp {class_.name}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -188,6 +191,7 @@ def remove_student_from_class(
 def assign_lecturers_to_class(
     class_id: int,
     payload: Dict[str, Any], # {"usernames": ["gv01"]} or {"lecturer_ids": [1]}
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
@@ -223,7 +227,7 @@ def assign_lecturers_to_class(
         user_id=current_user.id,
         action="assign_lecturers",
         target=f"Gán {added_count} giảng viên vào quản lý lớp {class_.name}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()

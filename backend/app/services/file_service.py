@@ -51,7 +51,7 @@ class FileService:
     @staticmethod
     def process_and_scan_zip(filepath: str) -> dict:
         """
-        Mở file zip mã hóa bằng mật khẩu mặc định 'infected', 
+        Mở file zip mã hóa bằng mật khẩu được cấu hình,
         giải nén trong bộ nhớ để giả lập quét mã độc (ClamAV/Yara)
         """
         scan_results = {
@@ -72,14 +72,18 @@ class FileService:
                 
                 if is_encrypted:
                     try:
-                        # Thử giải nén với mật khẩu mặc định 'infected'
-                        zf.setpassword(b'infected')
+                        zip_password = settings.MALWARE_ZIP_PASSWORD.encode("utf-8")
+                        zf.setpassword(zip_password)
                         # Thử đọc thử file đầu tiên để test pass
                         zf.read(zf.namelist()[0])
                     except Exception:
                         raise HTTPException(
                             status_code=400,
-                            detail="File zip bị khóa mật khẩu. Theo quy định môn học, vui lòng sử dụng mật khẩu 'infected' để hệ thống tự động quét an toàn."
+                            detail=(
+                                "File zip bị khóa mật khẩu. Theo quy định môn học, "
+                                "vui lòng sử dụng mật khẩu "
+                                f"'{settings.MALWARE_ZIP_PASSWORD}' để hệ thống tự động quét an toàn."
+                            )
                         )
                 
                 scan_results["scanned"] = True

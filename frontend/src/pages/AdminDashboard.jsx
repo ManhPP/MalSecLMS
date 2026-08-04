@@ -176,6 +176,10 @@ export default function AdminDashboard() {
   // User CRUD handlers
   const handleSaveUser = async (e) => {
     e.preventDefault()
+    if (!editingUser && !password) {
+      setError('Vui lòng nhập mật khẩu ban đầu cho tài khoản mới')
+      return
+    }
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -191,7 +195,7 @@ export default function AdminDashboard() {
         method = 'PUT'
         if (password) body.password = password
       } else {
-        body.password = password || '12345678' // default password
+        body.password = password
       }
 
       const res = await fetch(url, {
@@ -1172,9 +1176,10 @@ export default function AdminDashboard() {
                   <input 
                     type="password" 
                     className="form-input" 
-                    placeholder={editingUser ? "Không đổi mật khẩu..." : "Mặc định nếu trống là 12345678"}
+                    placeholder={editingUser ? "Không đổi mật khẩu..." : "Nhập mật khẩu ban đầu"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    required={!editingUser}
                   />
                 </div>
 
@@ -1269,7 +1274,7 @@ export default function AdminDashboard() {
                 <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                   Hệ thống hỗ trợ nhập tự động hàng loạt tài khoản sinh viên và tự động tạo/gán lớp học phần.
                   Yêu cầu định dạng tệp tin CSV gồm ít nhất 3 cột (hoặc 4 cột để nạp địa chỉ Email): <b>MSSV, Họ và tên, Lớp học phần, Email (tùy chọn)</b>.
-                  Mật khẩu đăng nhập mặc định cho các sinh viên mới tạo sẽ là <b>12345678</b>.
+                  Mật khẩu ban đầu cho sinh viên nhập từ CSV được lấy từ cấu hình bảo mật của máy chủ.
                 </p>
 
                 <div className="upload-zone" style={{ marginBottom: '20px' }}>
@@ -1480,4 +1485,3 @@ export default function AdminDashboard() {
     </div>
   )
 }
-

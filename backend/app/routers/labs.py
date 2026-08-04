@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.database import get_db
+from app.config import settings
 from app.models import Lab, User, Class, AuditLog
+from app.request_utils import get_client_ip
 from app.schemas import LabOut, LabCreate, LabUpdate
 from app.security import require_lecturer, require_student, get_current_user, require_any_user
 
@@ -84,6 +86,7 @@ def get_lab_detail(
 @router.post("/", response_model=LabOut, status_code=status.HTTP_201_CREATED)
 def create_lab(
     lab_data: LabCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -95,6 +98,32 @@ def create_lab(
         
     if current_user.role == "lecturer" and current_user not in class_exists.users:
         raise HTTPException(status_code=403, detail="Bạn không có quyền tạo bài lab cho lớp học phần này")
+
+    vm_username = (lab_data.vm_username or "").strip() or None
+    vm_password = lab_data.vm_password or None
+    if lab_data.enable_vm:
+        if lab_data.template_vmid is None or not (
+            settings.TEMPLATE_VMID_MIN
+            <= lab_data.template_vmid
+            <= settings.TEMPLATE_VMID_MAX
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "VM template phải nằm trong dải "
+                    f"{settings.TEMPLATE_VMID_MIN} - {settings.TEMPLATE_VMID_MAX}"
+                ),
+            )
+        if lab_data.vm_protocol in {"rdp", "ssh"} and not vm_username:
+            raise HTTPException(
+                status_code=422,
+                detail="RDP/SSH yêu cầu tên đăng nhập máy ảo",
+            )
+        if not vm_password:
+            raise HTTPException(
+                status_code=422,
+                detail="Vui lòng nhập mật khẩu kết nối máy ảo",
+            )
         
     new_lab = Lab(
         title=lab_data.title,
@@ -106,7 +135,12 @@ def create_lab(
         class_id=lab_data.class_id,
         created_by_id=current_user.id,
         is_active=lab_data.is_active,
-        enable_vm=lab_data.enable_vm
+        enable_vm=lab_data.enable_vm,
+        template_vmid=lab_data.template_vmid,
+        vm_protocol=lab_data.vm_protocol,
+        vm_port=lab_data.vm_port,
+        vm_username=vm_username,
+        vm_password=vm_password
     )
     db.add(new_lab)
     db.commit()
@@ -117,7 +151,7 @@ def create_lab(
         user_id=current_user.id,
         action="create_lab",
         target=f"Tạo bài lab: {new_lab.title} (Lớp: {class_exists.name})",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -159,6 +193,14 @@ def update_lab(
         lab.enable_vm = lab_data.enable_vm
     if lab_data.template_vmid is not None:
         lab.template_vmid = lab_data.template_vmid
+    if lab_data.vm_protocol is not None:
+        lab.vm_protocol = lab_data.vm_protocol
+    if lab_data.vm_port is not None:
+        lab.vm_port = lab_data.vm_port
+    if lab_data.vm_username is not None:
+        lab.vm_username = lab_data.vm_username.strip() or None
+    if lab_data.vm_password is not None:
+        lab.vm_password = lab_data.vm_password
     if lab_data.class_id is not None:
 
         # Check class exists
@@ -168,6 +210,30 @@ def update_lab(
         if current_user.role == "lecturer" and current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần mới này")
         lab.class_id = lab_data.class_id
+
+    if lab.enable_vm:
+        if lab.template_vmid is None or not (
+            settings.TEMPLATE_VMID_MIN
+            <= lab.template_vmid
+            <= settings.TEMPLATE_VMID_MAX
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "VM template phải nằm trong dải "
+                    f"{settings.TEMPLATE_VMID_MIN} - {settings.TEMPLATE_VMID_MAX}"
+                ),
+            )
+        if lab.vm_protocol in {"rdp", "ssh"} and not lab.vm_username:
+            raise HTTPException(
+                status_code=422,
+                detail="RDP/SSH yêu cầu tên đăng nhập máy ảo",
+            )
+        if not lab.vm_password:
+            raise HTTPException(
+                status_code=422,
+                detail="Vui lòng nhập mật khẩu kết nối máy ảo",
+            )
         
     db.commit()
     db.refresh(lab)
@@ -197,6 +263,7 @@ def delete_lab(
 def update_individual_extensions(
     lab_id: int,
     extensions: Dict[str, str], # {"sv_username": "2026-05-30T23:59:59"}
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -229,7 +296,7 @@ def update_individual_extensions(
         user_id=current_user.id,
         action="grant_extension",
         target=f"Gia hạn bài lab ID {lab.id} cho {', '.join(extensions.keys())}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -259,15 +326,28 @@ def get_or_create_vm_session(
         
     if not lab.enable_vm:
         raise HTTPException(status_code=400, detail="Bài lab này không yêu cầu máy ảo thực hành")
+    if lab.vm_protocol in {"rdp", "ssh"} and not lab.vm_username:
+        raise HTTPException(status_code=400, detail="Lab chưa cấu hình tên đăng nhập VM")
+    if not lab.vm_password:
+        raise HTTPException(status_code=400, detail="Lab chưa cấu hình mật khẩu VM")
         
-    from app.services.vm_service import provision_student_vm, generate_guacamole_auth_json_url
-    
-    template_vmid = lab.template_vmid or 101
-    ip_address, vmid = provision_student_vm(
-        student_username=current_user.username,
-        lab_id=lab.id,
-        template_vmid=template_vmid
+    from app.services.vm_service import (
+        VMProvisionError,
+        provision_student_vm,
+        generate_guacamole_auth_json_url,
     )
+
+    template_vmid = lab.template_vmid or settings.DEFAULT_TEMPLATE_VMID
+    try:
+        ip_address, vmid = provision_student_vm(
+            student_username=current_user.username,
+            lab_id=lab.id,
+            template_vmid=template_vmid,
+            protocol=lab.vm_protocol,
+            port=lab.vm_port,
+        )
+    except VMProvisionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     print(f"[VM-SESSION] user={current_user.username} lab={lab_id} vmid={vmid} ip={ip_address}", flush=True)
     
 
@@ -275,9 +355,10 @@ def get_or_create_vm_session(
     guacamole_url = generate_guacamole_auth_json_url(
         ip_address=ip_address,
         student_username=current_user.username,
-        protocol="rdp",
-        username="win1",
-        password="KhongQuanLieu"
+        protocol=lab.vm_protocol,
+        port=lab.vm_port,
+        username=lab.vm_username,
+        password=lab.vm_password
     )
 
 
@@ -287,7 +368,9 @@ def get_or_create_vm_session(
         "vmid": vmid,
         "ip_address": ip_address,
         "guacamole_url": guacamole_url,
-        "template_vmid": template_vmid
+        "template_vmid": template_vmid,
+        "protocol": lab.vm_protocol,
+        "port": lab.vm_port
     }
 
 @router.post("/{lab_id}/vm-rollback")
@@ -301,8 +384,14 @@ def rollback_vm_session(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
         
-    from app.services.vm_service import rollback_student_vm
-    success = rollback_student_vm(student_username=current_user.username, lab_id=lab.id)
+    from app.services.vm_service import VMProvisionError, rollback_student_vm
+    try:
+        success = rollback_student_vm(
+            student_username=current_user.username,
+            lab_id=lab.id,
+        )
+    except VMProvisionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"message": "Đã gửi yêu cầu khôi phục máy ảo về bản sạch thành công", "success": success}
 
 @router.get("/{lab_id}/vms")
@@ -328,6 +417,7 @@ def control_lab_vm(
     lab_id: int,
     vmid: int,
     payload: Dict[str, str], # {"action": "start"|"stop"|"purge"}
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -343,10 +433,14 @@ def control_lab_vm(
     if not action:
         raise HTTPException(status_code=400, detail="Thiếu thuộc tính action")
 
-    if not (10000 <= vmid <= 20000):
+    if not (settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX):
         raise HTTPException(
             status_code=400, 
-            detail=f"BẢO VỆ AN TOÀN HỆ THỐNG: Hệ thống từ chối thao tác/xóa VMID {vmid} do nằm ngoài dải máy ảo sinh viên quy hoạch (10000 - 20000)!"
+            detail=(
+                f"BẢO VỆ AN TOÀN HỆ THỐNG: Hệ thống từ chối thao tác/xóa "
+                f"VMID {vmid} do nằm ngoài dải máy ảo sinh viên quy hoạch "
+                f"({settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX})!"
+            )
         )
 
     from app.services.vm_service import control_student_vm
@@ -360,7 +454,7 @@ def control_lab_vm(
         user_id=current_user.id,
         action=f"vm_{action}",
         target=f"Thao tác {action} trên máy ảo VMID {vmid} thuộc Lab {lab.title}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -371,6 +465,7 @@ def control_lab_vm(
 def batch_control_lab_vms(
     lab_id: int,
     payload: Dict[str, str], # {"action": "stop_all" | "purge_all"}
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -409,7 +504,7 @@ def batch_control_lab_vms(
         user_id=current_user.id,
         action=f"vm_batch_{action}",
         target=msg,
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()

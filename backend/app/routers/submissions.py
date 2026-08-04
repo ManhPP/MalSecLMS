@@ -4,7 +4,7 @@ import zipfile
 import shutil
 from io import BytesIO, StringIO
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
@@ -18,6 +18,7 @@ from app.security import (
 from app.services.file_service import FileService
 from app.services.plagiarism import PlagiarismService
 from app.config import settings
+from app.request_utils import get_client_ip
 
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
@@ -145,6 +146,7 @@ def upload_submission_file(
 @router.post("/lab/{lab_id}/submit", response_model=SubmissionOut)
 def submit_lab(
     lab_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_student)
 ):
@@ -213,7 +215,7 @@ def submit_lab(
         user_id=current_user.id,
         action="submit_lab",
         target=f"Sinh viên {current_user.username} nộp bài Lab {lab.title} (Phạt muộn: {submission.late_penalty}%)",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -244,6 +246,7 @@ def get_all_submissions_for_lab(
 def grade_submission(
     submission_id: int,
     grading: GradeSubmissionSchema,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -283,7 +286,7 @@ def grade_submission(
         user_id=current_user.id,
         action="grade_submission",
         target=f"Giảng viên {current_user.username} chấm điểm bài làm ID {submission.id} (Điểm: {submission.score})",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -346,6 +349,7 @@ def export_grades_csv(
 @router.get("/lab/{lab_id}/bulk-download")
 def bulk_download_submissions(
     lab_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer_flexible)
 ):
@@ -407,7 +411,7 @@ def bulk_download_submissions(
         user_id=current_user.id,
         action="bulk_download",
         target=f"Tải hàng loạt minh chứng bài Lab ID {lab.id}",
-        ip_address="127.0.0.1"
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
@@ -491,4 +495,3 @@ def get_submission_file(
         media_type = "text/plain"
         
     return FileResponse(path=normalized_path, media_type=media_type)
-

@@ -131,12 +131,13 @@ export default function InstructorDashboard() {
   const [maxPenalty, setMaxPenalty] = useState(30.0)
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
   const [enableVm, setEnableVm] = useState(true)
-  const [templateVmid, setTemplateVmid] = useState(1001)
-  const [pveTemplates, setPveTemplates] = useState([
-    { vmid: 1001, name: "Win-1 (Windows 10 Sandbox)", status: "template" },
-    { vmid: 1004, name: "Win10 (Custom FLARE-VM)", status: "template" },
-    { vmid: 1002, name: "ubuntu-1 (Linux Sandbox)", status: "template" }
-  ])
+  const [runtimeConfig, setRuntimeConfig] = useState(null)
+  const [templateVmid, setTemplateVmid] = useState('')
+  const [vmProtocol, setVmProtocol] = useState('')
+  const [vmPort, setVmPort] = useState('')
+  const [vmUsername, setVmUsername] = useState('')
+  const [vmPassword, setVmPassword] = useState('')
+  const [pveTemplates, setPveTemplates] = useState([])
 
 
   // VM Manager Modal State
@@ -155,10 +156,28 @@ export default function InstructorDashboard() {
       })
       if (res.ok) {
         const data = await res.json()
-        if (data && data.length > 0) setPveTemplates(data)
+        const templates = Array.isArray(data) ? data : []
+        setPveTemplates(templates)
       }
     } catch (err) {
       console.error("Lỗi lấy danh sách PVE templates:", err)
+    }
+  }
+
+  const fetchRuntimeConfig = async () => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/config/client', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setRuntimeConfig(data)
+      setTemplateVmid(current => current || data.vm?.default_template_vmid || '')
+      setVmProtocol(current => current || data.vm?.default_protocol || '')
+      setVmPort(current => current || data.vm?.protocol_ports?.[data.vm?.default_protocol] || '')
+    } catch (err) {
+      console.error('Lỗi lấy cấu hình runtime:', err)
     }
   }
 
@@ -225,6 +244,8 @@ export default function InstructorDashboard() {
 
   useEffect(() => {
     fetchData()
+    fetchRuntimeConfig()
+    fetchPveTemplates()
   }, [])
 
   // Fetch Submissions for a selected Lab
@@ -405,6 +426,18 @@ export default function InstructorDashboard() {
       setError('Vui lòng tạo ít nhất một trường câu hỏi cho bài báo cáo!')
       return
     }
+    if (enableVm && !editingLab && !vmPassword) {
+      setError('Vui lòng nhập mật khẩu kết nối máy ảo!')
+      return
+    }
+    if (enableVm && (!templateVmid || !vmProtocol || !vmPort)) {
+      setError('Cấu hình template, giao thức hoặc cổng máy ảo chưa đầy đủ!')
+      return
+    }
+    if (enableVm && ['rdp', 'ssh'].includes(vmProtocol) && !vmUsername.trim()) {
+      setError('Vui lòng nhập tên đăng nhập cho kết nối RDP/SSH!')
+      return
+    }
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -423,8 +456,14 @@ export default function InstructorDashboard() {
         },
         class_id: parseInt(classId),
         is_active: true,
-        enable_vm: enableVm,
-        template_vmid: parseInt(templateVmid)
+        enable_vm: enableVm
+      }
+      if (enableVm) {
+        payload.template_vmid = parseInt(templateVmid)
+        payload.vm_protocol = vmProtocol
+        payload.vm_port = parseInt(vmPort)
+        payload.vm_username = vmUsername.trim()
+        if (vmPassword) payload.vm_password = vmPassword
       }
 
       const url = editingLab ? `/api/labs/${editingLab.id}` : '/api/labs/'
@@ -463,7 +502,12 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
     setEnableVm(true)
-    setTemplateVmid(1001)
+    const defaultProtocol = runtimeConfig?.vm?.default_protocol || ''
+    setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || pveTemplates[0]?.vmid || '')
+    setVmProtocol(defaultProtocol)
+    setVmPort(runtimeConfig?.vm?.protocol_ports?.[defaultProtocol] || '')
+    setVmUsername('')
+    setVmPassword('')
     fetchPveTemplates()
     setFormFields([
       { id: 'q_md5', type: 'text', label: 'Mã băm MD5/SHA256 của malware', required: true },
@@ -492,7 +536,12 @@ export default function InstructorDashboard() {
     setMaxPenalty(lab.late_policy?.max_penalty_percent ?? 30.0)
     setFormFields(lab.form_fields || [])
     setEnableVm(lab.enable_vm !== false)
-    setTemplateVmid(lab.template_vmid || 1001)
+    const configuredProtocol = lab.vm_protocol || runtimeConfig?.vm?.default_protocol || ''
+    setTemplateVmid(lab.template_vmid || runtimeConfig?.vm?.default_template_vmid || '')
+    setVmProtocol(configuredProtocol)
+    setVmPort(lab.vm_port || runtimeConfig?.vm?.protocol_ports?.[configuredProtocol] || '')
+    setVmUsername(lab.vm_username || '')
+    setVmPassword('')
 
     fetchPveTemplates()
     setShowLabModal(true)
@@ -1370,7 +1419,8 @@ export default function InstructorDashboard() {
                                   /* Nếu là tệp Zip, hiển thị kết quả giải mã an toàn và quét AV */
                                   <div style={{ padding: '16px', background: 'rgba(17,24,39,0.9)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
                                     <h5 style={{ fontSize: '13px', color: 'var(--neon-cyan)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <ShieldCheck size={15} /> KẾT QUẢ QUÉT BẢO MẬT AIRLOCK (Zip password 'infected')
+                                      <ShieldCheck size={15} /> KẾT QUẢ QUÉT BẢO MẬT AIRLOCK
+                                      {runtimeConfig?.uploads?.zip_password && ` (Zip password '${runtimeConfig.uploads.zip_password}')`}
                                     </h5>
                                     
                                     <div style={{ fontSize: '12.5px', color: 'var(--neon-emerald)', marginBottom: '8px' }}>
@@ -1655,17 +1705,77 @@ export default function InstructorDashboard() {
                       className="form-input" 
                       style={{ marginTop: '6px', background: '#0f172a', color: '#fff', borderColor: 'var(--neon-cyan)' }}
                       value={templateVmid}
-                      onChange={(e) => setTemplateVmid(parseInt(e.target.value))}
+                      onChange={(e) => setTemplateVmid(e.target.value)}
+                      required
+                      disabled={pveTemplates.length === 0}
                     >
+                      {pveTemplates.length === 0 && (
+                        <option value="">Không lấy được VM nguồn từ Proxmox</option>
+                      )}
                       {pveTemplates.map(t => (
                         <option key={t.vmid} value={t.vmid}>
                           VM {t.vmid} - {t.name} ({t.status || 'Template'})
                         </option>
                       ))}
                     </select>
-                    <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
-                      📌 Máy ảo mẫu tạo Lab lấy từ dải quy hoạch VMID <b>1000 – 2000</b>. Máy ảo của sinh viên clone ra khi làm bài nằm ở dải <b>10000 – 20000</b>.
-                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Giao thức kết nối</label>
+                        <select
+                          className="form-input"
+                          value={vmProtocol}
+                          onChange={(e) => {
+                            const protocol = e.target.value
+                            setVmProtocol(protocol)
+                            setVmPort(runtimeConfig?.vm?.protocol_ports?.[protocol] || '')
+                          }}
+                          required
+                        >
+                          <option value="rdp">RDP - Windows Remote Desktop</option>
+                          <option value="vnc">VNC - Remote framebuffer</option>
+                          <option value="ssh">SSH - Secure Shell</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Cổng kết nối</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="65535"
+                          className="form-input"
+                          value={vmPort}
+                          onChange={(e) => setVmPort(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Tên đăng nhập VM</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={vmUsername}
+                          onChange={(e) => setVmUsername(e.target.value)}
+                          required={vmProtocol !== 'vnc'}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Mật khẩu VM</label>
+                        <input
+                          type="password"
+                          className="form-input"
+                          value={vmPassword}
+                          onChange={(e) => setVmPassword(e.target.value)}
+                          placeholder={editingLab ? 'Để trống nếu giữ mật khẩu cũ' : 'Nhập mật khẩu kết nối'}
+                          required={!editingLab}
+                          autoComplete="new-password"
+                        />
+                      </div>
+                    </div>
+                    {runtimeConfig?.vm && (
+                      <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                        📌 Máy ảo mẫu nằm trong dải VMID <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Máy ảo sinh viên nằm trong dải <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.
+                      </p>
+                    )}
 
                   </div>
                 )}

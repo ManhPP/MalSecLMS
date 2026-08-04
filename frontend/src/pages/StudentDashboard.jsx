@@ -269,16 +269,22 @@ export default function StudentDashboard() {
 
   // VM Simulator & Real Proxmox Guacamole state
   const [vmActive, setVmActive] = useState(true)
-  const [vmOs, setVmOs] = useState('FLARE-VM [Windows Security] — RDP Connection Active')
-  const [vmLogs, setVmLogs] = useState(['[+] RDP: Connecting to Proxmox VLAN 30...', '[+] SSO: Keycloak OIDC Token accepted.', '[+] Guac: Protocol RDP v1.1.2 Handshake OK.', '[+] VM: System Active. Anti-VM malware isolation standard active.'])
+  const [vmOs, setVmOs] = useState('Lab VM — Chưa khởi tạo phiên kết nối')
+  const [vmLogs, setVmLogs] = useState(['[+] Đang chờ cấu hình máy ảo của bài lab...'])
+  const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [guacamoleUrl, setGuacamoleUrl] = useState('')
   const [vmLoading, setVmLoading] = useState(false)
   const [vmError, setVmError] = useState('')
   const [vmInfo, setVmInfo] = useState(null)
+  const guacamoleFrameRef = useRef(null)
 
   const fetchVmSession = async (labId) => {
     setVmLoading(true)
     setVmError('')
+    setGuacamoleUrl('')
+    setVmInfo(null)
+    localStorage.removeItem('GUAC_AUTH_TOKEN')
+    sessionStorage.removeItem('GUAC_AUTH_TOKEN')
     const token = localStorage.getItem('malsec_token')
     try {
       const res = await fetch(`/api/labs/${labId}/vm-session`, {
@@ -289,7 +295,7 @@ export default function StudentDashboard() {
       if (!res.ok) throw new Error(data.detail || 'Không thể tạo phiên kết nối máy ảo')
       setGuacamoleUrl(data.guacamole_url)
       setVmInfo(data)
-      setVmOs(`Windows Sandbox (VM ${data.vmid} - ${data.ip_address})`)
+      setVmOs(`Lab VM ${data.vmid} — ${data.protocol.toUpperCase()} — ${data.ip_address}`)
     } catch (err) {
       setVmError(err.message)
     } finally {
@@ -303,10 +309,14 @@ export default function StudentDashboard() {
     setVmLoading(true)
     const token = localStorage.getItem('malsec_token')
     try {
-      await fetch(`/api/labs/${selectedLab.id}/vm-rollback`, {
+      const res = await fetch(`/api/labs/${selectedLab.id}/vm-rollback`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Không thể rollback máy ảo')
+      setGuacamoleUrl('')
+      setVmInfo(null)
       await fetchVmSession(selectedLab.id)
     } catch (err) {
       alert('Lỗi khôi phục máy ảo: ' + err.message)
@@ -315,6 +325,18 @@ export default function StudentDashboard() {
   }
 
   const autoSaveTimerRef = useRef(null)
+
+  const fetchRuntimeConfig = async () => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/config/client', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) setRuntimeConfig(await res.json())
+    } catch (err) {
+      console.error('Lỗi lấy cấu hình runtime:', err)
+    }
+  }
 
 
   // Fetch initial labs list
@@ -365,6 +387,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     fetchStudentLabs()
+    fetchRuntimeConfig()
   }, [])
 
   // Auto-save logic (triggers every 30 seconds during doing_lab view)
@@ -606,7 +629,7 @@ export default function StudentDashboard() {
         setVmLogs([
           ...vmLogs,
           `[${time}] [-] RDP: Connection closed.`,
-          `[${time}] [+] VNC: Connecting to REMnux target (VLAN 30: 10.30.0.22)...`,
+          `[${time}] [+] VNC: Connecting to configured lab target${vmInfo?.ip_address ? ` (${vmInfo.ip_address})` : ''}...`,
           `[${time}] [+] VNC: Handshake OK. Linux GUI Rendered.`
         ])
       } else {
@@ -614,7 +637,7 @@ export default function StudentDashboard() {
         setVmLogs([
           ...vmLogs,
           `[${time}] [-] VNC: Connection closed.`,
-          `[${time}] [+] RDP: Connecting to FLARE-VM target (VLAN 30: 10.30.0.15)...`,
+          `[${time}] [+] RDP: Connecting to configured lab target${vmInfo?.ip_address ? ` (${vmInfo.ip_address})` : ''}...`,
           `[${time}] [+] RDP: Connection OK.`
         ])
       }
@@ -966,6 +989,16 @@ export default function StudentDashboard() {
                       >
                         {vmLoading ? 'Đang khởi tạo VM...' : 'Tải lại kết nối VM'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => guacamoleFrameRef.current?.focus()}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: '12px' }}
+                        disabled={!guacamoleUrl}
+                        title="Chuyển bàn phím vào màn hình máy ảo"
+                      >
+                        Bắt bàn phím
+                      </button>
                       {guacamoleUrl && (
                         <a 
                           href={guacamoleUrl} 
@@ -1016,11 +1049,15 @@ export default function StudentDashboard() {
                       </div>
                     ) : guacamoleUrl ? (
                       <iframe 
+                        ref={guacamoleFrameRef}
                         key={guacamoleUrl}
                         src={guacamoleUrl} 
                         title="Apache Guacamole Proxmox VDI Desktop"
-                        style={{ width: '100%', height: '100%', border: 'none' }}
-                        allow="clipboard-read; clipboard-write; fullscreen"
+                        tabIndex="0"
+                        onLoad={() => guacamoleFrameRef.current?.focus()}
+                        onMouseEnter={() => guacamoleFrameRef.current?.focus()}
+                        style={{ width: '100%', height: '100%', border: 'none', outline: 'none' }}
+                        allow="clipboard-read; clipboard-write; fullscreen; keyboard-map"
                       />
                     ) : (
                       <div style={{ textAlign: 'center', zIndex: 1, padding: '24px' }}>
@@ -1247,9 +1284,12 @@ export default function StudentDashboard() {
                               <p style={{ fontSize: '13px', fontWeight: '500' }}>
                                 {uploadingField === field.id ? 'ĐANG QUÉT BẢO MẬT & TẢI FILE...' : 'Chọn file ảnh chụp/zip chứng cứ'}
                               </p>
-                              <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                Định dạng an toàn: png, jpg, log, zip. Pass zip: 'infected'.
-                              </p>
+                              {runtimeConfig?.uploads && (
+                                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  Định dạng cho phép: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
+                                  {' '}Mật khẩu ZIP: '{runtimeConfig.uploads.zip_password}'.
+                                </p>
+                              )}
                             </label>
                           </div>
                         )}

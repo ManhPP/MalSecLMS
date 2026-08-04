@@ -1,18 +1,21 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
     container_name: malsec-db
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-malsec_db_pass_2026}
-      POSTGRES_DB: ${DB_NAME:-malsec_lms}
+      POSTGRES_USER: "${DB_USER:?DB_USER is required}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+      POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
     ports:
-      - "5432:5432"
+      - "${DB_HOST_PORT:?DB_HOST_PORT is required}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     networks:
       - malsec-network
 
@@ -22,18 +25,65 @@ services:
       dockerfile: Dockerfile
     container_name: malsec-backend
     restart: always
+    command:
+      - "--host"
+      - "${BACKEND_HOST:?BACKEND_HOST is required}"
+      - "--port"
+      - "${BACKEND_PORT:?BACKEND_PORT is required}"
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:?BACKEND_HOST_PORT is required}:${BACKEND_PORT:?BACKEND_PORT is required}"
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-malsec_db_pass_2026}@db/${DB_NAME:-malsec_lms}
-      - JWT_SECRET=${JWT_SECRET:-super_secret_jwt_key_for_malsec_lms_2026_!!}
-      - JWT_ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=480
-      - UPLOAD_DIR=/app/uploads
+      DATABASE_URL: "postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:?DB_NAME is required}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_ALGORITHM: "${JWT_ALGORITHM:?JWT_ALGORITHM is required}"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "${ACCESS_TOKEN_EXPIRE_MINUTES:?ACCESS_TOKEN_EXPIRE_MINUTES is required}"
+      INITIAL_ADMIN_USERNAME: "${INITIAL_ADMIN_USERNAME:?INITIAL_ADMIN_USERNAME is required}"
+      INITIAL_ADMIN_PASSWORD: "${INITIAL_ADMIN_PASSWORD:?INITIAL_ADMIN_PASSWORD is required}"
+      INITIAL_ADMIN_EMAIL: "${INITIAL_ADMIN_EMAIL:?INITIAL_ADMIN_EMAIL is required}"
+      INITIAL_ADMIN_FULL_NAME: "${INITIAL_ADMIN_FULL_NAME:?INITIAL_ADMIN_FULL_NAME is required}"
+      DEFAULT_STUDENT_PASSWORD: "${DEFAULT_STUDENT_PASSWORD:?DEFAULT_STUDENT_PASSWORD is required}"
+      CORS_ORIGINS: "${CORS_ORIGINS:?CORS_ORIGINS is required}"
+      UPLOAD_DIR: "${UPLOAD_DIR:?UPLOAD_DIR is required}"
+      MAX_FILE_SIZE_MB: "${MAX_FILE_SIZE_MB:?MAX_FILE_SIZE_MB is required}"
+      ALLOWED_EXTENSIONS: "${ALLOWED_EXTENSIONS:?ALLOWED_EXTENSIONS is required}"
+      MALWARE_ZIP_PASSWORD: "${MALWARE_ZIP_PASSWORD:?MALWARE_ZIP_PASSWORD is required}"
+      PVE_API_HOST: "${PVE_API_HOST:?PVE_API_HOST is required}"
+      PVE_API_USER: "${PVE_API_USER:?PVE_API_USER is required}"
+      PVE_TOKEN_NAME: "${PVE_TOKEN_NAME:?PVE_TOKEN_NAME is required}"
+      PVE_TOKEN_VALUE: "${PVE_TOKEN_VALUE:?PVE_TOKEN_VALUE is required}"
+      PVE_NODE: "${PVE_NODE:?PVE_NODE is required}"
+      PVE_VERIFY_SSL: "${PVE_VERIFY_SSL:?PVE_VERIFY_SSL is required}"
+      TEMPLATE_VMID_MIN: "${TEMPLATE_VMID_MIN:?TEMPLATE_VMID_MIN is required}"
+      TEMPLATE_VMID_MAX: "${TEMPLATE_VMID_MAX:?TEMPLATE_VMID_MAX is required}"
+      STUDENT_VMID_MIN: "${STUDENT_VMID_MIN:?STUDENT_VMID_MIN is required}"
+      STUDENT_VMID_MAX: "${STUDENT_VMID_MAX:?STUDENT_VMID_MAX is required}"
+      DEFAULT_TEMPLATE_VMID: "${DEFAULT_TEMPLATE_VMID:?DEFAULT_TEMPLATE_VMID is required}"
+      LAB_NETWORK_CIDR: "${LAB_NETWORK_CIDR:?LAB_NETWORK_CIDR is required}"
+      VM_PROTOCOL_PORTS: "${VM_PROTOCOL_PORTS:?VM_PROTOCOL_PORTS is required}"
+      DEFAULT_VM_PROTOCOL: "${DEFAULT_VM_PROTOCOL:?DEFAULT_VM_PROTOCOL is required}"
+      VM_CLONE_TIMEOUT_SECONDS: "${VM_CLONE_TIMEOUT_SECONDS:?VM_CLONE_TIMEOUT_SECONDS is required}"
+      VM_CONNECTION_TIMEOUT_SECONDS: "${VM_CONNECTION_TIMEOUT_SECONDS:?VM_CONNECTION_TIMEOUT_SECONDS is required}"
+      VM_AGENT_TIMEOUT_SECONDS: "${VM_AGENT_TIMEOUT_SECONDS:?VM_AGENT_TIMEOUT_SECONDS is required}"
+      VM_BOOT_WAIT_SECONDS: "${VM_BOOT_WAIT_SECONDS:?VM_BOOT_WAIT_SECONDS is required}"
+      VM_VERIFY_CONNECTION: "${VM_VERIFY_CONNECTION:?VM_VERIFY_CONNECTION is required}"
+      GUAC_BASE_URL: "${GUAC_BASE_URL:?GUAC_BASE_URL is required}"
+      GUAC_JSON_SECRET: "${GUAC_JSON_SECRET:?GUAC_JSON_SECRET is required}"
+      GUAC_SESSION_TTL_SECONDS: "${GUAC_SESSION_TTL_SECONDS:?GUAC_SESSION_TTL_SECONDS is required}"
+      GUAC_RDP_SECURITY: "${GUAC_RDP_SECURITY:?GUAC_RDP_SECURITY is required}"
+      GUAC_RDP_SERVER_LAYOUT: "${GUAC_RDP_SERVER_LAYOUT:?GUAC_RDP_SERVER_LAYOUT is required}"
+      GUAC_RDP_IGNORE_CERT: "${GUAC_RDP_IGNORE_CERT:?GUAC_RDP_IGNORE_CERT is required}"
+      GUAC_RDP_ENABLE_WALLPAPER: "${GUAC_RDP_ENABLE_WALLPAPER:?GUAC_RDP_ENABLE_WALLPAPER is required}"
+      GUAC_RDP_ENABLE_THEMING: "${GUAC_RDP_ENABLE_THEMING:?GUAC_RDP_ENABLE_THEMING is required}"
+      GUAC_RDP_ENABLE_FONT_SMOOTHING: "${GUAC_RDP_ENABLE_FONT_SMOOTHING:?GUAC_RDP_ENABLE_FONT_SMOOTHING is required}"
+      GUAC_RDP_ENABLE_FULL_WINDOW_DRAG: "${GUAC_RDP_ENABLE_FULL_WINDOW_DRAG:?GUAC_RDP_ENABLE_FULL_WINDOW_DRAG is required}"
+      GUAC_RDP_ENABLE_MENU_ANIMATIONS: "${GUAC_RDP_ENABLE_MENU_ANIMATIONS:?GUAC_RDP_ENABLE_MENU_ANIMATIONS is required}"
+      GUAC_RDP_ENABLE_DESKTOP_COMPOSITION: "${GUAC_RDP_ENABLE_DESKTOP_COMPOSITION:?GUAC_RDP_ENABLE_DESKTOP_COMPOSITION is required}"
+      GUAC_SSH_IGNORE_HOST_KEY: "${GUAC_SSH_IGNORE_HOST_KEY:?GUAC_SSH_IGNORE_HOST_KEY is required}"
     volumes:
       - student_uploads:/app/uploads
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - malsec-network
 
@@ -41,12 +91,28 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_DEV_HOST: "${VITE_DEV_HOST:?VITE_DEV_HOST is required}"
+        VITE_DEV_PORT: "${VITE_DEV_PORT:?VITE_DEV_PORT is required}"
+        VITE_API_PROXY_TARGET: "${VITE_API_PROXY_TARGET:?VITE_API_PROXY_TARGET is required}"
+        VITE_API_PROXY_SECURE: "${VITE_API_PROXY_SECURE:?VITE_API_PROXY_SECURE is required}"
     container_name: malsec-frontend
     restart: always
+    environment:
+      NGINX_ENVSUBST_FILTER: "^(NGINX_LISTEN_PORT|NGINX_SERVER_NAME|BACKEND_UPSTREAM|GUAC_UPSTREAM|CLIENT_MAX_BODY_SIZE|PROXY_CONNECT_TIMEOUT|PROXY_SEND_TIMEOUT|PROXY_READ_TIMEOUT)$"
+      NGINX_LISTEN_PORT: "${NGINX_LISTEN_PORT:?NGINX_LISTEN_PORT is required}"
+      NGINX_SERVER_NAME: "${NGINX_SERVER_NAME:?NGINX_SERVER_NAME is required}"
+      BACKEND_UPSTREAM: "${BACKEND_UPSTREAM:?BACKEND_UPSTREAM is required}"
+      GUAC_UPSTREAM: "${GUAC_UPSTREAM:?GUAC_UPSTREAM is required}"
+      CLIENT_MAX_BODY_SIZE: "${CLIENT_MAX_BODY_SIZE:?CLIENT_MAX_BODY_SIZE is required}"
+      PROXY_CONNECT_TIMEOUT: "${PROXY_CONNECT_TIMEOUT:?PROXY_CONNECT_TIMEOUT is required}"
+      PROXY_SEND_TIMEOUT: "${PROXY_SEND_TIMEOUT:?PROXY_SEND_TIMEOUT is required}"
+      PROXY_READ_TIMEOUT: "${PROXY_READ_TIMEOUT:?PROXY_READ_TIMEOUT is required}"
     ports:
-      - "80:80"
+      - "${FRONTEND_HTTP_PORT:?FRONTEND_HTTP_PORT is required}:${NGINX_LISTEN_PORT:?NGINX_LISTEN_PORT is required}"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     networks:
       - malsec-network
 

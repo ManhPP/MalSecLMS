@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime
+from app.config import settings
 
 # --- TOKEN & LOGIN SCHEMAS ---
 class Token(BaseModel):
@@ -79,11 +80,14 @@ class LabBase(BaseModel):
     individual_extensions: Optional[Dict[str, str]] = {}
     is_active: Optional[bool] = True
     enable_vm: Optional[bool] = True
-    template_vmid: Optional[int] = 101
+    template_vmid: Optional[int] = settings.DEFAULT_TEMPLATE_VMID
+    vm_protocol: Literal["rdp", "vnc", "ssh"] = settings.DEFAULT_VM_PROTOCOL
+    vm_port: int = Field(default=settings.DEFAULT_VM_PORT, ge=1, le=65535)
+    vm_username: Optional[str] = None
     class_id: int
 
 class LabCreate(LabBase):
-    pass
+    vm_password: Optional[str] = Field(default=None, min_length=1)
 
 class LabUpdate(BaseModel):
     title: Optional[str] = None
@@ -95,6 +99,10 @@ class LabUpdate(BaseModel):
     is_active: Optional[bool] = None
     enable_vm: Optional[bool] = None
     template_vmid: Optional[int] = None
+    vm_protocol: Optional[Literal["rdp", "vnc", "ssh"]] = None
+    vm_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    vm_username: Optional[str] = None
+    vm_password: Optional[str] = Field(default=None, min_length=1)
     class_id: Optional[int] = None
 
 

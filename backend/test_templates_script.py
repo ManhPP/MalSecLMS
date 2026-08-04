@@ -1,4 +1,5 @@
 from app.services.vm_service import get_pve_client, get_available_templates
+from app.config import settings
 
 pve = get_pve_client()
 print("PVE Client:", pve)
@@ -12,8 +13,8 @@ if pve:
         print("Error getting cluster resources:", e)
 
     try:
-        node_vms = pve.nodes("pve01").qemu.get()
-        print("Node pve01 VMs total:", len(node_vms))
+        node_vms = pve.nodes(settings.PVE_NODE).qemu.get()
+        print(f"Node {settings.PVE_NODE} VMs total:", len(node_vms))
         for r in node_vms:
             print(f"Node VMID: {r.get('vmid')}, Name: {r.get('name')}, Template: {r.get('template')}, Status: {r.get('status')}")
     except Exception as e:
