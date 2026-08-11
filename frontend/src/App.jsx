@@ -18,43 +18,106 @@ const clearGuacamoleAuth = () => {
   sessionStorage.removeItem('GUAC_AUTH_TOKEN')
 }
 
-// Modal Đổi Mật Khẩu Cá Nhân
-const ChangePasswordModal = ({ isOpen, onClose }) => {
+// Modal Hồ Sơ Cá Nhân & Đổi Mật Khẩu
+const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
+  const { user, updateUser } = useAuth()
+  const [activeTab, setActiveTab] = useState(initialTab)
+
+  // Profile Form State
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [profileSuccess, setProfileSuccess] = useState('')
+
+  // Password Form State
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [passLoading, setPassLoading] = useState(false)
+  const [passError, setPassError] = useState('')
+  const [passSuccess, setPassSuccess] = useState('')
 
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name || '')
+      setEmail(user.email || '')
+    }
+    setActiveTab(initialTab)
+    setProfileError('')
+    setProfileSuccess('')
+    setPassError('')
+    setPassSuccess('')
+  }, [user, isOpen, initialTab])
 
-  if (!isOpen) return null
+  if (!isOpen || !user) return null
 
-  const handleSubmit = async (e) => {
+  // Xử lý Cập nhật Thông tin Cá nhân
+  const handleUpdateProfile = async (e) => {
     e.preventDefault()
-    setErrorMsg('')
-    setSuccessMsg('')
+    setProfileError('')
+    setProfileSuccess('')
+
+    if (!fullName.trim()) {
+      setProfileError('Họ và tên không được để trống')
+      return
+    }
+
+    setProfileLoading(true)
+    try {
+      const token = localStorage.getItem('malsec_token')
+      const res = await fetch('/api/auth/me', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          email: email.trim()
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'Không thể cập nhật thông tin cá nhân')
+      }
+
+      updateUser({ full_name: data.full_name, email: data.email })
+      setProfileSuccess('Cập nhật thông tin thành công!')
+      setTimeout(() => setProfileSuccess(''), 2500)
+    } catch (err) {
+      setProfileError(err.message)
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  // Xử lý Đổi Mật Khẩu
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPassError('')
+    setPassSuccess('')
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setErrorMsg('Vui lòng nhập đầy đủ thông tin mật khẩu')
+      setPassError('Vui lòng nhập đầy đủ thông tin mật khẩu')
       return
     }
 
     if (newPassword.length < 6) {
-      setErrorMsg('Mật khẩu mới phải chứa ít nhất 6 ký tự')
+      setPassError('Mật khẩu mới phải chứa ít nhất 6 ký tự')
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setErrorMsg('Mật khẩu mới và xác nhận mật khẩu không khớp nhau')
+      setPassError('Mật khẩu mới và xác nhận mật khẩu không khớp nhau')
       return
     }
 
-    setLoading(true)
-
+    setPassLoading(true)
     try {
       const token = localStorage.getItem('malsec_token')
       const res = await fetch('/api/auth/change-password', {
@@ -70,24 +133,22 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
       })
 
       const data = await res.json()
-
       if (!res.ok) {
         throw new Error(data.detail || 'Không thể đổi mật khẩu')
       }
 
-      setSuccessMsg('Đổi mật khẩu thành công!')
+      setPassSuccess('Đổi mật khẩu thành công!')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
 
       setTimeout(() => {
-        setSuccessMsg('')
-        onClose()
-      }, 1500)
+        setPassSuccess('')
+      }, 2500)
     } catch (err) {
-      setErrorMsg(err.message)
+      setPassError(err.message)
     } finally {
-      setLoading(false)
+      setPassLoading(false)
     }
   }
 
@@ -99,109 +160,202 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     }}>
       <div className="modal-content" style={{
         background: 'var(--bg-card)', border: '1px solid var(--neon-cyan)',
-        borderRadius: '8px', padding: '24px', width: '420px', maxWidth: '90vw',
-        boxShadow: '0 0 20px rgba(0, 243, 255, 0.2)'
+        borderRadius: '10px', padding: '24px', width: '480px', maxWidth: '92vw',
+        boxShadow: '0 0 25px rgba(0, 243, 255, 0.25)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-          <Key size={22} style={{ color: 'var(--neon-cyan)' }} />
-          <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--neon-cyan)' }}>Thay Đổi Mật Khẩu Cá Nhân</h3>
+        {/* Header Modal */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <UserIcon size={22} style={{ color: 'var(--neon-cyan)' }} />
+            <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--neon-cyan)' }}>Cấu Hình Tài Khoản Cá Nhân</h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', marginLeft: 'auto' }}>×</button>
         </div>
 
-        {errorMsg && (
-          <div className="alert alert-danger" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(255, 0, 85, 0.15)', border: '1px solid var(--neon-pink)', color: '#ff4d6d', borderRadius: '4px' }}>
-            ⚠️ {errorMsg}
-          </div>
+        {/* Tab Navigation */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <button
+            onClick={() => setActiveTab('profile')}
+            style={{
+              padding: '8px 16px', border: 'none', background: 'none',
+              color: activeTab === 'profile' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'profile' ? '2px solid var(--neon-cyan)' : '2px solid transparent',
+              cursor: 'pointer', fontWeight: activeTab === 'profile' ? 'bold' : 'normal',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
+            }}
+          >
+            <UserIcon size={15} /> Thông Tin Cá Nhân
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            style={{
+              padding: '8px 16px', border: 'none', background: 'none',
+              color: activeTab === 'password' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'password' ? '2px solid var(--neon-cyan)' : '2px solid transparent',
+              cursor: 'pointer', fontWeight: activeTab === 'password' ? 'bold' : 'normal',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
+            }}
+          >
+            <Key size={15} /> Đổi Mật Khẩu
+          </button>
+        </div>
+
+        {/* TAB 1: THÔNG TIN CÁ NHÂN */}
+        {activeTab === 'profile' && (
+          <form onSubmit={handleUpdateProfile}>
+            {profileError && (
+              <div className="alert alert-danger" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(255, 0, 85, 0.15)', border: '1px solid var(--neon-pink)', color: '#ff4d6d', borderRadius: '4px' }}>
+                ⚠️ {profileError}
+              </div>
+            )}
+            {profileSuccess && (
+              <div className="alert alert-success" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(0, 255, 170, 0.15)', border: '1px solid var(--neon-green)', color: '#00ffaa', borderRadius: '4px' }}>
+                ✅ {profileSuccess}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Tên đăng nhập (Username)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={user.username}
+                disabled
+                style={{ width: '100%', opacity: 0.6, cursor: 'not-allowed', background: 'rgba(0,0,0,0.3)' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Vai trò (Role)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="user-role-badge" style={{ padding: '4px 10px', fontSize: '12px', textTransform: 'uppercase' }}>
+                  {user.role === 'admin' ? '🛡️ Quản trị viên (Admin)' : user.role === 'lecturer' ? '👨‍🏫 Giảng viên (Instructor)' : '🎓 Sinh viên (Student)'}
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Họ và tên</label>
+              <input
+                type="text"
+                className="form-input"
+                style={{ width: '100%' }}
+                placeholder="Nhập họ và tên..."
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '20px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Địa chỉ Email</label>
+              <input
+                type="email"
+                className="form-input"
+                style={{ width: '100%' }}
+                placeholder="Ví dụ: user@malsec.edu.vn..."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={profileLoading}>
+                Đóng
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={profileLoading} style={{ minWidth: '120px' }}>
+                {profileLoading ? 'Đang lưu...' : 'Lưu Thông Tin'}
+              </button>
+            </div>
+          </form>
         )}
 
-        {successMsg && (
-          <div className="alert alert-success" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(0, 255, 170, 0.15)', border: '1px solid var(--neon-green)', color: '#00ffaa', borderRadius: '4px' }}>
-            ✅ {successMsg}
-          </div>
+        {/* TAB 2: ĐỔI MẬT KHẨU */}
+        {activeTab === 'password' && (
+          <form onSubmit={handleChangePassword}>
+            {passError && (
+              <div className="alert alert-danger" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(255, 0, 85, 0.15)', border: '1px solid var(--neon-pink)', color: '#ff4d6d', borderRadius: '4px' }}>
+                ⚠️ {passError}
+              </div>
+            )}
+            {passSuccess && (
+              <div className="alert alert-success" style={{ marginBottom: '16px', fontSize: '13px', padding: '10px 14px', background: 'rgba(0, 255, 170, 0.15)', border: '1px solid var(--neon-green)', color: '#00ffaa', borderRadius: '4px' }}>
+                ✅ {passSuccess}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Mật khẩu hiện tại</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showCurrent ? 'text' : 'password'}
+                  className="form-input"
+                  style={{ width: '100%', paddingRight: '40px' }}
+                  placeholder="Nhập mật khẩu hiện tại..."
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrent(!showCurrent)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Mật khẩu mới</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showNew ? 'text' : 'password'}
+                  className="form-input"
+                  style={{ width: '100%', paddingRight: '40px' }}
+                  placeholder="Mật khẩu mới (tối thiểu 6 ký tự)..."
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '20px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Xác nhận mật khẩu mới</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  className="form-input"
+                  style={{ width: '100%', paddingRight: '40px' }}
+                  placeholder="Nhập lại mật khẩu mới..."
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={passLoading}>
+                Hủy
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={passLoading} style={{ minWidth: '120px' }}>
+                {passLoading ? 'Đang xử lý...' : 'Lưu Mật Khẩu'}
+              </button>
+            </div>
+          </form>
         )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label className="form-label" style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Mật khẩu hiện tại</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showCurrent ? 'text' : 'password'}
-                className="form-input"
-                style={{ width: '100%', paddingRight: '40px' }}
-                placeholder="Nhập mật khẩu hiện tại..."
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowCurrent(!showCurrent)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label className="form-label" style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Mật khẩu mới</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showNew ? 'text' : 'password'}
-                className="form-input"
-                style={{ width: '100%', paddingRight: '40px' }}
-                placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..."
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowNew(!showNew)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: '24px' }}>
-            <label className="form-label" style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Xác nhận mật khẩu mới</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showConfirm ? 'text' : 'password'}
-                className="form-input"
-                style={{ width: '100%', paddingRight: '40px' }}
-                placeholder="Nhập lại mật khẩu mới..."
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm(!showConfirm)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-              style={{ minWidth: '110px' }}
-            >
-              {loading ? 'Đang xử lý...' : 'Lưu Thay Đổi'}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   )
@@ -211,11 +365,17 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
 const Layout = ({ children }) => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [modalInitialTab, setModalInitialTab] = useState('profile')
 
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const openModalWithTab = (tab) => {
+    setModalInitialTab(tab)
+    setShowProfileModal(true)
   }
 
   return (
@@ -239,22 +399,32 @@ const Layout = ({ children }) => {
             )}
             
             <div className="user-profile-widget">
-              <div className="user-avatar">
+              <div 
+                className="user-avatar"
+                onClick={() => openModalWithTab('profile')}
+                style={{ cursor: 'pointer' }}
+                title="Xem thông tin cá nhân"
+              >
                 {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
               </div>
-              <div className="user-info">
+              <div 
+                className="user-info"
+                onClick={() => openModalWithTab('profile')}
+                style={{ cursor: 'pointer' }}
+                title="Xem thông tin cá nhân"
+              >
                 <span className="user-name">{user.full_name}</span>
                 {user.email && <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', textTransform: 'lowercase', margin: '2px 0', opacity: 0.8 }}>{user.email}</span>}
                 <span className="user-role-badge">{user.role}</span>
               </div>
               <button 
-                onClick={() => setShowPasswordModal(true)} 
+                onClick={() => openModalWithTab('profile')} 
                 className="btn btn-secondary" 
                 style={{ padding: '6px 10px', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                title="Đổi mật khẩu"
+                title="Thông tin cá nhân & Đổi mật khẩu"
               >
-                <Key size={15} />
-                <span style={{ fontSize: '12px' }}>Đổi mật khẩu</span>
+                <UserIcon size={15} />
+                <span style={{ fontSize: '12px' }}>Cá nhân</span>
               </button>
               <button 
                 onClick={handleLogout} 
@@ -264,6 +434,7 @@ const Layout = ({ children }) => {
               >
                 <LogOut size={16} />
               </button>
+
             </div>
           </div>
         </div>
@@ -273,10 +444,12 @@ const Layout = ({ children }) => {
         {children}
       </main>
 
-      <ChangePasswordModal 
-        isOpen={showPasswordModal} 
-        onClose={() => setShowPasswordModal(false)} 
+      <UserProfileModal 
+        isOpen={showProfileModal} 
+        onClose={() => setShowProfileModal(false)}
+        initialTab={modalInitialTab}
       />
+
       
       <footer style={{
         textAlign: 'center', 
@@ -368,8 +541,18 @@ export default function App() {
     setUser(null)
   }
 
+  const updateUser = (updatedData) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const newUser = { ...prev, ...updatedData }
+      localStorage.setItem('malsec_user', JSON.stringify(newUser))
+      return newUser
+    })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, loading }}>
+
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

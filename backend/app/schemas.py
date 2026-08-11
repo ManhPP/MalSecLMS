@@ -24,6 +24,11 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=6)
 
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+
+
 
 # --- USER SCHEMAS ---
 class UserBase(BaseModel):

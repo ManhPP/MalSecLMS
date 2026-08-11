@@ -4,9 +4,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User, AuditLog
-from app.schemas import Token, LoginSchema, UserOut, PasswordChange
+from app.schemas import Token, LoginSchema, UserOut, PasswordChange, ProfileUpdate
 from app.security import verify_password, create_access_token, get_current_user, get_password_hash
 from app.request_utils import get_client_ip
+
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -68,6 +69,35 @@ def swagger_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session 
 def get_me(current_user: User = Depends(get_current_user)):
     """API Lấy thông tin tài khoản hiện tại"""
     return current_user
+
+@router.put("/me", response_model=UserOut)
+def update_me(
+    payload: ProfileUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """API Cập nhật thông tin cá nhân (Họ tên, Email) cho người dùng hiện tại"""
+    if payload.full_name is not None and payload.full_name.strip():
+        current_user.full_name = payload.full_name.strip()
+    if payload.email is not None:
+        current_user.email = payload.email.strip() or None
+    
+    db.commit()
+    db.refresh(current_user)
+
+    # Ghi log hoạt động
+    log = AuditLog(
+        user_id=current_user.id,
+        action="update_profile",
+        target=f"Người dùng {current_user.username} cập nhật thông tin cá nhân",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
+    return current_user
+
 
 @router.post("/change-password")
 def change_password(
