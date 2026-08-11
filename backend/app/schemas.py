@@ -20,6 +20,11 @@ class LoginSchema(BaseModel):
     username: str
     password: str
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
 # --- USER SCHEMAS ---
 class UserBase(BaseModel):
     username: str
