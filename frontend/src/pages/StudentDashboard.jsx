@@ -291,7 +291,18 @@ export default function StudentDashboard() {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      const data = await res.json()
+      
+      const contentType = res.headers.get('content-type') || ''
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = await res.json()
+      } else {
+        const rawText = await res.text()
+        if (!res.ok) {
+          throw new Error(`Máy ảo đang được khởi tạo trên Proxmox (HTTP ${res.status}). Vui lòng chờ 15-30 giây và bấm nút "Tải lại kết nối VM".`)
+        }
+      }
+
       if (!res.ok) throw new Error(data.detail || 'Không thể tạo phiên kết nối máy ảo')
       setGuacamoleUrl(data.guacamole_url)
       setVmInfo(data)
@@ -313,7 +324,18 @@ export default function StudentDashboard() {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      const data = await res.json()
+      
+      const contentType = res.headers.get('content-type') || ''
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = await res.json()
+      } else {
+        const rawText = await res.text()
+        if (!res.ok) {
+          throw new Error(`Thao tác khôi phục máy ảo đang được xử lý trên Proxmox (HTTP ${res.status}). Vui lòng chờ 15-30 giây.`)
+        }
+      }
+
       if (!res.ok) throw new Error(data.detail || 'Không thể rollback máy ảo')
       setGuacamoleUrl('')
       setVmInfo(null)
