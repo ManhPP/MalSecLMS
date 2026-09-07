@@ -40,5 +40,7 @@ student_uploads/
 Thumbs.db
 # --- Monitoring ---
 monitoring/data/
+monitoring/**/data/
+monitoring/**/*.db
 
 ssh

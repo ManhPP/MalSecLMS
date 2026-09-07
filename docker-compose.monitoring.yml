@@ -12,3 +12,55 @@ services:
       DOZZLE_AUTH_PROVIDER: "simple"
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_LEVEL: "info"
+    networks:
+      - monitoring-network
+
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: malsec-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ./monitoring/loki/data:/loki
+    networks:
+      - monitoring-network
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: malsec-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: malsec-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=KhongQuanLieu
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - ./monitoring/grafana/data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring-network
+
+networks:
+  monitoring-network:
+    driver: bridge
