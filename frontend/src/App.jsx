@@ -2,13 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom'
 import { Shield, LogOut, Terminal, User as UserIcon, Calendar, CheckSquare, Award, Key, Lock, Eye, EyeOff } from 'lucide-react'
 
-// Các Pages (sẽ được viết ở các bước tiếp theo)
+// Page Components
 import Login from './pages/Login.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import InstructorDashboard from './pages/InstructorDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 
-// Tạo Auth Context
+// Create Auth Context
 const AuthContext = createContext(null)
 
 export const useAuth = () => useContext(AuthContext)
@@ -18,7 +18,7 @@ const clearGuacamoleAuth = () => {
   sessionStorage.removeItem('GUAC_AUTH_TOKEN')
 }
 
-// Modal Hồ Sơ Cá Nhân & Đổi Mật Khẩu
+// User Profile & Password Change Modal
 const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
   const { user, updateUser } = useAuth()
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -55,14 +55,14 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
 
   if (!isOpen || !user) return null
 
-  // Xử lý Cập nhật Thông tin Cá nhân
+  // Handle Profile Update
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     setProfileError('')
     setProfileSuccess('')
 
     if (!fullName.trim()) {
-      setProfileError('Họ và tên không được để trống')
+      setProfileError('Full name cannot be empty')
       return
     }
 
@@ -83,11 +83,11 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
 
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.detail || 'Không thể cập nhật thông tin cá nhân')
+        throw new Error(data.detail || 'Unable to update profile information')
       }
 
       updateUser({ full_name: data.full_name, email: data.email })
-      setProfileSuccess('Cập nhật thông tin thành công!')
+      setProfileSuccess('Profile updated successfully!')
       setTimeout(() => setProfileSuccess(''), 2500)
     } catch (err) {
       setProfileError(err.message)
@@ -96,24 +96,24 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
     }
   }
 
-  // Xử lý Đổi Mật Khẩu
+  // Handle Password Change
   const handleChangePassword = async (e) => {
     e.preventDefault()
     setPassError('')
     setPassSuccess('')
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setPassError('Vui lòng nhập đầy đủ thông tin mật khẩu')
+      setPassError('Please fill in all password fields')
       return
     }
 
     if (newPassword.length < 6) {
-      setPassError('Mật khẩu mới phải chứa ít nhất 6 ký tự')
+      setPassError('New password must be at least 6 characters long')
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setPassError('Mật khẩu mới và xác nhận mật khẩu không khớp nhau')
+      setPassError('New password and confirmation do not match')
       return
     }
 
@@ -134,10 +134,10 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
 
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.detail || 'Không thể đổi mật khẩu')
+        throw new Error(data.detail || 'Unable to change password')
       }
 
-      setPassSuccess('Đổi mật khẩu thành công!')
+      setPassSuccess('Password changed successfully!')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -167,7 +167,7 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
         <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <UserIcon size={22} style={{ color: 'var(--neon-cyan)' }} />
-            <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--neon-cyan)' }}>Cấu Hình Tài Khoản Cá Nhân</h3>
+            <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--neon-cyan)' }}>User Profile & Security Settings</h3>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', marginLeft: 'auto' }}>×</button>
         </div>
@@ -184,7 +184,7 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
             }}
           >
-            <UserIcon size={15} /> Thông Tin Cá Nhân
+            <UserIcon size={15} /> Profile Details
           </button>
           <button
             onClick={() => setActiveTab('password')}
@@ -196,11 +196,11 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
             }}
           >
-            <Key size={15} /> Đổi Mật Khẩu
+            <Key size={15} /> Change Password
           </button>
         </div>
 
-        {/* TAB 1: THÔNG TIN CÁ NHÂN */}
+        {/* TAB 1: PROFILE DETAILS */}
         {activeTab === 'profile' && (
           <form onSubmit={handleUpdateProfile}>
             {profileError && (
@@ -215,7 +215,7 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
             )}
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Tên đăng nhập (Username)</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Username</label>
               <input
                 type="text"
                 className="form-input"
@@ -226,33 +226,33 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
             </div>
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Vai trò (Role)</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>Role</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="user-role-badge" style={{ padding: '4px 10px', fontSize: '12px', textTransform: 'uppercase' }}>
-                  {user.role === 'admin' ? '🛡️ Quản trị viên (Admin)' : user.role === 'lecturer' ? '👨‍🏫 Giảng viên (Instructor)' : '🎓 Sinh viên (Student)'}
+                  {user.role === 'admin' ? '🛡️ Administrator' : user.role === 'lecturer' ? '👨‍🏫 Instructor' : '🎓 Student'}
                 </span>
               </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Họ và tên</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Full Name</label>
               <input
                 type="text"
                 className="form-input"
                 style={{ width: '100%' }}
-                placeholder="Nhập họ và tên..."
+                placeholder="Enter full name..."
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Địa chỉ Email</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Email Address</label>
               <input
                 type="email"
                 className="form-input"
                 style={{ width: '100%' }}
-                placeholder="Ví dụ: user@malsec.edu.vn..."
+                placeholder="e.g. user@malsec.edu.vn..."
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -260,16 +260,16 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button type="button" className="btn btn-secondary" onClick={onClose} disabled={profileLoading}>
-                Đóng
+                Close
               </button>
               <button type="submit" className="btn btn-primary" disabled={profileLoading} style={{ minWidth: '120px' }}>
-                {profileLoading ? 'Đang lưu...' : 'Lưu Thông Tin'}
+                {profileLoading ? 'Saving...' : 'Save Profile'}
               </button>
             </div>
           </form>
         )}
 
-        {/* TAB 2: ĐỔI MẬT KHẨU */}
+        {/* TAB 2: CHANGE PASSWORD */}
         {activeTab === 'password' && (
           <form onSubmit={handleChangePassword}>
             {passError && (
@@ -284,13 +284,13 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
             )}
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Mật khẩu hiện tại</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Current Password</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showCurrent ? 'text' : 'password'}
                   className="form-input"
                   style={{ width: '100%', paddingRight: '40px' }}
-                  placeholder="Nhập mật khẩu hiện tại..."
+                  placeholder="Enter current password..."
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                 />
@@ -305,13 +305,13 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
             </div>
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Mật khẩu mới</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>New Password</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showNew ? 'text' : 'password'}
                   className="form-input"
                   style={{ width: '100%', paddingRight: '40px' }}
-                  placeholder="Mật khẩu mới (tối thiểu 6 ký tự)..."
+                  placeholder="New password (min 6 characters)..."
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
@@ -326,13 +326,13 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
             </div>
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Xác nhận mật khẩu mới</label>
+              <label className="form-label" style={{ display: 'block', marginBottom: '4px', fontSize: '12px' }}>Confirm New Password</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   className="form-input"
                   style={{ width: '100%', paddingRight: '40px' }}
-                  placeholder="Nhập lại mật khẩu mới..."
+                  placeholder="Re-enter new password..."
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
@@ -348,10 +348,10 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button type="button" className="btn btn-secondary" onClick={onClose} disabled={passLoading}>
-                Hủy
+                Cancel
               </button>
               <button type="submit" className="btn btn-primary" disabled={passLoading} style={{ minWidth: '120px' }}>
-                {passLoading ? 'Đang xử lý...' : 'Lưu Mật Khẩu'}
+                {passLoading ? 'Processing...' : 'Update Password'}
               </button>
             </div>
           </form>
@@ -361,7 +361,7 @@ const UserProfileModal = ({ isOpen, onClose, initialTab = 'profile' }) => {
   )
 }
 
-// Layout chung cho Portal sau khi đăng nhập
+// Global Portal Layout for authenticated users
 const Layout = ({ children }) => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -389,13 +389,13 @@ const Layout = ({ children }) => {
           
           <div className="nav-links">
             {user.role === 'admin' && (
-              <span className="badge badge-draft">Hệ thống Admin</span>
+              <span className="badge badge-draft">Admin Portal</span>
             )}
             {user.role === 'lecturer' && (
-              <span className="badge badge-submitted">Portal Giảng viên</span>
+              <span className="badge badge-submitted">Instructor Portal</span>
             )}
             {user.role === 'student' && (
-              <span className="badge badge-graded">Portal Sinh viên</span>
+              <span className="badge badge-graded">Student Portal</span>
             )}
             
             <div className="user-profile-widget">
@@ -403,7 +403,7 @@ const Layout = ({ children }) => {
                 className="user-avatar"
                 onClick={() => openModalWithTab('profile')}
                 style={{ cursor: 'pointer' }}
-                title="Xem thông tin cá nhân"
+                title="View Profile"
               >
                 {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
               </div>
@@ -411,7 +411,7 @@ const Layout = ({ children }) => {
                 className="user-info"
                 onClick={() => openModalWithTab('profile')}
                 style={{ cursor: 'pointer' }}
-                title="Xem thông tin cá nhân"
+                title="View Profile"
               >
                 <span className="user-name">{user.full_name}</span>
                 {user.email && <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', textTransform: 'lowercase', margin: '2px 0', opacity: 0.8 }}>{user.email}</span>}
@@ -421,16 +421,16 @@ const Layout = ({ children }) => {
                 onClick={() => openModalWithTab('profile')} 
                 className="btn btn-secondary" 
                 style={{ padding: '6px 10px', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                title="Thông tin cá nhân & Đổi mật khẩu"
+                title="Profile & Security Settings"
               >
                 <UserIcon size={15} />
-                <span style={{ fontSize: '12px' }}>Cá nhân</span>
+                <span style={{ fontSize: '12px' }}>Profile</span>
               </button>
               <button 
                 onClick={handleLogout} 
                 className="btn btn-secondary" 
                 style={{ padding: '6px 10px', marginLeft: '6px' }}
-                title="Đăng xuất"
+                title="Sign Out"
               >
                 <LogOut size={16} />
               </button>
@@ -459,13 +459,13 @@ const Layout = ({ children }) => {
         borderTop: '1px solid var(--border-color)',
         marginTop: 'auto'
       }}>
-        Hệ thống Lab Forensics & Malware Analysis — FUHL &copy; 2026. Toàn bộ mã độc được cô lập an toàn.
+        Malware Analysis & Forensics Lab System — FUHL &copy; 2026. All malicious payloads are safely isolated.
       </footer>
     </div>
   )
 }
 
-// Guard Route kiểm tra đăng nhập
+// Authentication Guard Route
 const RequireAuth = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth()
 
@@ -479,7 +479,7 @@ const RequireAuth = ({ children, allowedRoles }) => {
         fontFamily: 'var(--font-mono)',
         color: 'var(--neon-cyan)'
       }}>
-        [+] Đang xác thực hệ thống an ninh malsec...
+        [+] Authenticating security session...
       </div>
     )
   }
@@ -495,7 +495,7 @@ const RequireAuth = ({ children, allowedRoles }) => {
   return <Layout>{children}</Layout>
 }
 
-// Redirect Route dựa trên Role người dùng
+// Redirect Route based on User Role
 const RoleBasedRedirect = () => {
   const { user } = useAuth()
   
@@ -516,7 +516,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Khôi phục phiên làm việc từ LocalStorage
+  // Restore session from LocalStorage
   useEffect(() => {
     clearGuacamoleAuth()
     const storedUser = localStorage.getItem('malsec_user')

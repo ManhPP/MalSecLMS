@@ -84,7 +84,7 @@ export default function AdminDashboard() {
       if (lRes.ok) setAuditLogs(await lRes.json())
 
     } catch (err) {
-      setError('Lỗi khi truy xuất dữ liệu từ máy chủ')
+      setError('Failed to fetch data from server')
     } finally {
       setLoading(false)
     }
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
         setStudentVms(await res.json())
       }
     } catch (err) {
-      setError('Lỗi khi truy vấn danh sách máy ảo sinh viên')
+      setError('Failed to query student VM list')
     } finally {
       setVmActionLoading(false)
     }
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
   }
 
   const handleControlVm = async (labId, vmid, action, studentName) => {
-    if (action === 'purge' && !confirm(`[ADMIN CONTROL] Bạn có chắc chắn muốn xóa sạch máy ảo (VM ${vmid}) của sinh viên ${studentName} không?\nKhối máy ảo này sẽ được xóa 100% khỏi Proxmox cluster để sinh viên clone lại máy sạch!`)) return
+    if (action === 'purge' && !confirm(`[ADMIN CONTROL] Are you sure you want to completely purge the VM (VM ${vmid}) for student ${studentName}?\nThis VM will be 100% deleted from the Proxmox cluster so the student can re-clone a fresh VM!`)) return
 
     setVmActionLoading(true)
     const token = localStorage.getItem('malsec_token')
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ action })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác máy ảo')
+      if (!res.ok) throw new Error(data.detail || 'Failed to execute VM operation')
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
@@ -141,8 +141,8 @@ export default function AdminDashboard() {
   const handleBatchControlVm = async (labId, action) => {
     const isPurge = action === 'purge_all'
     const confirmMsg = isPurge 
-      ? `⚠️ [ADMIN CONTROL] CẢNH BÁO NGUY HẠI: Bạn có CHẮC CHẮN muốn XÓA SẠCH 100% tất cả máy ảo của toàn bộ sinh viên trong bài Lab này không?\nTất cả máy ảo sinh viên trên Proxmox cluster sẽ bị tiêu hủy hoàn toàn!`
-      : `[ADMIN CONTROL] Bạn có chắc muốn TẮT TẤT CẢ các máy ảo đang chạy của sinh viên trong bài Lab này không?`
+      ? `⚠️ [ADMIN CONTROL] HIGH RISK WARNING: Are you SURE you want to completely PURGE 100% of all student VMs for this lab?\nAll student VMs on the Proxmox cluster will be permanently destroyed!`
+      : `[ADMIN CONTROL] Are you sure you want to STOP ALL running student VMs for this lab?`
 
     if (!confirm(confirmMsg)) return
 
@@ -158,7 +158,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ action })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi điều khiển hàng loạt')
+      if (!res.ok) throw new Error(data.detail || 'Failed to execute batch VM control')
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
   const handleSaveUser = async (e) => {
     e.preventDefault()
     if (!editingUser && !password) {
-      setError('Vui lòng nhập mật khẩu ban đầu cho tài khoản mới')
+      setError('Please enter an initial password for the new account')
       return
     }
     setActionLoading(true)
@@ -208,9 +208,9 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác người dùng')
+      if (!res.ok) throw new Error(data.detail || 'Failed to execute user operation')
 
-      setSuccess(editingUser ? 'Cập nhật tài khoản thành công!' : 'Tạo tài khoản mới thành công!')
+      setSuccess(editingUser ? 'Account updated successfully!' : 'New account created successfully!')
       setShowUserModal(false)
       fetchData()
     } catch (err) {
@@ -221,7 +221,7 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteUser = async (userId) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa tài khoản này không?')) return
+    if (!confirm('Are you sure you want to delete this account?')) return
     setActionLoading(true)
     const token = localStorage.getItem('malsec_token')
     try {
@@ -231,9 +231,9 @@ export default function AdminDashboard() {
       })
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.detail || 'Lỗi khi xóa người dùng')
+        throw new Error(data.detail || 'Failed to delete user')
       }
-      setSuccess('Xóa người dùng thành công!')
+      setSuccess('User deleted successfully!')
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -296,9 +296,9 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác lớp học phần')
+      if (!res.ok) throw new Error(data.detail || 'Failed to execute class operation')
 
-      setSuccess(editingClass ? 'Cập nhật thông tin lớp học phần thành công!' : 'Tạo lớp học phần mới thành công!')
+      setSuccess(editingClass ? 'Class updated successfully!' : 'New class created successfully!')
       setShowClassModal(false)
       setEditingClass(null)
       fetchData()
@@ -310,7 +310,7 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteClass = async (classId, clsName) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa lớp học phần "${clsName}" không?\nHành động này không thể hoàn tác!`)) return
+    if (!confirm(`Are you sure you want to delete class "${clsName}"?\nThis action cannot be undone!`)) return
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -325,9 +325,9 @@ export default function AdminDashboard() {
       const isJson = res.headers.get('content-type')?.includes('application/json')
       const data = isJson ? await res.json() : { detail: await res.text() }
 
-      if (!res.ok) throw new Error(data.detail || 'Lỗi khi xóa lớp học phần')
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete class')
 
-      setSuccess(`Xóa lớp học phần "${clsName}" thành công!`)
+      setSuccess(`Class "${clsName}" deleted successfully!`)
       if (selectedClass?.id === classId) {
         setSelectedClass(null)
       }
@@ -364,7 +364,7 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm sinh viên vào lớp')
+      if (!res.ok) throw new Error(data.detail || 'Failed to add students to class')
 
       setSuccess(data.message)
       setStudentIdsInput('')
@@ -384,7 +384,7 @@ export default function AdminDashboard() {
   }
 
   const handleRemoveStudentFromClass = async (studentId) => {
-    if (!confirm('Bạn có chắc xóa sinh viên này khỏi lớp?')) return
+    if (!confirm('Are you sure you want to remove this student from the class?')) return
     const token = localStorage.getItem('malsec_token')
     try {
       const res = await fetch(`/api/classes/${selectedClass.id}/students/${studentId}`, {
@@ -400,7 +400,7 @@ export default function AdminDashboard() {
         fetchData()
       }
     } catch (err) {
-      setError('Lỗi khi xóa sinh viên')
+      setError('Failed to remove student')
     }
   }
 
@@ -427,7 +427,7 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm giảng viên vào lớp')
+      if (!res.ok) throw new Error(data.detail || 'Failed to add lecturers to class')
 
       setSuccess(data.message)
       setLecturerIdsInput('')
@@ -448,7 +448,7 @@ export default function AdminDashboard() {
 
 
   const handleRemoveLecturerFromClass = async (lecturerId) => {
-    if (!confirm('Bạn có chắc xóa giảng viên này khỏi lớp?')) return
+    if (!confirm('Are you sure you want to remove this lecturer from the class?')) return
     const token = localStorage.getItem('malsec_token')
     try {
       const res = await fetch(`/api/classes/${selectedClass.id}/lecturers/${lecturerId}`, {
@@ -464,7 +464,7 @@ export default function AdminDashboard() {
         fetchData()
       }
     } catch (err) {
-      setError('Lỗi khi xóa giảng viên')
+      setError('Failed to remove lecturer')
     }
   }
 
@@ -488,10 +488,10 @@ export default function AdminDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi import file CSV')
+      if (!res.ok) throw new Error(data.detail || 'Failed to import CSV file')
 
       setImportResult(data)
-      setSuccess('Import danh sách sinh viên hoàn tất!')
+      setSuccess('Student list imported successfully!')
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -508,28 +508,28 @@ export default function AdminDashboard() {
           <div className="stat-icon-wrap"><Users size={24} /></div>
           <div>
             <div className="stat-number">{users.length}</div>
-            <div className="stat-label">Tổng số Tài khoản</div>
+            <div className="stat-label">Total Accounts</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon-wrap"><School size={24} /></div>
           <div>
             <div className="stat-number">{classes.length}</div>
-            <div className="stat-label">Lớp học phần</div>
+            <div className="stat-label">Classes</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon-wrap"><ShieldAlert size={24} style={{ color: 'var(--neon-emerald)' }} /></div>
           <div>
             <div className="stat-number" style={{ color: 'var(--neon-emerald)' }}>100%</div>
-            <div className="stat-label">Hệ thống An toàn</div>
+            <div className="stat-label">System Health</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon-wrap"><FileSpreadsheet size={24} /></div>
           <div>
             <div className="stat-number">{auditLogs.length}</div>
-            <div className="stat-label">Nhật ký Kiểm toán</div>
+            <div className="stat-label">Audit Logs</div>
           </div>
         </div>
       </div>
@@ -556,28 +556,28 @@ export default function AdminDashboard() {
           className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '8px 16px' }}
         >
-          Quản lý Tài khoản
+          User Management
         </button>
         <button 
           onClick={() => setActiveTab('classes')} 
           className={`btn ${activeTab === 'classes' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '8px 16px' }}
         >
-          Quản lý Lớp học phần
+          Class Management
         </button>
         <button 
           onClick={() => setActiveTab('vms')} 
           className={`btn ${activeTab === 'vms' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <Monitor size={15} /> Quản lý Máy ảo Proxmox
+          <Monitor size={15} /> Proxmox VM Management
         </button>
         <button 
           onClick={() => setActiveTab('logs')} 
           className={`btn ${activeTab === 'logs' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '8px 16px' }}
         >
-          Nhật ký Hoạt động (Audit Log)
+          Audit Trail & Activity Logs
         </button>
 
         
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
           onClick={fetchData} 
           className="btn btn-secondary" 
           style={{ marginLeft: 'auto', padding: '8px 12px' }}
-          title="Làm mới"
+          title="Refresh"
         >
           <RefreshCw size={16} />
         </button>
@@ -595,13 +595,13 @@ export default function AdminDashboard() {
       {activeTab === 'users' && (
         <div className="cyber-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '18px' }}>Danh sách tài khoản trong hệ thống</h3>
+            <h3 style={{ fontSize: '18px' }}>User Accounts Directory</h3>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowImportModal(true)} className="btn btn-secondary">
-                <UploadCloud size={16} /> Nhập Excel/CSV hàng loạt
+                <UploadCloud size={16} /> Bulk Excel/CSV Import
               </button>
               <button onClick={() => handleOpenUserModal()} className="btn btn-primary">
-                <Plus size={16} /> Thêm tài khoản mới
+                <Plus size={16} /> Add New User
               </button>
             </div>
           </div>
@@ -611,12 +611,12 @@ export default function AdminDashboard() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Tên đăng nhập (MSSV)</th>
-                  <th>Họ và Tên</th>
+                  <th>Username (Student ID)</th>
+                  <th>Full Name</th>
                   <th>Email</th>
-                  <th>Vai trò (Role)</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: 'right' }}>Hành động</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -640,14 +640,14 @@ export default function AdminDashboard() {
                         fontSize: '13px'
                       }}>
                         {u.is_active ? <Unlock size={14} /> : <Lock size={14} />}
-                        {u.is_active ? 'Hoạt động' : 'Bị Khóa'}
+                        {u.is_active ? 'Active' : 'Locked'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button onClick={() => handleOpenUserModal(u)} className="btn btn-secondary" style={{ padding: '6px 10px', marginRight: '6px' }} title="Sửa">
+                      <button onClick={() => handleOpenUserModal(u)} className="btn btn-secondary" style={{ padding: '6px 10px', marginRight: '6px' }} title="Edit">
                         <Edit2 size={13} />
                       </button>
-                      <button onClick={() => handleDeleteUser(u.id)} className="btn btn-danger" style={{ padding: '6px 10px' }} title="Xóa">
+                      <button onClick={() => handleDeleteUser(u.id)} className="btn btn-danger" style={{ padding: '6px 10px' }} title="Delete">
                         <Trash2 size={13} />
                       </button>
                     </td>
@@ -662,12 +662,12 @@ export default function AdminDashboard() {
       {/* TAB CLASSES CONTENT */}
       {activeTab === 'classes' && (
         <div style={{ display: 'grid', gridTemplateColumns: '40% 60%', gap: '20px' }}>
-          {/* Lớp học phần list */}
+          {/* Classes list */}
           <div className="cyber-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px' }}>Các lớp học</h3>
+              <h3 style={{ fontSize: '18px' }}>Classes</h3>
               <button onClick={() => handleOpenClassModal(null)} className="btn btn-primary" style={{ padding: '8px 12px' }}>
-                <Plus size={16} /> Tạo lớp
+                <Plus size={16} /> Create Class
               </button>
             </div>
             
@@ -675,9 +675,9 @@ export default function AdminDashboard() {
               <table className="cyber-table">
                 <thead>
                   <tr>
-                    <th>Tên Lớp</th>
-                    <th>Mô tả</th>
-                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    <th>Class Name</th>
+                    <th>Description</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -704,9 +704,9 @@ export default function AdminDashboard() {
                             }} 
                             className="btn btn-secondary" 
                             style={{ padding: '4px 8px', fontSize: '11px', background: '#334155', border: 'none' }}
-                            title="Sửa thông tin lớp"
+                            title="Edit Class"
                           >
-                            <Edit2 size={12} style={{ marginRight: '3px' }} /> Sửa
+                            <Edit2 size={12} style={{ marginRight: '3px' }} /> Edit
                           </button>
                           <button 
                             onClick={(e) => {
@@ -715,9 +715,9 @@ export default function AdminDashboard() {
                             }} 
                             className="btn btn-danger" 
                             style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                            title="Xóa lớp học"
+                            title="Delete Class"
                           >
-                            <Trash2 size={12} style={{ marginRight: '3px' }} /> Xóa
+                            <Trash2 size={12} style={{ marginRight: '3px' }} /> Delete
                           </button>
                         </div>
                       </td>
@@ -729,12 +729,12 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Chi tiết lớp được chọn & Gán sinh viên */}
+          {/* Selected class details & user assignment */}
           <div className="cyber-card">
             {selectedClass ? (
               <div>
                 <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                  Lớp: {selectedClass.name}
+                  Class: {selectedClass.name}
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', marginBottom: '24px' }}>
                   {selectedClass.description}
@@ -746,15 +746,15 @@ export default function AdminDashboard() {
                   
                   return (
                     <div>
-                      {/* Form gán giảng viên vào lớp */}
+                      {/* Assign lecturers form */}
                       <form onSubmit={handleAssignLecturers} style={{ marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán giảng viên quản lý lớp</h4>
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Assign Lecturers to Class</h4>
                         <div className="form-group" style={{ marginBottom: '12px', position: 'relative' }}>
-                          <label className="form-label">Nhập Tên đăng nhập (Username) hoặc ID Giảng viên (Phân cách bằng dấu phẩy)</label>
+                          <label className="form-label">Enter Lecturer Username or ID (comma separated)</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Ví dụ: gv01, gv_an, 2"
+                            placeholder="e.g. lecturer01, lec_alex, 2"
                             value={lecturerIdsInput}
                             onChange={(e) => {
                               setLecturerIdsInput(e.target.value)
@@ -826,7 +826,7 @@ export default function AdminDashboard() {
                                       borderRadius: '4px',
                                       border: '1px solid rgba(56, 189, 248, 0.3)'
                                     }}>
-                                      + Chọn
+                                      + Select
                                     </span>
                                   </div>
                                 ))}
@@ -835,19 +835,19 @@ export default function AdminDashboard() {
                           })()}
                         </div>
                         <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px' }} disabled={actionLoading}>
-                          {actionLoading ? 'ĐANG GÁN...' : 'XÁC NHẬN GÁN GIẢNG VIÊN'}
+                          {actionLoading ? 'ASSIGNING...' : 'CONFIRM ASSIGN LECTURERS'}
                         </button>
                       </form>
 
-                      {/* Form gán học sinh vào lớp */}
+                      {/* Assign students form */}
                       <form onSubmit={handleAssignStudents} style={{ marginBottom: '28px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Gán sinh viên vào lớp học phần</h4>
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)' }}>Assign Students to Class</h4>
                         <div className="form-group" style={{ marginBottom: '12px', position: 'relative' }}>
-                          <label className="form-label">Nhập Username / MSSV hoặc ID Sinh viên (Phân cách bằng dấu phẩy)</label>
+                          <label className="form-label">Enter Student Username (Student ID) or ID (comma separated)</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Ví dụ: sv01, sv02, 20210001"
+                            placeholder="e.g. std01, std02, 20210001"
                             value={studentIdsInput}
                             onChange={(e) => {
                               setStudentIdsInput(e.target.value)
@@ -919,7 +919,7 @@ export default function AdminDashboard() {
                                       borderRadius: '4px',
                                       border: '1px solid rgba(56, 189, 248, 0.3)'
                                     }}>
-                                      + Chọn
+                                      + Select
                                     </span>
                                   </div>
                                 ))}
@@ -928,23 +928,23 @@ export default function AdminDashboard() {
                           })()}
                         </div>
                         <button type="submit" className="btn btn-success" style={{ padding: '8px 16px' }} disabled={actionLoading}>
-                          {actionLoading ? 'ĐANG THÊM...' : 'XÁC NHẬN GÁN SINH VIÊN'}
+                          {actionLoading ? 'ADDING...' : 'CONFIRM ASSIGN STUDENTS'}
                         </button>
                       </form>
 
 
 
-                      {/* Danh sách giảng viên quản lý lớp */}
-                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách giảng viên phụ trách ({classLecturers.length} GV)</h4>
+                      {/* Assigned lecturers list */}
+                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Assigned Lecturers ({classLecturers.length})</h4>
                       <div className="table-container" style={{ margin: '0 0 28px 0', maxHeight: '200px', overflowY: 'auto' }}>
                         <table className="cyber-table">
                           <thead>
                             <tr>
                               <th>ID</th>
-                              <th>Tên đăng nhập</th>
-                              <th>Họ và Tên</th>
+                              <th>Username</th>
+                              <th>Full Name</th>
                               <th>Email</th>
-                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -961,31 +961,31 @@ export default function AdminDashboard() {
                                       className="btn btn-danger" 
                                       style={{ padding: '4px 8px', fontSize: '11px' }}
                                     >
-                                      Xóa khỏi lớp
+                                      Remove from Class
                                     </button>
                                   </td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có giảng viên nào phụ trách lớp này.</td>
+                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No lecturers assigned to this class yet.</td>
                               </tr>
                             )}
                           </tbody>
                         </table>
                       </div>
 
-                      {/* Danh sách sinh viên thuộc lớp */}
-                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Danh sách sinh viên trong lớp ({classStudents.length} SV)</h4>
+                      {/* Enrolled students list */}
+                      <h4 style={{ fontSize: '16px', marginBottom: '12px' }}>Enrolled Students ({classStudents.length})</h4>
                       <div className="table-container" style={{ margin: 0, maxHeight: '350px', overflowY: 'auto' }}>
                         <table className="cyber-table">
                           <thead>
                             <tr>
                               <th>ID</th>
-                              <th>Tên sinh viên (MSSV)</th>
-                              <th>Họ và Tên</th>
+                              <th>Student ID (Username)</th>
+                              <th>Full Name</th>
                               <th>Email</th>
-                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1002,14 +1002,14 @@ export default function AdminDashboard() {
                                       className="btn btn-danger" 
                                       style={{ padding: '4px 8px', fontSize: '11px' }}
                                     >
-                                      Xóa khỏi lớp
+                                      Remove from Class
                                     </button>
                                   </td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có sinh viên nào trong lớp này.</td>
+                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No students enrolled in this class yet.</td>
                               </tr>
                             )}
                           </tbody>
@@ -1021,7 +1021,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                Chọn một lớp học phần ở bảng bên trái để xem danh sách sinh viên và gán sinh viên.
+                Select a class from the left panel to manage assigned lecturers and enrolled students.
               </div>
             )}
           </div>
@@ -1032,19 +1032,19 @@ export default function AdminDashboard() {
       {activeTab === 'vms' && (
         <div className="cyber-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '18px' }}>Quản lý & Xóa Máy ảo Sinh viên (Proxmox VE Cluster)</h3>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Tổng số bài Lab: {labs.length}</span>
+            <h3 style={{ fontSize: '18px' }}>Proxmox VE Cluster VM Management</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Total Labs: {labs.length}</span>
           </div>
 
           <div className="table-container">
             <table className="cyber-table">
               <thead>
                 <tr>
-                  <th>Bài Lab Thực hành</th>
-                  <th>Lớp học phần</th>
-                  <th>Thời hạn (Deadline)</th>
-                  <th>Trạng thái Lab</th>
-                  <th style={{ textAlign: 'right' }}>Quản lý máy ảo</th>
+                  <th>Practical Lab Title</th>
+                  <th>Assigned Class</th>
+                  <th>Deadline (UTC)</th>
+                  <th>Lab Status</th>
+                  <th style={{ textAlign: 'right' }}>Manage VMs</th>
                 </tr>
               </thead>
               <tbody>
@@ -1053,13 +1053,13 @@ export default function AdminDashboard() {
                   return (
                     <tr key={lab.id}>
                       <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
-                      <td>{cls ? cls.name : `Lớp ID ${lab.class_id}`}</td>
+                      <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                        {new Date(lab.deadline).toLocaleString('vi-VN')}
+                        {new Date(lab.deadline).toLocaleString('en-US')}
                       </td>
                       <td>
                         <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
-                          {lab.is_active ? 'Đang mở' : 'Đã đóng'}
+                          {lab.is_active ? 'Active' : 'Closed'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -1068,7 +1068,7 @@ export default function AdminDashboard() {
                           className="btn btn-primary" 
                           style={{ padding: '6px 12px', fontSize: '12.5px' }}
                         >
-                          <Monitor size={14} style={{ marginRight: '6px' }} /> Giám sát & Xóa máy ảo &rarr;
+                          <Monitor size={14} style={{ marginRight: '6px' }} /> Monitor & Purge VMs &rarr;
                         </button>
                       </td>
                     </tr>
@@ -1076,7 +1076,7 @@ export default function AdminDashboard() {
                 })}
                 {labs.length === 0 && (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài Lab nào trong hệ thống.</td>
+                    <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No labs found in the system.</td>
                   </tr>
                 )}
               </tbody>
@@ -1089,26 +1089,26 @@ export default function AdminDashboard() {
       {activeTab === 'logs' && (
 
         <div className="cyber-card">
-          <h3 style={{ fontSize: '18px', marginBottom: '20px' }}>Lịch sử hoạt động của hệ thống (Audit Trail)</h3>
+          <h3 style={{ fontSize: '18px', marginBottom: '20px' }}>System Activity & Security Audit Trail</h3>
           <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
             <table className="cyber-table">
               <thead>
                 <tr>
-                  <th>Thời gian (UTC)</th>
-                  <th>Người thực hiện</th>
-                  <th>Hành động</th>
+                  <th>Timestamp (UTC)</th>
+                  <th>Actor / User</th>
+                  <th>Action</th>
                   <th>IP Address</th>
-                  <th>Chi tiết đối tượng</th>
+                  <th>Target Details</th>
                 </tr>
               </thead>
               <tbody>
                 {auditLogs.map(log => (
                   <tr key={log.id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                      {new Date(log.timestamp).toLocaleString('vi-VN')}
+                      {new Date(log.timestamp).toLocaleString('en-US')}
                     </td>
                     <td style={{ fontWeight: '500' }}>
-                      {log.user ? `${log.user.full_name} (@${log.user.username})` : 'Hệ thống'}
+                      {log.user ? `${log.user.full_name} (@${log.user.username})` : 'System'}
                     </td>
                     <td>
                       <span className="badge badge-submitted" style={{ textTransform: 'uppercase' }}>
@@ -1130,18 +1130,18 @@ export default function AdminDashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>{editingUser ? 'Sửa thông tin tài khoản' : 'Thêm tài khoản mới'}</h3>
+              <h3>{editingUser ? 'Edit User Account' : 'Add New User Account'}</h3>
               <button onClick={() => setShowUserModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveUser}>
               <div className="modal-body">
                 <div className="form-group">
-                  <label className="form-label">Tên đăng nhập (MSSV đối với sinh viên)</label>
+                  <label className="form-label">Username (Student ID for students)</label>
                   <input 
                     type="text" 
                     className="form-input" 
                     required 
-                    placeholder="Ví dụ: AT160102"
+                    placeholder="e.g. AT160102"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     disabled={editingUser !== null}
@@ -1149,34 +1149,34 @@ export default function AdminDashboard() {
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">Họ và Tên đầy đủ</label>
+                  <label className="form-label">Full Name</label>
                   <input 
                     type="text" 
                     className="form-input" 
                     required 
-                    placeholder="Ví dụ: Nguyễn Văn A"
+                    placeholder="e.g. John Doe"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Địa chỉ Email</label>
+                  <label className="form-label">Email Address</label>
                   <input 
                     type="email" 
                     className="form-input" 
-                    placeholder="Ví dụ: student@example.com"
+                    placeholder="e.g. student@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Mật khẩu {editingUser && '(Bỏ trống nếu không đổi)'}</label>
+                  <label className="form-label">Password {editingUser && '(Leave blank to keep unchanged)'}</label>
                   <input 
                     type="password" 
                     className="form-input" 
-                    placeholder={editingUser ? "Không đổi mật khẩu..." : "Nhập mật khẩu ban đầu"}
+                    placeholder={editingUser ? "Leave blank to keep password..." : "Enter initial password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required={!editingUser}
@@ -1184,15 +1184,15 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Vai trò (Role)</label>
+                  <label className="form-label">Role</label>
                   <select 
                     className="form-select"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                   >
-                    <option value="student">Student (Sinh viên)</option>
-                    <option value="lecturer">Lecturer (Giảng viên)</option>
-                    <option value="admin">Admin (Quản trị)</option>
+                    <option value="student">Student</option>
+                    <option value="lecturer">Lecturer</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
 
@@ -1203,13 +1203,13 @@ export default function AdminDashboard() {
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
                   />
-                  <label htmlFor="isActiveCheck" style={{ fontSize: '14px', cursor: 'pointer' }}>Tài khoản hoạt động bình thường</label>
+                  <label htmlFor="isActiveCheck" style={{ fontSize: '14px', cursor: 'pointer' }}>Account is Active</label>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowUserModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => setShowUserModal(false)} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG LƯU...' : 'LƯU TÀI KHOẢN'}
+                  {actionLoading ? 'SAVING...' : 'SAVE ACCOUNT'}
                 </button>
               </div>
             </form>
@@ -1222,37 +1222,37 @@ export default function AdminDashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>{editingClass ? 'Chỉnh sửa thông tin lớp học phần' : 'Tạo lớp học phần mới'}</h3>
+              <h3>{editingClass ? 'Edit Class Details' : 'Create New Class'}</h3>
               <button onClick={() => setShowClassModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveClass}>
               <div className="modal-body">
                 <div className="form-group">
-                  <label className="form-label">Tên lớp học phần</label>
+                  <label className="form-label">Class Name</label>
                   <input 
                     type="text" 
                     className="form-input" 
                     required 
-                    placeholder="Ví dụ: AT16-Malware"
+                    placeholder="e.g. AT16-Malware"
                     value={className}
                     onChange={(e) => setClassName(e.target.value)}
                   />
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">Mô tả chi tiết</label>
+                  <label className="form-label">Description</label>
                   <textarea 
                     className="form-input" 
-                    placeholder="Mô tả học phần..."
+                    placeholder="Class description and curriculum objectives..."
                     value={classDesc}
                     onChange={(e) => setClassDesc(e.target.value)}
                   />
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowClassModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => setShowClassModal(false)} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG LƯU...' : editingClass ? 'LƯU THAY ĐỔI' : 'TẠO LỚP HỌC'}
+                  {actionLoading ? 'SAVING...' : editingClass ? 'SAVE CHANGES' : 'CREATE CLASS'}
                 </button>
               </div>
 
@@ -1266,15 +1266,15 @@ export default function AdminDashboard() {
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '750px' }}>
             <div className="modal-header">
-              <h3>Nhập danh sách sinh viên hàng loạt từ tệp tin CSV</h3>
+              <h3>Bulk Student Import from CSV File</h3>
               <button onClick={() => { setShowImportModal(false); setImportResult(null); setImportFile(null); }} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleImportCSV}>
               <div className="modal-body">
                 <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Hệ thống hỗ trợ nhập tự động hàng loạt tài khoản sinh viên và tự động tạo/gán lớp học phần.
-                  Yêu cầu định dạng tệp tin CSV gồm ít nhất 3 cột (hoặc 4 cột để nạp địa chỉ Email): <b>MSSV, Họ và tên, Lớp học phần, Email (tùy chọn)</b>.
-                  Mật khẩu ban đầu cho sinh viên nhập từ CSV được lấy từ cấu hình bảo mật của máy chủ.
+                  The system supports bulk importing student accounts and automatically creating/assigning them to classes.
+                  Required CSV format with at least 3 columns (or 4 columns including Email): <b>Student ID, Full Name, Class Name, Email (optional)</b>.
+                  Initial passwords for imported students are generated according to server security configuration.
                 </p>
 
                 <div className="upload-zone" style={{ marginBottom: '20px' }}>
@@ -1288,10 +1288,10 @@ export default function AdminDashboard() {
                   <label htmlFor="csvFileInput" style={{ cursor: 'pointer', display: 'block' }}>
                     <UploadCloud className="upload-icon" size={48} style={{ margin: '0 auto 12px' }} />
                     <p style={{ fontSize: '15px', fontWeight: '500' }}>
-                      {importFile ? `Tệp tin đã chọn: ${importFile.name}` : 'Click vào đây để chọn tệp tin .CSV từ máy tính'}
+                      {importFile ? `Selected file: ${importFile.name}` : 'Click here to select a .CSV file from your computer'}
                     </p>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Kích thước tối đa 10 MB.
+                      Maximum file size: 10 MB.
                     </p>
                   </label>
                 </div>
@@ -1299,22 +1299,22 @@ export default function AdminDashboard() {
                 {importResult && (
                   <div style={{ marginTop: '20px' }}>
                     <h4 style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '8px' }}>
-                      Kết quả xử lý:
+                      Processing Results:
                     </h4>
                     <div style={{ padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '13.5px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
                       {importResult.message}
                     </div>
                     
-                    <h4 style={{ fontSize: '14px', marginBottom: '8px' }}>Danh sách chi tiết xử lý:</h4>
+                    <h4 style={{ fontSize: '14px', marginBottom: '8px' }}>Detailed Import Logs:</h4>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
                       <table className="cyber-table" style={{ fontSize: '12.5px' }}>
                         <thead>
                           <tr>
-                            <th>MSSV</th>
-                            <th>Sinh viên</th>
+                            <th>Student ID</th>
+                            <th>Full Name</th>
                             <th>Email</th>
-                            <th>Lớp</th>
-                            <th>Kết quả</th>
+                            <th>Class</th>
+                            <th>Result</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1324,7 +1324,7 @@ export default function AdminDashboard() {
                               <td>{d.full_name}</td>
                               <td>{d.email || '—'}</td>
                               <td>{d.class}</td>
-                              <td style={{ color: d.status.includes('Tạo mới') ? 'var(--neon-cyan)' : 'var(--neon-emerald)' }}>{d.status}</td>
+                              <td style={{ color: d.status?.toLowerCase().includes('create') ? 'var(--neon-cyan)' : 'var(--neon-emerald)' }}>{d.status}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1334,9 +1334,9 @@ export default function AdminDashboard() {
                 )}
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => { setShowImportModal(false); setImportResult(null); setImportFile(null); }} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => { setShowImportModal(false); setImportResult(null); setImportFile(null); }} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading || !importFile}>
-                  {actionLoading ? 'ĐANG NHẬP DỮ LIỆU...' : 'BẮT ĐẦU IMPORT'}
+                  {actionLoading ? 'IMPORTING...' : 'START IMPORT'}
                 </button>
               </div>
             </form>
@@ -1352,7 +1352,7 @@ export default function AdminDashboard() {
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Monitor size={18} style={{ color: 'var(--neon-cyan)' }} />
-                [ADMIN CONTROL] Quản lý Máy ảo Sinh viên — Bài Lab: {selectedLabForVm.title}
+                [ADMIN CONTROL] Student Virtual Machines — Lab: {selectedLabForVm.title}
               </h3>
               <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
@@ -1360,7 +1360,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
 
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                  Danh sách máy ảo Proxmox VE đang được cấp phát cho sinh viên làm bài thực hành này.
+                  List of Proxmox VE virtual machines allocated to students for this lab.
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
@@ -1368,18 +1368,18 @@ export default function AdminDashboard() {
                     className="btn btn-secondary" 
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px', background: '#475569', border: 'none' }}
-                    title="Tắt tất cả máy ảo đang chạy"
+                    title="Stop all running virtual machines"
                   >
-                    🛑 Tắt tất cả máy ảo
+                    🛑 Stop All VMs
                   </button>
                   <button 
                     onClick={() => handleBatchControlVm(selectedLabForVm.id, 'purge_all')} 
                     className="btn btn-danger" 
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
-                    title="Xóa tất cả máy ảo khỏi Proxmox cluster"
+                    title="Purge all student VMs from Proxmox cluster"
                   >
-                    <Trash2 size={13} style={{ marginRight: '4px' }} /> Xóa tất cả máy ảo
+                    <Trash2 size={13} style={{ marginRight: '4px' }} /> Purge All VMs
                   </button>
                   <button 
                     onClick={() => fetchLabVms(selectedLabForVm.id)} 
@@ -1387,7 +1387,7 @@ export default function AdminDashboard() {
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
                   >
-                    <RefreshCw size={13} style={{ marginRight: '4px' }} /> Làm mới
+                    <RefreshCw size={13} style={{ marginRight: '4px' }} /> Refresh
                   </button>
                 </div>
               </div>
@@ -1397,12 +1397,12 @@ export default function AdminDashboard() {
                 <table className="cyber-table" style={{ fontSize: '13px' }}>
                   <thead>
                     <tr>
-                      <th>Sinh viên (MSSV)</th>
+                      <th>Student (Username)</th>
                       <th>VMID</th>
-                      <th>Địa chỉ IP</th>
-                      <th>Trạng thái Proxmox</th>
-                      <th>Tài nguyên (CPU/RAM)</th>
-                      <th style={{ textAlign: 'right' }}>Thao tác điều khiển</th>
+                      <th>IP Address</th>
+                      <th>Proxmox Status</th>
+                      <th>Resources (CPU/RAM)</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1420,7 +1420,7 @@ export default function AdminDashboard() {
                             vm.status === 'stopped' ? 'badge-resubmit' : 'badge-draft'
                           }`}>
                             {vm.status === 'running' ? '🟢 RUNNING' :
-                             vm.status === 'stopped' ? '🔴 STOPPED' : '⚪ CHƯA TẠO'}
+                             vm.status === 'stopped' ? '🔴 STOPPED' : '⚪ NOT CREATED'}
                           </span>
                         </td>
                         <td style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
@@ -1434,9 +1434,9 @@ export default function AdminDashboard() {
                                 className="btn btn-success" 
                                 style={{ padding: '4px 8px', fontSize: '11px' }}
                                 disabled={vmActionLoading}
-                                title="Bật máy ảo"
+                                title="Start VM"
                               >
-                                <Play size={12} style={{ marginRight: '3px' }} /> Bật
+                                <Play size={12} style={{ marginRight: '3px' }} /> Start
                               </button>
                             )}
                             {vm.status === 'running' && (
@@ -1445,9 +1445,9 @@ export default function AdminDashboard() {
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '11px', background: '#475569', border: 'none' }}
                                 disabled={vmActionLoading}
-                                title="Tắt máy ảo"
+                                title="Stop VM"
                               >
-                                🛑 Tắt
+                                🛑 Stop
                               </button>
                             )}
                             {vm.status !== 'not_created' && (
@@ -1456,9 +1456,9 @@ export default function AdminDashboard() {
                                 className="btn btn-danger" 
                                 style={{ padding: '4px 8px', fontSize: '11px' }}
                                 disabled={vmActionLoading}
-                                title="Xóa sạch máy ảo khỏi Proxmox"
+                                title="Purge VM completely from Proxmox"
                               >
-                                <Trash2 size={12} style={{ marginRight: '3px' }} /> Xóa máy ảo
+                                <Trash2 size={12} style={{ marginRight: '3px' }} /> Purge VM
                               </button>
                             )}
                           </div>
@@ -1468,7 +1468,7 @@ export default function AdminDashboard() {
                     {studentVms.length === 0 && (
                       <tr>
                         <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                          Lớp học này chưa có sinh viên hoặc chưa được gán sinh viên.
+                          No students enrolled in this class or assigned yet.
                         </td>
                       </tr>
                     )}
@@ -1477,7 +1477,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">ĐÓNG</button>
+              <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">CLOSE</button>
             </div>
           </div>
         </div>

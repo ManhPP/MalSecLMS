@@ -20,7 +20,7 @@ const renderInlineFormatting = (text) => {
 };
 
 const parseMarkdown = (text) => {
-  if (!text) return <span style={{ color: 'var(--text-muted)' }}>(Trống)</span>;
+  if (!text) return <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>;
   
   const parts = text.split(/(```[\s\S]*?```)/g);
   
@@ -160,7 +160,7 @@ export default function InstructorDashboard() {
         setPveTemplates(templates)
       }
     } catch (err) {
-      console.error("Lỗi lấy danh sách PVE templates:", err)
+      console.error("Failed to fetch PVE templates:", err)
     }
   }
 
@@ -177,7 +177,7 @@ export default function InstructorDashboard() {
       setVmProtocol(current => current || data.vm?.default_protocol || '')
       setVmPort(current => current || data.vm?.protocol_ports?.[data.vm?.default_protocol] || '')
     } catch (err) {
-      console.error('Lỗi lấy cấu hình runtime:', err)
+      console.error('Failed to fetch runtime config:', err)
     }
   }
 
@@ -236,7 +236,7 @@ export default function InstructorDashboard() {
       if (sRes.ok) setAllStudents(await sRes.json())
 
     } catch (err) {
-      setError('Lỗi kết nối máy chủ khi lấy danh sách bài Lab')
+      setError('Server connection error while fetching lab list')
     } finally {
       setLoading(false)
     }
@@ -259,7 +259,7 @@ export default function InstructorDashboard() {
       const res = await fetch(`/api/submissions/lab/${lab.id}/all`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (!res.ok) throw new Error('Không thể tải danh sách sinh viên nộp bài')
+      if (!res.ok) throw new Error('Unable to load student submissions')
       const data = await res.json()
       setSubmissions(data)
       setViewState('grading')
@@ -313,9 +313,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi chấm điểm báo cáo')
+      if (!res.ok) throw new Error(data.detail || 'Error grading report')
 
-      setSuccess(`Chấm điểm thành công cho sinh viên ${data.student?.full_name}!`)
+      setSuccess(`Graded successfully for student ${data.student?.full_name}!`)
       
       // Update local submissions list
       const updatedList = [...submissions]
@@ -370,9 +370,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi gia hạn riêng cho cá nhân')
+      if (!res.ok) throw new Error(data.detail || 'Error saving individual extension')
 
-      setSuccess(`Đã gia hạn riêng bài Lab cho sinh viên ${extensionStudent} thành công!`)
+      setSuccess(`Individual lab extension granted for ${extensionStudent} successfully!`)
       setSelectedLab(data)
       setShowExtensionModal(false)
       setExtensionStudent('')
@@ -389,9 +389,9 @@ export default function InstructorDashboard() {
     const newField = {
       id: `q_${Date.now()}`,
       type,
-      label: type === 'text' ? 'Mã MD5/SHA256' : type === 'textarea' ? 'Mô tả cơ chế / Mã Assembly' : type === 'select' ? 'Phân loại mã độc (Chọn một)' : type === 'checkbox' ? 'Hành vi độc hại (Chọn nhiều)' : 'Ảnh chụp Wireshark',
+      label: type === 'text' ? 'MD5/SHA256 Hash' : type === 'textarea' ? 'Mechanism Analysis / Assembly' : type === 'select' ? 'Malware Classification (Single Choice)' : type === 'checkbox' ? 'Malicious Behaviors (Multiple Choice)' : 'Wireshark Screenshot',
       required: true,
-      options: type === 'select' || type === 'checkbox' ? ['Ransomware (Mã hóa)', 'Trojan/Spyware (Gián điệp)', 'Worm (Lây nhiễm mạng)', 'Rootkit (Ẩn mình)'] : []
+      options: type === 'select' || type === 'checkbox' ? ['Ransomware (Encryption)', 'Trojan/Spyware (Information Stealer)', 'Worm (Network Propagation)', 'Rootkit (Stealth Persistence)'] : []
     }
     setFormFields([...formFields, newField])
   }
@@ -416,26 +416,26 @@ export default function InstructorDashboard() {
 
   const addFieldOption = (fieldIndex) => {
     const updated = [...formFields]
-    updated[fieldIndex].options.push('Lựa chọn mới')
+    updated[fieldIndex].options.push('New option')
     setFormFields(updated)
   }
 
   const handleSaveLab = async (e) => {
     e.preventDefault()
     if (formFields.length === 0) {
-      setError('Vui lòng tạo ít nhất một trường câu hỏi cho bài báo cáo!')
+      setError('Please create at least one question field for the lab report!')
       return
     }
     if (enableVm && !editingLab && !vmPassword) {
-      setError('Vui lòng nhập mật khẩu kết nối máy ảo!')
+      setError('Please enter a password for the VM connection!')
       return
     }
     if (enableVm && (!templateVmid || !vmProtocol || !vmPort)) {
-      setError('Cấu hình template, giao thức hoặc cổng máy ảo chưa đầy đủ!')
+      setError('VM template, protocol, or port configuration is incomplete!')
       return
     }
     if (enableVm && ['rdp', 'ssh'].includes(vmProtocol) && !vmUsername.trim()) {
-      setError('Vui lòng nhập tên đăng nhập cho kết nối RDP/SSH!')
+      setError('Please enter a username for RDP/SSH connection!')
       return
     }
     setActionLoading(true)
@@ -479,9 +479,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi lưu bài lab')
+      if (!res.ok) throw new Error(data.detail || 'Error saving lab')
 
-      setSuccess(editingLab ? 'Đã cập nhật cấu hình bài Lab thành công!' : 'Đã xuất bản bài tập Lab cùng Form báo cáo động thành công!')
+      setSuccess(editingLab ? 'Lab configuration updated successfully!' : 'Published lab assignment with dynamic report form successfully!')
       setShowLabModal(false)
       setEditingLab(null)
       fetchData()
@@ -510,9 +510,9 @@ export default function InstructorDashboard() {
     setVmPassword('')
     fetchPveTemplates()
     setFormFields([
-      { id: 'q_md5', type: 'text', label: 'Mã băm MD5/SHA256 của malware', required: true },
-      { id: 'q_asm', type: 'textarea', label: 'Báo cáo đoạn mã Assembly phân tích cơ chế độc hại', required: true },
-      { id: 'q_shot', type: 'file', label: 'Ảnh chụp màn hình phân tích Wireshark/OllyDbg', required: true }
+      { id: 'q_md5', type: 'text', label: 'Malware MD5/SHA256 Hash', required: true },
+      { id: 'q_asm', type: 'textarea', label: 'Mechanism Analysis & Assembly Code Excerpt', required: true },
+      { id: 'q_shot', type: 'file', label: 'Wireshark/Debugger Analysis Screenshot', required: true }
     ])
     setShowLabModal(true)
   }
@@ -548,7 +548,7 @@ export default function InstructorDashboard() {
   }
 
   const handleDeleteLab = async (labId, labTitle) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa bài Lab "${labTitle}" không?\nTất cả báo cáo bài làm của sinh viên cho bài lab này cũng sẽ bị loại bỏ.`)) return
+    if (!window.confirm(`Are you sure you want to delete lab "${labTitle}"?\nAll student submissions for this lab will also be removed.`)) return
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -560,9 +560,9 @@ export default function InstructorDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi xóa bài Lab')
+      if (!res.ok) throw new Error(data.detail || 'Error deleting lab')
 
-      setSuccess(`Đã xóa bài Lab "${labTitle}" thành công!`)
+      setSuccess(`Lab "${labTitle}" deleted successfully!`)
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -583,7 +583,7 @@ export default function InstructorDashboard() {
         setStudentVms(await res.json())
       }
     } catch (err) {
-      setError('Lỗi khi truy vấn danh sách máy ảo sinh viên')
+      setError('Error querying student virtual machines')
     } finally {
       setVmActionLoading(false)
     }
@@ -596,8 +596,8 @@ export default function InstructorDashboard() {
   }
 
   const handleControlVm = async (labId, vmid, action, studentName) => {
-    const actionText = action === 'purge' ? 'xóa sạch hoàn toàn' : action === 'start' ? 'bật' : 'tắt'
-    if (action === 'purge' && !confirm(`Bạn có chắc chắn muốn xóa sạch máy ảo (VM ${vmid}) của sinh viên ${studentName} không?\nKhối máy ảo này sẽ được xóa 100% khỏi Proxmox cluster để sinh viên clone lại máy sạch!`)) return
+    const actionText = action === 'purge' ? 'permanently purge' : action === 'start' ? 'start' : 'stop'
+    if (action === 'purge' && !confirm(`Are you sure you want to permanently purge VM ${vmid} for student ${studentName}?\nThis VM will be 100% purged from the Proxmox cluster so the student can re-clone a clean VM.`)) return
 
     setVmActionLoading(true)
     const token = localStorage.getItem('malsec_token')
@@ -611,7 +611,7 @@ export default function InstructorDashboard() {
         body: JSON.stringify({ action })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thao tác máy ảo')
+      if (!res.ok) throw new Error(data.detail || 'VM operation error')
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
@@ -623,8 +623,8 @@ export default function InstructorDashboard() {
   const handleBatchControlVm = async (labId, action) => {
     const isPurge = action === 'purge_all'
     const confirmMsg = isPurge 
-      ? `⚠️ CẢNH BÁO NGUY HẠI: Bạn có CHẮC CHẮN muốn XÓA SẠCH 100% tất cả máy ảo của toàn bộ sinh viên trong bài Lab này không?\nTất cả máy ảo sinh viên trên Proxmox cluster sẽ bị tiêu hủy hoàn toàn!`
-      : `Bạn có chắc muốn TẮT TẤT CẢ các máy ảo đang chạy của sinh viên trong bài Lab này không?`
+      ? `⚠️ CRITICAL WARNING: Are you SURE you want to PERMANENTLY PURGE 100% of student VMs for this lab?\nAll student VMs on the Proxmox cluster will be completely destroyed!`
+      : `Are you sure you want to STOP ALL running student VMs for this lab?`
 
     if (!confirm(confirmMsg)) return
 
@@ -640,7 +640,7 @@ export default function InstructorDashboard() {
         body: JSON.stringify({ action })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi điều khiển hàng loạt')
+      if (!res.ok) throw new Error(data.detail || 'Batch control error')
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
@@ -648,10 +648,6 @@ export default function InstructorDashboard() {
       setVmActionLoading(false)
     }
   }
-
-
-
-
 
   // Fetch details of a single class (includes students)
   const fetchClassDetails = async (classId) => {
@@ -665,7 +661,7 @@ export default function InstructorDashboard() {
         setSelectedClass(data)
       }
     } catch (err) {
-      setError('Lỗi tải chi tiết lớp học')
+      setError('Error loading class details')
     }
   }
 
@@ -694,7 +690,7 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm sinh viên vào lớp')
+      if (!res.ok) throw new Error(data.detail || 'Error adding students to class')
 
       setSuccess(data.message)
       setStudentIdsInput('')
@@ -725,9 +721,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi thêm sinh viên vào lớp')
+      if (!res.ok) throw new Error(data.detail || 'Error adding student to class')
 
-      setSuccess('Đã thêm sinh viên vào lớp thành công!')
+      setSuccess('Student added to class successfully!')
       await fetchClassDetails(selectedClass.id)
       fetchData()
     } catch (err) {
@@ -739,7 +735,7 @@ export default function InstructorDashboard() {
 
   // Handle removing student from class
   const handleRemoveStudentFromClass = async (studentId) => {
-    if (!confirm('Bạn có chắc muốn xóa sinh viên này khỏi lớp?')) return
+    if (!confirm('Are you sure you want to remove this student from the class?')) return
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -751,9 +747,9 @@ export default function InstructorDashboard() {
       })
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.detail || 'Lỗi khi xóa sinh viên khỏi lớp')
+        throw new Error(data.detail || 'Error removing student from class')
       }
-      setSuccess('Đã xóa sinh viên khỏi lớp học phần')
+      setSuccess('Student removed from class')
       await fetchClassDetails(selectedClass.id)
       fetchData()
     } catch (err) {
@@ -800,9 +796,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi cập nhật thông tin sinh viên')
+      if (!res.ok) throw new Error(data.detail || 'Error updating student account')
 
-      setSuccess('Cập nhật tài khoản sinh viên thành công!')
+      setSuccess('Student account updated successfully!')
       setShowStudentModal(false)
       if (selectedClass) {
         await fetchClassDetails(selectedClass.id)
@@ -868,7 +864,7 @@ export default function InstructorDashboard() {
             style={{ padding: '8px 16px' }}
           >
             <BookOpen size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-            Danh sách bài Lab
+            Lab Management
           </button>
           <button 
             onClick={() => setViewState('classes')} 
@@ -876,14 +872,14 @@ export default function InstructorDashboard() {
             style={{ padding: '8px 16px' }}
           >
             <School size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-            Quản lý Lớp & Sinh viên
+            Classes & Students
           </button>
           
           <button 
             onClick={fetchData} 
             className="btn btn-secondary" 
             style={{ marginLeft: 'auto', padding: '8px 12px' }}
-            title="Làm mới dữ liệu"
+            title="Refresh data"
           >
             <RefreshCw size={16} />
           </button>
@@ -895,18 +891,18 @@ export default function InstructorDashboard() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Chào thầy cô!</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Quản lý ra đề bài Lab động, chấm điểm Speed Grader và theo dõi tiến độ nộp bài.</p>
+              <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Welcome, Instructor!</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Design dynamic lab assignments, grade submissions via Speed Grader, and monitor student progress.</p>
             </div>
             <button onClick={openCreateLabModal} className="btn btn-primary">
-              <Plus size={16} /> Thiết kế bài Lab động mới
+              <Plus size={16} /> Design New Dynamic Lab
             </button>
           </div>
 
           {/* Labs list */}
           <div className="cyber-card">
             <h3 style={{ fontSize: '18px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-              Danh sách bài Lab giảng dạy
+              Instructed Labs
             </h3>
 
             {/* Search & Filters */}
@@ -917,49 +913,49 @@ export default function InstructorDashboard() {
                   type="text" 
                   className="form-input" 
                   style={{ paddingLeft: '36px', margin: 0 }}
-                  placeholder="Tìm kiếm theo tiêu đề hoặc mô tả..."
+                  placeholder="Search by title or description..."
                   value={labSearchQuery}
                   onChange={(e) => setLabSearchQuery(e.target.value)}
                 />
               </div>
 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {/* Lớp học phần Filter */}
+                {/* Class Filter */}
                 <select 
                   className="form-select" 
                   style={{ width: '180px', margin: 0 }}
                   value={labClassFilter}
                   onChange={(e) => setLabClassFilter(e.target.value)}
                 >
-                  <option value="">Tất cả Lớp học</option>
+                  <option value="">All Classes</option>
                   {classes.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
 
-                {/* Trạng thái Filter */}
+                {/* Status Filter */}
                 <select 
                   className="form-select" 
                   style={{ width: '160px', margin: 0 }}
                   value={labStatusFilter}
                   onChange={(e) => setLabStatusFilter(e.target.value)}
                 >
-                  <option value="all">Tất cả Trạng thái</option>
-                  <option value="active">Đang mở (Active)</option>
-                  <option value="inactive">Đã đóng (Inactive)</option>
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
 
-                {/* Sắp xếp Sort */}
+                {/* Sort Order */}
                 <select 
                   className="form-select" 
                   style={{ width: '180px', margin: 0 }}
                   value={labSortOrder}
                   onChange={(e) => setLabSortOrder(e.target.value)}
                 >
-                  <option value="newest">Mới nhất</option>
-                  <option value="deadline_asc">Hạn nộp tăng dần</option>
-                  <option value="deadline_desc">Hạn nộp giảm dần</option>
-                  <option value="title_asc">Tiêu đề A-Z</option>
+                  <option value="newest">Newest</option>
+                  <option value="deadline_asc">Deadline (Earliest first)</option>
+                  <option value="deadline_desc">Deadline (Latest first)</option>
+                  <option value="title_asc">Title (A-Z)</option>
                 </select>
               </div>
             </div>
@@ -968,12 +964,12 @@ export default function InstructorDashboard() {
               <table className="cyber-table">
                 <thead>
                   <tr>
-                    <th>Tiêu đề bài thực hành</th>
-                    <th>Lớp học phần</th>
-                    <th>Thời hạn (Deadline)</th>
-                    <th>Chính sách phạt nộp muộn</th>
-                    <th>Trạng thái</th>
-                    <th style={{ textAlign: 'right' }}>Thao tác & Chấm bài</th>
+                    <th>Lab Assignment</th>
+                    <th>Class</th>
+                    <th>Deadline</th>
+                    <th>Late Penalty Policy</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions & Grading</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -982,18 +978,18 @@ export default function InstructorDashboard() {
                     return (
                       <tr key={lab.id}>
                         <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
-                        <td>{cls ? cls.name : `Lớp ID ${lab.class_id}`}</td>
+                        <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          {new Date(lab.deadline).toLocaleString('vi-VN')}
+                          {new Date(lab.deadline).toLocaleString('en-US')}
                         </td>
                         <td style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
                           {lab.late_policy?.allow_late 
-                            ? `Phạt ${lab.late_policy.penalty_per_hour_percent}% / giờ (Tối đa ${lab.late_policy.max_penalty_percent}%)` 
-                            : 'Không cho nộp muộn'}
+                            ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
+                            : 'No late submissions allowed'}
                         </td>
                         <td>
                           <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
-                            {lab.is_active ? 'Đang mở' : 'Đã đóng'}
+                            {lab.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
@@ -1003,29 +999,29 @@ export default function InstructorDashboard() {
                                 onClick={() => openVmManagerModal(lab)} 
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
-                                title="Quản lý & Xóa máy ảo sinh viên"
+                                title="Manage & Purge Student VMs"
                               >
-                                <Monitor size={13} style={{ marginRight: '4px' }} /> Máy ảo
+                                <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
                               </button>
                             )}
                             <button 
                               onClick={() => openEditLabModal(lab)} 
                               className="btn btn-secondary" 
                               style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
-                              title="Chỉnh sửa bài Lab"
+                              title="Edit Lab"
                             >
-                              <Edit2 size={13} style={{ marginRight: '4px' }} /> Sửa
+                              <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
                             </button>
                             <button 
                               onClick={() => handleDeleteLab(lab.id, lab.title)} 
                               className="btn btn-danger" 
                               style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
-                              title="Xóa bài Lab"
+                              title="Delete Lab"
                             >
-                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Xóa
+                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
                             </button>
                             <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
-                              Chấm bài &rarr;
+                              Grade &rarr;
                             </button>
                           </div>
 
@@ -1036,7 +1032,7 @@ export default function InstructorDashboard() {
 
                   {labs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài Lab nào được thiết kế. Bấm nút phía trên để tạo.</td>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No labs designed yet. Click the button above to create one.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1054,16 +1050,16 @@ export default function InstructorDashboard() {
           <div className="cyber-card">
             <h3 style={{ fontSize: '18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <School size={18} style={{ color: 'var(--neon-cyan)' }} />
-              Các lớp học phụ trách
+              Assigned Classes
             </h3>
             
             <div className="table-container" style={{ margin: 0 }}>
               <table className="cyber-table">
                 <thead>
                   <tr>
-                    <th>Tên Lớp</th>
-                    <th>Mô tả</th>
-                    <th style={{ textAlign: 'right' }}>Chi tiết</th>
+                    <th>Class Name</th>
+                    <th>Description</th>
+                    <th style={{ textAlign: 'right' }}>Students</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1076,13 +1072,13 @@ export default function InstructorDashboard() {
                       <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{c.name}</td>
                       <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className="badge badge-submitted">SV &rarr;</span>
+                        <span className="badge badge-submitted">View &rarr;</span>
                       </td>
                     </tr>
                   ))}
                   {classes.length === 0 && (
                     <tr>
-                      <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bạn chưa được phân công quản lý lớp học phần nào.</td>
+                      <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>You are not assigned to manage any classes yet.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1096,7 +1092,7 @@ export default function InstructorDashboard() {
               <div>
                 <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
                   <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    Lớp: {selectedClass.name}
+                    Class: {selectedClass.name}
                   </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px' }}>
                     {selectedClass.description}
@@ -1110,7 +1106,7 @@ export default function InstructorDashboard() {
                   <div style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
                     <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Search size={14} />
-                      Tìm & Thêm sinh viên vào lớp
+                      Find & Add Student to Class
                     </h4>
                     
                     <div style={{ position: 'relative', marginBottom: '10px' }}>
@@ -1119,7 +1115,7 @@ export default function InstructorDashboard() {
                         type="text" 
                         className="form-input" 
                         style={{ paddingLeft: '32px', margin: 0, fontSize: '12.5px' }}
-                        placeholder="Gõ tên hoặc MSSV để tìm..."
+                        placeholder="Type name or Student ID to search..."
                         value={studentSearchQuery}
                         onChange={(e) => setStudentSearchQuery(e.target.value)}
                       />
@@ -1137,11 +1133,11 @@ export default function InstructorDashboard() {
                         })
 
                         if (studentSearchQuery.length < 1) {
-                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Nhập từ khóa để tìm sinh viên...</div>
+                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Type to search for students...</div>
                         }
 
                         if (filteredDbStudents.length === 0) {
-                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Không tìm thấy sinh viên nào hoặc sinh viên đã thuộc lớp này.</div>
+                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>No students found or all matched students are already enrolled.</div>
                         }
 
                         return filteredDbStudents.map(student => (
@@ -1159,7 +1155,7 @@ export default function InstructorDashboard() {
                               className="btn btn-primary" 
                               style={{ padding: '2px 8px', fontSize: '11px' }}
                             >
-                              Thêm
+                              Add
                             </button>
                           </div>
                         ))
@@ -1171,21 +1167,21 @@ export default function InstructorDashboard() {
                   <form onSubmit={handleAssignStudentsBulk} style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
                     <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Users size={14} />
-                      Thêm hàng loạt bằng mã ID
+                      Bulk Assign by Student IDs
                     </h4>
                     <div className="form-group" style={{ flex: 1, marginBottom: '12px' }}>
-                      <label className="form-label" style={{ fontSize: '12px' }}>Nhập mã ID các Sinh viên (Phân cách bằng dấu phẩy hoặc khoảng trắng)</label>
+                      <label className="form-label" style={{ fontSize: '12px' }}>Enter Student IDs (comma or whitespace separated)</label>
                       <input 
                         type="text" 
                         className="form-input" 
                         style={{ fontSize: '12.5px' }}
-                        placeholder="Ví dụ: 3, 14, 25"
+                        placeholder="e.g. 3, 14, 25"
                         value={studentIdsInput}
                         onChange={(e) => setStudentIdsInput(e.target.value)}
                       />
                     </div>
                     <button type="submit" className="btn btn-success" style={{ width: '100%', padding: '8px 16px', fontSize: '13px' }} disabled={actionLoading}>
-                      {actionLoading ? 'Đang thêm...' : 'XÁC NHẬN GÁN SINH VIÊN'}
+                      {actionLoading ? 'Assigning...' : 'CONFIRM ASSIGN STUDENTS'}
                     </button>
                   </form>
 
@@ -1199,18 +1195,18 @@ export default function InstructorDashboard() {
                     <div>
                       <h4 style={{ fontSize: '16px', marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Users size={16} />
-                        Danh sách sinh viên trong lớp ({classStudents.length} sinh viên)
+                        Enrolled Students ({classStudents.length} students)
                       </h4>
                       <div className="table-container" style={{ margin: 0, maxHeight: '350px', overflowY: 'auto' }}>
                         <table className="cyber-table">
                           <thead>
                             <tr>
                               <th>ID</th>
-                              <th>MSSV</th>
-                              <th>Họ và Tên</th>
+                              <th>Student ID</th>
+                              <th>Full Name</th>
                               <th>Email</th>
-                              <th>Trạng thái</th>
-                              <th style={{ textAlign: 'right' }}>Hành động</th>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1230,7 +1226,7 @@ export default function InstructorDashboard() {
                                       fontSize: '13px'
                                     }}>
                                       {student.is_active ? <Unlock size={14} /> : <Lock size={14} />}
-                                      {student.is_active ? 'Hoạt động' : 'Bị Khóa'}
+                                      {student.is_active ? 'Active' : 'Locked'}
                                     </span>
                                   </td>
                                   <td style={{ textAlign: 'right' }}>
@@ -1238,7 +1234,7 @@ export default function InstructorDashboard() {
                                       onClick={() => handleOpenStudentModal(student)} 
                                       className="btn btn-secondary" 
                                       style={{ padding: '4px 8px', fontSize: '12px', marginRight: '6px' }}
-                                      title="Sửa thông tin"
+                                      title="Edit details"
                                     >
                                       <Edit2 size={12} />
                                     </button>
@@ -1246,7 +1242,7 @@ export default function InstructorDashboard() {
                                       onClick={() => handleRemoveStudentFromClass(student.id)} 
                                       className="btn btn-danger" 
                                       style={{ padding: '4px 8px', fontSize: '12px' }}
-                                      title="Xóa khỏi lớp"
+                                      title="Remove from class"
                                     >
                                       <Trash2 size={12} />
                                     </button>
@@ -1255,7 +1251,7 @@ export default function InstructorDashboard() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Lớp học phần hiện chưa có sinh viên nào.</td>
+                                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>This class has no students enrolled yet.</td>
                               </tr>
                             )}
                           </tbody>
@@ -1269,7 +1265,7 @@ export default function InstructorDashboard() {
             ) : (
               <div style={{ height: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '12px' }}>
                 <School size={48} style={{ opacity: 0.3, color: 'var(--neon-cyan)' }} />
-                <span>Chọn một lớp học phần ở bảng bên trái để xem danh sách sinh viên và quản lý lớp.</span>
+                <span>Select a class from the left table to view and manage its students.</span>
               </div>
             )}
           </div>
@@ -1283,22 +1279,22 @@ export default function InstructorDashboard() {
           {/* Back Navigation Bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <button onClick={() => { setViewState('dashboard'); setActiveSubmission(null); }} className="btn btn-secondary" style={{ padding: '8px 12px' }}>
-              <ArrowLeft size={16} /> Quay lại
+              <ArrowLeft size={16} /> Back
             </button>
             <div>
               <h2 style={{ fontSize: '20px', color: 'var(--text-primary)' }}>{selectedLab.title}</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Chấm bài báo cáo lớp thực hành</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Lab Report Grading</p>
             </div>
 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowExtensionModal(true)} className="btn btn-secondary">
-                <Calendar size={15} /> Gia hạn cá nhân (Exception)
+                <Calendar size={15} /> Individual Extension
               </button>
               <button onClick={handleExportCSV} className="btn btn-secondary">
-                <FileSpreadsheet size={15} /> Xuất bảng điểm (CSV)
+                <FileSpreadsheet size={15} /> Export Grades (CSV)
               </button>
               <button onClick={handleBulkDownload} className="btn btn-success">
-                <Download size={15} /> Tải toàn bộ bài nộp (.ZIP)
+                <Download size={15} /> Download All Submissions (.ZIP)
               </button>
             </div>
           </div>
@@ -1312,27 +1308,27 @@ export default function InstructorDashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '20px' }}>
                     <div>
                       <h3 style={{ fontSize: '18px', color: 'var(--neon-cyan)' }}>
-                        Báo cáo: {activeSubmission.student?.full_name}
+                        Report: {activeSubmission.student?.full_name}
                       </h3>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                        MSSV: {activeSubmission.student?.username} | Nộp lúc: {new Date(activeSubmission.submitted_at).toLocaleString('vi-VN')}
+                        Student ID: {activeSubmission.student?.username} | Submitted: {new Date(activeSubmission.submitted_at).toLocaleString('en-US')}
                       </p>
                     </div>
                     {activeSubmission.is_plagiarized && (
                       <span className="badge badge-resubmit" style={{ fontSize: '12px' }}>
-                        CẢNH BÁO ĐẠO VĂN: {activeSubmission.plagiarism_score}%
+                        PLAGIARISM ALERT: {activeSubmission.plagiarism_score}%
                       </span>
                     )}
                   </div>
 
-                  {/* Hiển thị chi tiết cảnh báo đạo văn */}
+                  {/* Plagiarism warning details */}
                   {activeSubmission.is_plagiarized && (
                     <div className="plag-alert-banner" style={{ display: 'block', padding: '16px' }}>
-                      <h4 style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--neon-ruby)' }}>Phát hiện nghi vấn trùng lặp nội dung:</h4>
+                      <h4 style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--neon-ruby)' }}>Suspected content duplication detected:</h4>
                       <ul style={{ paddingLeft: '16px', fontSize: '13px' }}>
                         {activeSubmission.plagiarism_details?.map((d, i) => (
                           <li key={i} style={{ marginBottom: '6px' }}>
-                            Trùng lặp <b>{d.similarity_score}%</b> với sinh viên <b>{d.matched_student}</b> tại trường <i>"{d.matched_field_label}"</i>.
+                            <b>{d.similarity_score}%</b> similarity with student <b>{d.matched_student}</b> in field <i>"{d.matched_field_label}"</i>.
                           </li>
                         ))}
                       </ul>
@@ -1358,14 +1354,14 @@ export default function InstructorDashboard() {
                         {/* TEXT FIELD */}
                         {field.type === 'text' && (
                           <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontFamily: 'var(--font-mono)', fontSize: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                            {ans || <span style={{ color: 'var(--text-muted)' }}>(Trống)</span>}
+                            {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
                           </div>
                         )}
 
                         {/* SELECT FIELD */}
                         {field.type === 'select' && (
                           <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '14px' }}>
-                            {ans || <span style={{ color: 'var(--text-muted)' }}>(Trống)</span>}
+                            {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
                           </div>
                         )}
 
@@ -1377,7 +1373,7 @@ export default function InstructorDashboard() {
                                 {item}
                               </span>
                             )) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>(Trống)</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>(Empty)</span>
                             )}
                           </div>
                         )}
@@ -1402,10 +1398,10 @@ export default function InstructorDashboard() {
                             {attachment ? (
                               <div>
                                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  Tệp tin: <b>{attachment.original_filename}</b>
+                                  File: <b>{attachment.original_filename}</b>
                                 </div>
                                 
-                                {/* Nếu là ảnh, hiển thị trực tuyến */}
+                                {/* Display inline if image */}
                                 {attachment.original_filename.split('.').pop().toLowerCase() in {png:1, jpg:1, jpeg:1} ? (
                                   <div style={{ background: '#000', padding: '10px', borderRadius: '8px', display: 'inline-block', maxWidth: '100%' }}>
                                     <img 
@@ -1416,18 +1412,18 @@ export default function InstructorDashboard() {
                                     />
                                   </div>
                                 ) : attachment.original_filename.endsWith('.zip') ? (
-                                  /* Nếu là tệp Zip, hiển thị kết quả giải mã an toàn và quét AV */
+                                  /* Display safe extraction and AV scan results if Zip */
                                   <div style={{ padding: '16px', background: 'rgba(17,24,39,0.9)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
                                     <h5 style={{ fontSize: '13px', color: 'var(--neon-cyan)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <ShieldCheck size={15} /> KẾT QUẢ QUÉT BẢO MẬT AIRLOCK
+                                      <ShieldCheck size={15} /> AIRLOCK SECURITY SCAN RESULTS
                                       {runtimeConfig?.uploads?.zip_password && ` (Zip password '${runtimeConfig.uploads.zip_password}')`}
                                     </h5>
                                     
                                     <div style={{ fontSize: '12.5px', color: 'var(--neon-emerald)', marginBottom: '8px' }}>
-                                      [+] Trạng thái: <b>SẠCH (KHÔNG PHÁT HIỆN MẪU SỐNG NGUY HIỂM)</b>
+                                      [+] Status: <b>CLEAN (NO LIVE MALICIOUS THREAT DETECTED)</b>
                                     </div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                      Danh sách file log giải nén trong bộ nhớ để quét:
+                                      Scanned memory-extracted log files:
                                     </div>
                                     <ul style={{ paddingLeft: '16px', fontSize: '12px', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>
                                       <li>analysis_behavior.log</li>
@@ -1443,12 +1439,12 @@ export default function InstructorDashboard() {
                                     target="_blank" 
                                     rel="noreferrer"
                                   >
-                                    Tải về file đính kèm thô
+                                    Download Raw Attachment
                                   </a>
                                 )}
                               </div>
                             ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Sinh viên chưa tải file đính kèm trường này)</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(No attachment uploaded for this field)</span>
                             )}
                           </div>
                         )}
@@ -1461,9 +1457,9 @@ export default function InstructorDashboard() {
               {/* Right Screen (35%): Score panel & Nav */}
               <div className="split-right">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>Bảng điểm và Đánh giá</h3>
+                  <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>Score & Evaluation</h3>
                   <button onClick={() => { setActiveSubmission(null); setActiveSubIndex(-1); }} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
-                    Đóng Split
+                    Close Split
                   </button>
                 </div>
 
@@ -1472,11 +1468,11 @@ export default function InstructorDashboard() {
                   <div style={{ fontSize: '13px' }}>
                     {activeSubmission.late_penalty > 0 ? (
                       <span style={{ color: 'var(--neon-ruby)', fontWeight: '500' }}>
-                        Nộp muộn! Phạt trừ <b>{activeSubmission.late_penalty}%</b> điểm số chấm.
+                        Late submission! Penalty deducted: <b>{activeSubmission.late_penalty}%</b>.
                       </span>
                     ) : (
                       <span style={{ color: 'var(--neon-emerald)', fontWeight: '500' }}>
-                        Nộp bài đúng hạn. Không bị trừ điểm.
+                        On-time submission. No penalty applied.
                       </span>
                     )}
                   </div>
@@ -1484,7 +1480,7 @@ export default function InstructorDashboard() {
 
                 <form onSubmit={handleSaveGrade} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <div className="form-group">
-                    <label className="form-label">Điểm số bài thực hành (Thang điểm 10.0)</label>
+                    <label className="form-label">Practical Lab Score (Scale of 10.0)</label>
                     <input 
                       type="number" 
                       className="form-input" 
@@ -1497,7 +1493,7 @@ export default function InstructorDashboard() {
                     />
                     <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                       {activeSubmission.late_penalty > 0 && score && (
-                        <span>Điểm thực nhận sau khi trừ phạt muộn: <b>{(parseFloat(score) * (1 - activeSubmission.late_penalty / 100)).toFixed(2)}</b> / 10</span>
+                        <span>Final score after late penalty deduction: <b>{(parseFloat(score) * (1 - activeSubmission.late_penalty / 100)).toFixed(2)}</b> / 10</span>
                       )}
                     </p>
                   </div>
@@ -1510,15 +1506,15 @@ export default function InstructorDashboard() {
                       onChange={(e) => setRequestResubmit(e.target.checked)}
                     />
                     <label htmlFor="reqResubmitCheck" style={{ fontSize: '13.5px', color: 'var(--neon-ruby)', cursor: 'pointer', fontWeight: '500' }}>
-                      Yêu cầu sinh viên Làm lại bài (Re-submit)
+                      Request student to resubmit (Re-submit)
                     </label>
                   </div>
 
                   <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <label className="form-label">Giảng viên nhận xét, góp ý chi tiết</label>
+                    <label className="form-label">Instructor Detailed Feedback</label>
                     <textarea 
                       className="form-input form-textarea" 
-                      placeholder="Nhập phản hồi cho sinh viên..."
+                      placeholder="Enter feedback for student..."
                       style={{ flex: 1, minHeight: '150px' }}
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
@@ -1526,7 +1522,7 @@ export default function InstructorDashboard() {
                   </div>
 
                   <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '46px', marginTop: '16px' }} disabled={actionLoading}>
-                    {actionLoading ? 'ĐANG LƯU ĐIỂM...' : 'LƯU VÀ SANG SINH VIÊN TIẾP THEO'}
+                    {actionLoading ? 'SAVING GRADE...' : 'SAVE AND NEXT STUDENT'}
                   </button>
                 </form>
               </div>
@@ -1535,19 +1531,19 @@ export default function InstructorDashboard() {
             /* Submissions list table for selected Lab */
             <div className="cyber-card">
               <h3 style={{ fontSize: '18px', marginBottom: '18px' }}>
-                Danh sách bài làm của Sinh viên ({submissions.length} bản ghi)
+                Student Submissions ({submissions.length} records)
               </h3>
               
               <div className="table-container">
                 <table className="cyber-table">
                   <thead>
                     <tr>
-                      <th>MSSV</th>
-                      <th>Họ và Tên</th>
-                      <th>Trạng thái nộp</th>
-                      <th>Mức phạt muộn</th>
-                      <th>Kết quả đạo văn</th>
-                      <th>Điểm chấm nhận được</th>
+                      <th>Student ID</th>
+                      <th>Full Name</th>
+                      <th>Submission Status</th>
+                      <th>Late Penalty</th>
+                      <th>Plagiarism Result</th>
+                      <th>Awarded Score</th>
                       <th style={{ textAlign: 'right' }}>Speed Grader</th>
                     </tr>
                   </thead>
@@ -1562,28 +1558,28 @@ export default function InstructorDashboard() {
                             sub.status === 'submitted' ? 'badge-submitted' : 
                             sub.status === 'graded' ? 'badge-graded' : 'badge-resubmit'
                           }`}>
-                            {sub.status === 'draft' ? 'Đang soạn nháp' :
-                             sub.status === 'submitted' ? 'Đã nộp bài' :
-                             sub.status === 'graded' ? 'Đã chấm điểm' : 'Yêu cầu làm lại'}
+                            {sub.status === 'draft' ? 'Draft' :
+                             sub.status === 'submitted' ? 'Submitted' :
+                             sub.status === 'graded' ? 'Graded' : 'Resubmit Requested'}
                           </span>
                         </td>
                         <td style={{ 
                           color: sub.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--text-secondary)',
                           fontWeight: sub.late_penalty > 0 ? '500' : 'normal' 
                         }}>
-                          {sub.late_penalty > 0 ? `Phạt -${sub.late_penalty}%` : 'Không'}
+                          {sub.late_penalty > 0 ? `Penalty -${sub.late_penalty}%` : 'None'}
                         </td>
                         <td>
                           {sub.is_plagiarized ? (
                             <span style={{ color: 'var(--neon-ruby)', fontWeight: '500' }}>
-                              ⚠️ Trùng lặp: {sub.plagiarism_score}%
+                              ⚠️ Similarity: {sub.plagiarism_score}%
                             </span>
                           ) : (
-                            <span style={{ color: 'var(--neon-emerald)' }}>Sạch</span>
+                            <span style={{ color: 'var(--neon-emerald)' }}>Clean</span>
                           )}
                         </td>
                         <td style={{ fontWeight: '600', color: sub.score !== null ? 'var(--neon-cyan)' : 'var(--text-secondary)' }}>
-                          {sub.score !== null ? `${sub.score} / 10` : 'Chưa chấm'}
+                          {sub.score !== null ? `${sub.score} / 10` : 'Ungraded'}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <button 
@@ -1592,14 +1588,14 @@ export default function InstructorDashboard() {
                             style={{ padding: '6px 12px', fontSize: '12.5px' }}
                             disabled={sub.status === 'draft'}
                           >
-                            Chấm Speed Grader
+                            Speed Grader
                           </button>
                         </td>
                       </tr>
                     ))}
                     {submissions.length === 0 && (
                       <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có sinh viên nào nộp bài.</td>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No students have submitted yet.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1615,7 +1611,7 @@ export default function InstructorDashboard() {
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '800px' }}>
             <div className="modal-header">
-              <h3>{editingLab ? 'Chỉnh sửa cấu hình & Nội dung bài Lab' : 'Thiết kế bài Lab và Báo cáo động mới'}</h3>
+              <h3>{editingLab ? 'Edit Lab Configuration & Content' : 'Design New Lab & Dynamic Report'}</h3>
               <button onClick={() => setShowLabModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveLab}>
@@ -1623,26 +1619,26 @@ export default function InstructorDashboard() {
               <div className="modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Tiêu đề bài thực hành Lab</label>
+                    <label className="form-label">Lab Title</label>
                     <input 
                       type="text" 
                       className="form-input" 
                       required 
-                      placeholder="Ví dụ: Lab 02: Phân tích hành vi Trojan.Win32..."
+                      placeholder="e.g. Lab 02: PE Malware Analysis..."
                       value={labTitle}
                       onChange={(e) => setLabTitle(e.target.value)}
                     />
                   </div>
                   
                   <div className="form-group">
-                    <label className="form-label">Chọn lớp học phần giao bài</label>
+                    <label className="form-label">Assign to Class</label>
                     <select 
                       className="form-select"
                       required
                       value={classId}
                       onChange={(e) => setClassId(e.target.value)}
                     >
-                      <option value="">-- Chọn lớp học phần --</option>
+                      <option value="">-- Select class --</option>
                       {classes.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
@@ -1651,10 +1647,10 @@ export default function InstructorDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Mô tả mục tiêu thực hành & hướng dẫn</label>
+                  <label className="form-label">Lab Objectives & Instructions</label>
                   <textarea 
                     className="form-input" 
-                    placeholder="Mô tả các công cụ yêu cầu, mục tiêu bài lab..."
+                    placeholder="Describe required tools, lab objectives, and instructions..."
                     style={{ minHeight: '80px' }}
                     value={labDesc}
                     onChange={(e) => setLabDesc(e.target.value)}
@@ -1663,7 +1659,7 @@ export default function InstructorDashboard() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Thời hạn khóa bài (Deadline UTC)</label>
+                    <label className="form-label">Deadline (UTC)</label>
                     <input 
                       type="datetime-local" 
                       className="form-input" 
@@ -1681,7 +1677,7 @@ export default function InstructorDashboard() {
                         checked={allowLate}
                         onChange={(e) => setAllowLate(e.target.checked)}
                       />
-                      <label htmlFor="allowLateCheck" style={{ fontSize: '13.5px', cursor: 'pointer' }}>Cho phép nộp muộn</label>
+                      <label htmlFor="allowLateCheck" style={{ fontSize: '13.5px', cursor: 'pointer' }}>Allow late submissions</label>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1691,7 +1687,7 @@ export default function InstructorDashboard() {
                         checked={enableVm}
                         onChange={(e) => setEnableVm(e.target.checked)}
                       />
-                      <label htmlFor="enableVmCheck" style={{ fontSize: '13.5px', cursor: 'pointer', color: 'var(--neon-cyan)', fontWeight: '500' }}>Bật kết nối Máy ảo (VM)</label>
+                      <label htmlFor="enableVmCheck" style={{ fontSize: '13.5px', cursor: 'pointer', color: 'var(--neon-cyan)', fontWeight: '500' }}>Enable Virtual Machine (VM)</label>
                     </div>
                   </div>
                 </div>
@@ -1699,7 +1695,7 @@ export default function InstructorDashboard() {
                 {enableVm && (
                   <div style={{ padding: '12px 16px', background: 'rgba(0, 243, 255, 0.05)', borderRadius: '6px', border: '1px solid var(--neon-cyan)', marginBottom: '16px' }}>
                     <label className="form-label" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      🖥️ Chọn Máy ảo Mẫu Proxmox (Template VM)
+                      🖥️ Select Proxmox Template VM
                     </label>
                     <select 
                       className="form-input" 
@@ -1710,7 +1706,7 @@ export default function InstructorDashboard() {
                       disabled={pveTemplates.length === 0}
                     >
                       {pveTemplates.length === 0 && (
-                        <option value="">Không lấy được VM nguồn từ Proxmox</option>
+                        <option value="">Could not load template VM from Proxmox</option>
                       )}
                       {pveTemplates.map(t => (
                         <option key={t.vmid} value={t.vmid}>
@@ -1720,7 +1716,7 @@ export default function InstructorDashboard() {
                     </select>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label className="form-label">Giao thức kết nối</label>
+                        <label className="form-label">Connection Protocol</label>
                         <select
                           className="form-input"
                           value={vmProtocol}
@@ -1737,7 +1733,7 @@ export default function InstructorDashboard() {
                         </select>
                       </div>
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label className="form-label">Cổng kết nối</label>
+                        <label className="form-label">Port</label>
                         <input
                           type="number"
                           min="1"
@@ -1749,7 +1745,7 @@ export default function InstructorDashboard() {
                         />
                       </div>
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label className="form-label">Tên đăng nhập VM</label>
+                        <label className="form-label">VM Username</label>
                         <input
                           type="text"
                           className="form-input"
@@ -1759,13 +1755,13 @@ export default function InstructorDashboard() {
                         />
                       </div>
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label className="form-label">Mật khẩu VM</label>
+                        <label className="form-label">VM Password</label>
                         <input
                           type="password"
                           className="form-input"
                           value={vmPassword}
                           onChange={(e) => setVmPassword(e.target.value)}
-                          placeholder={editingLab ? 'Để trống nếu giữ mật khẩu cũ' : 'Nhập mật khẩu kết nối'}
+                          placeholder={editingLab ? 'Leave blank to keep existing password' : 'Enter connection password'}
                           required={!editingLab}
                           autoComplete="new-password"
                         />
@@ -1773,7 +1769,7 @@ export default function InstructorDashboard() {
                     </div>
                     {runtimeConfig?.vm && (
                       <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
-                        📌 Máy ảo mẫu nằm trong dải VMID <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Máy ảo sinh viên nằm trong dải <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.
+                        📌 Template VMs are in VMID range <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Student VMs are in range <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.
                       </p>
                     )}
 
@@ -1785,7 +1781,7 @@ export default function InstructorDashboard() {
                 {allowLate && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Mức phạt nộp muộn (% mỗi giờ)</label>
+                      <label className="form-label">Late Penalty (% per hour)</label>
                       <input 
                         type="number" 
                         className="form-input" 
@@ -1795,7 +1791,7 @@ export default function InstructorDashboard() {
                       />
                     </div>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Hình phạt tối đa (% điểm bài làm)</label>
+                      <label className="form-label">Maximum Penalty (% of score)</label>
                       <input 
                         type="number" 
                         className="form-input" 
@@ -1810,22 +1806,22 @@ export default function InstructorDashboard() {
                 {/* DYNAMIC FORM BUILDER PANEL */}
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginTop: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '16px', color: 'var(--neon-cyan)' }}>Thiết kế các trường báo cáo động (Report Fields)</h4>
+                    <h4 style={{ fontSize: '16px', color: 'var(--neon-cyan)' }}>Design Dynamic Report Fields</h4>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button type="button" onClick={() => addFormField('text')} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
                         + Text (IP/Hash)
                       </button>
                       <button type="button" onClick={() => addFormField('textarea')} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
-                        + Code/Tự luận
+                        + Code/Essay
                       </button>
                       <button type="button" onClick={() => addFormField('select')} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
-                        + Chọn một
+                        + Single Choice
                       </button>
                       <button type="button" onClick={() => addFormField('checkbox')} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
-                        + Chọn nhiều
+                        + Multiple Choice
                       </button>
                       <button type="button" onClick={() => addFormField('file')} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
-                        + Tải file/Ảnh
+                        + File/Image Upload
                       </button>
                     </div>
                   </div>
@@ -1835,29 +1831,29 @@ export default function InstructorDashboard() {
                       <div key={field.id} className="builder-field-card">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                           <span className="badge badge-submitted" style={{ textTransform: 'uppercase' }}>
-                            Trường {index + 1}: {field.type}
+                            Field {index + 1}: {field.type}
                           </span>
                           <button type="button" onClick={() => removeFormField(index)} className="btn btn-danger" style={{ padding: '2px 6px', fontSize: '11px' }}>
-                            Xóa câu hỏi
+                            Delete Question
                           </button>
                         </div>
 
                         <div className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label">Nội dung câu hỏi / Nhãn trường</label>
+                          <label className="form-label">Question Prompt / Field Label</label>
                           <input 
                             type="text" 
                             className="form-input" 
                             required
-                            placeholder="Nhập câu hỏi thực hành..."
+                            placeholder="Enter practical question prompt..."
                             value={field.label}
                             onChange={(e) => updateFieldLabel(index, e.target.value)}
                           />
                         </div>
 
-                        {/* Nếu là select hoặc checkbox, cho phép thiết kế các lựa chọn (options) */}
+                        {/* Dropdown options for select and checkbox */}
                         {(field.type === 'select' || field.type === 'checkbox') && (
                           <div style={{ marginTop: '12px', paddingLeft: '12px', borderLeft: '2px solid var(--border-glow)' }}>
-                            <label className="form-label" style={{ fontSize: '12px' }}>Các lựa chọn dropdown</label>
+                            <label className="form-label" style={{ fontSize: '12px' }}>Dropdown / Select Options</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                               {field.options?.map((opt, oIdx) => (
                                 <input 
@@ -1870,7 +1866,7 @@ export default function InstructorDashboard() {
                                 />
                               ))}
                               <button type="button" onClick={() => addFieldOption(index)} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }}>
-                                + Thêm lựa chọn
+                                + Add Option
                               </button>
                             </div>
                           </div>
@@ -1879,16 +1875,16 @@ export default function InstructorDashboard() {
                     ))}
                     {formFields.length === 0 && (
                       <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-                        Bài báo cáo hiện chưa có câu hỏi nào. Bấm nút phía trên để tạo form báo cáo động!
+                        No report questions added yet. Click buttons above to build the form!
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowLabModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => setShowLabModal(false)} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG LƯU...' : editingLab ? 'LƯU THAY ĐỔI' : 'CẤU HÌNH & GIAO BÀI LAB'}
+                  {actionLoading ? 'SAVING...' : editingLab ? 'SAVE CHANGES' : 'CONFIGURE & PUBLISH LAB'}
                 </button>
 
               </div>
@@ -1902,24 +1898,24 @@ export default function InstructorDashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Gia hạn riêng cá nhân sinh viên</h3>
+              <h3>Individual Student Extension</h3>
               <button onClick={() => setShowExtensionModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveExtension}>
               <div className="modal-body">
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Cấu hình này cho phép sinh viên được chọn có một thời hạn nộp bài riêng (Gia hạn đặc biệt) mà không ảnh hưởng tới tiến độ và deadline chung của cả lớp.
+                  This setting allows the selected student to have an individual submission deadline (Special Extension) without affecting the overall class schedule.
                 </p>
 
                 <div className="form-group">
-                  <label className="form-label">Chọn sinh viên được gia hạn</label>
+                  <label className="form-label">Select Student for Extension</label>
                   <select 
                     className="form-select"
                     required
                     value={extensionStudent}
                     onChange={(e) => setExtensionStudent(e.target.value)}
                   >
-                    <option value="">-- Chọn sinh viên trong lớp học phần --</option>
+                    <option value="">-- Select student in class --</option>
                     {students.map(s => (
                       <option key={s.id} value={s.username}>{s.full_name} (@{s.username})</option>
                     ))}
@@ -1927,7 +1923,7 @@ export default function InstructorDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Thời hạn mới gia hạn (Deadline mới)</label>
+                  <label className="form-label">New Extended Deadline (UTC)</label>
                   <input 
                     type="datetime-local" 
                     className="form-input" 
@@ -1938,9 +1934,9 @@ export default function InstructorDashboard() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowExtensionModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => setShowExtensionModal(false)} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG GIA HẠN...' : 'XÁC NHẬN GIA HẠN CÁ NHÂN'}
+                  {actionLoading ? 'EXTENDING...' : 'CONFIRM INDIVIDUAL EXTENSION'}
                 </button>
               </div>
             </form>
@@ -1953,13 +1949,13 @@ export default function InstructorDashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Sửa thông tin tài khoản Sinh viên</h3>
+              <h3>Edit Student Account</h3>
               <button onClick={() => setShowStudentModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <form onSubmit={handleSaveStudentEdit}>
               <div className="modal-body">
                 <div className="form-group">
-                  <label className="form-label">Tên đăng nhập (MSSV) - Cố định</label>
+                  <label className="form-label">Username (Student ID) - Fixed</label>
                   <input 
                     type="text" 
                     className="form-input" 
@@ -1969,55 +1965,55 @@ export default function InstructorDashboard() {
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">Họ và Tên đầy đủ</label>
+                  <label className="form-label">Full Name</label>
                   <input 
                     type="text" 
                     className="form-input" 
                     required 
-                    placeholder="Ví dụ: Nguyễn Văn A"
+                    placeholder="e.g. John Doe"
                     value={studentFullName}
                     onChange={(e) => setStudentFullName(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Địa chỉ Email</label>
+                  <label className="form-label">Email Address</label>
                   <input 
                     type="email" 
                     className="form-input" 
-                    placeholder="Ví dụ: student@example.com"
+                    placeholder="e.g. student@example.com"
                     value={studentEmail}
                     onChange={(e) => setStudentEmail(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Mật khẩu mới (Bỏ trống nếu không đổi)</label>
+                  <label className="form-label">New Password (leave blank if unchanged)</label>
                   <input 
                     type="password" 
                     className="form-input" 
-                    placeholder="Không đổi mật khẩu..."
+                    placeholder="Leave blank to keep current password..."
                     value={studentPassword}
                     onChange={(e) => setStudentPassword(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Trạng thái hoạt động</label>
+                  <label className="form-label">Account Status</label>
                   <select 
                     className="form-select"
                     value={studentIsActive ? "true" : "false"}
                     onChange={(e) => setStudentIsActive(e.target.value === "true")}
                   >
-                    <option value="true">Hoạt động (Unlock)</option>
-                    <option value="false">Khóa tài khoản (Lock)</option>
+                    <option value="true">Active (Unlocked)</option>
+                    <option value="false">Locked</option>
                   </select>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowStudentModal(false)} className="btn btn-secondary">ĐÓNG</button>
+                <button type="button" onClick={() => setShowStudentModal(false)} className="btn btn-secondary">CLOSE</button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'ĐANG LƯU...' : 'CẬP NHẬT TÀI KHOẢN'}
+                  {actionLoading ? 'SAVING...' : 'UPDATE ACCOUNT'}
                 </button>
               </div>
             </form>
@@ -2031,14 +2027,14 @@ export default function InstructorDashboard() {
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Monitor size={18} style={{ color: 'var(--neon-cyan)' }} />
-                Quản lý Máy ảo Sinh viên — Bài Lab: {selectedLabForVm.title}
+                Student Virtual Machines — Lab: {selectedLabForVm.title}
               </h3>
               <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <div className="modal-body">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                  Danh sách máy ảo Proxmox VE đang được cấp phát cho sinh viên làm bài thực hành này.
+                  List of Proxmox VE virtual machines allocated to students for this lab.
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
@@ -2046,18 +2042,18 @@ export default function InstructorDashboard() {
                     className="btn btn-secondary" 
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px', background: '#475569', border: 'none' }}
-                    title="Tắt tất cả máy ảo đang chạy"
+                    title="Stop all running virtual machines"
                   >
-                    🛑 Tắt tất cả máy ảo
+                    🛑 Stop All VMs
                   </button>
                   <button 
                     onClick={() => handleBatchControlVm(selectedLabForVm.id, 'purge_all')} 
                     className="btn btn-danger" 
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
-                    title="Xóa tất cả máy ảo khỏi Proxmox cluster"
+                    title="Purge all student VMs from Proxmox cluster"
                   >
-                    <Trash2 size={13} style={{ marginRight: '4px' }} /> Xóa tất cả máy ảo
+                    <Trash2 size={13} style={{ marginRight: '4px' }} /> Purge All VMs
                   </button>
                   <button 
                     onClick={() => fetchLabVms(selectedLabForVm.id)} 
@@ -2065,7 +2061,7 @@ export default function InstructorDashboard() {
                     disabled={vmActionLoading}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
                   >
-                    <RefreshCw size={13} style={{ marginRight: '4px' }} /> Làm mới
+                    <RefreshCw size={13} style={{ marginRight: '4px' }} /> Refresh
                   </button>
                 </div>
               </div>
@@ -2075,12 +2071,12 @@ export default function InstructorDashboard() {
                 <table className="cyber-table" style={{ fontSize: '13px' }}>
                   <thead>
                     <tr>
-                      <th>Sinh viên (MSSV)</th>
+                      <th>Student (Username)</th>
                       <th>VMID</th>
-                      <th>Địa chỉ IP</th>
-                      <th>Trạng thái Proxmox</th>
-                      <th>Tài nguyên (CPU/RAM)</th>
-                      <th style={{ textAlign: 'right' }}>Thao tác điều khiển</th>
+                      <th>IP Address</th>
+                      <th>Proxmox Status</th>
+                      <th>Resources (CPU/RAM)</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2098,7 +2094,7 @@ export default function InstructorDashboard() {
                             vm.status === 'stopped' ? 'badge-resubmit' : 'badge-draft'
                           }`}>
                             {vm.status === 'running' ? '🟢 RUNNING' :
-                             vm.status === 'stopped' ? '🔴 STOPPED' : '⚪ CHƯA TẠO'}
+                             vm.status === 'stopped' ? '🔴 STOPPED' : '⚪ NOT CREATED'}
                           </span>
                         </td>
                         <td style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
@@ -2112,9 +2108,9 @@ export default function InstructorDashboard() {
                                 className="btn btn-success" 
                                 style={{ padding: '4px 8px', fontSize: '11px' }}
                                 disabled={vmActionLoading}
-                                title="Bật máy ảo"
+                                title="Start VM"
                               >
-                                <Play size={12} style={{ marginRight: '3px' }} /> Bật
+                                <Play size={12} style={{ marginRight: '3px' }} /> Start
                               </button>
                             )}
                             {vm.status === 'running' && (
@@ -2123,9 +2119,9 @@ export default function InstructorDashboard() {
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '11px', background: '#475569', border: 'none' }}
                                 disabled={vmActionLoading}
-                                title="Tắt máy ảo"
+                                title="Stop VM"
                               >
-                                🛑 Tắt
+                                🛑 Stop
                               </button>
                             )}
                             {vm.status !== 'not_created' && (
@@ -2134,9 +2130,9 @@ export default function InstructorDashboard() {
                                 className="btn btn-danger" 
                                 style={{ padding: '4px 8px', fontSize: '11px' }}
                                 disabled={vmActionLoading}
-                                title="Xóa sạch máy ảo khỏi Proxmox"
+                                title="Purge VM completely from Proxmox"
                               >
-                                <Trash2 size={12} style={{ marginRight: '3px' }} /> Xóa máy ảo
+                                <Trash2 size={12} style={{ marginRight: '3px' }} /> Purge VM
                               </button>
                             )}
                           </div>
@@ -2146,7 +2142,7 @@ export default function InstructorDashboard() {
                     {studentVms.length === 0 && (
                       <tr>
                         <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                          Lớp học này chưa có sinh viên hoặc chưa được gán sinh viên.
+                          No students enrolled in this class or assigned yet.
                         </td>
                       </tr>
                     )}
@@ -2155,7 +2151,7 @@ export default function InstructorDashboard() {
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">ĐÓNG</button>
+              <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">CLOSE</button>
             </div>
           </div>
         </div>

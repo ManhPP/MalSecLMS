@@ -15,7 +15,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!username || !password) {
-      setError('Vui lòng điền đầy đủ tên đăng nhập và mật khẩu')
+      setError('Please enter both username and password')
       return
     }
 
@@ -34,17 +34,17 @@ export default function Login() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Đăng nhập thất bại')
+        throw new Error(data.detail || 'Authentication failed')
       }
 
-      // Lưu trữ session vào AuthContext
+      // Store session in AuthContext
       login({
         username: data.username,
         full_name: data.full_name,
         role: data.role
       }, data.access_token)
 
-      // Điều hướng tương ứng
+      // Navigate by role
       if (data.role === 'admin') {
         navigate('/admin')
       } else if (data.role === 'lecturer') {
@@ -54,7 +54,7 @@ export default function Login() {
       }
 
     } catch (err) {
-      setError(err.message || 'Lỗi kết nối tới máy chủ an ninh')
+      setError(err.message || 'Connection error to security server')
     } finally {
       setSubmitting(false)
     }
@@ -87,7 +87,7 @@ export default function Login() {
           </div>
           <h2 style={{ fontSize: '24px', color: 'var(--text-primary)', marginBottom: '6px' }}>MALSEC PORTAL</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px' }}>
-            Hệ thống Quản lý Báo cáo Lab & Phân tích Mã độc
+            Malware Analysis & Lab Learning Management System
           </p>
         </div>
 
@@ -102,14 +102,14 @@ export default function Login() {
           <div className="form-group">
             <label className="form-label" htmlFor="username">
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <User size={14} /> Mã số Sinh viên / Giảng viên
+                <User size={14} /> Student ID / Lecturer Username
               </span>
             </label>
             <input
               type="text"
               id="username"
               className="form-input"
-              placeholder="Nhập tên đăng nhập..."
+              placeholder="Enter username..."
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={submitting}
@@ -119,14 +119,14 @@ export default function Login() {
           <div className="form-group" style={{ marginBottom: '24px' }}>
             <label className="form-label" htmlFor="password">
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Key size={14} /> Mật khẩu truy cập
+                <Key size={14} /> Access Password
               </span>
             </label>
             <input
               type="password"
               id="password"
               className="form-input"
-              placeholder="Nhập mật khẩu..."
+              placeholder="Enter password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={submitting}
@@ -139,7 +139,7 @@ export default function Login() {
             style={{ width: '100%', height: '46px', fontSize: '15px' }}
             disabled={submitting}
           >
-            {submitting ? 'ĐANG XÁC THỰC KẾT NỐI...' : 'ĐĂNG NHẬP HỆ THỐNG'}
+            {submitting ? 'AUTHENTICATING...' : 'SIGN IN TO SYSTEM'}
           </button>
         </form>
 
@@ -150,7 +150,7 @@ export default function Login() {
           color: 'var(--text-muted)',
           fontFamily: 'var(--font-mono)'
         }}>
-          [!] Phiên truy cập của bạn được giám sát an ninh mạng.
+          [!] Your access session is actively monitored for security.
         </div>
       </div>
     </div>

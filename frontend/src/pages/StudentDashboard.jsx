@@ -18,13 +18,13 @@ const renderInlineFormatting = (text) => {
 };
 
 const parseMarkdown = (text) => {
-  if (!text) return <span style={{ color: 'var(--text-muted)' }}>(Trống)</span>;
+  if (!text) return <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>;
   
-  // Tách text theo block code ``` trước
+  // Split text by code blocks ``` first
   const parts = text.split(/(```[\s\S]*?```)/g);
   
   return parts.map((part, index) => {
-    // Nếu là khối code
+    // If it is a code block
     if (part.startsWith('```') && part.endsWith('```')) {
       const content = part.slice(3, -3).trim();
       const lines = content.split('\n');
@@ -60,21 +60,21 @@ const parseMarkdown = (text) => {
       );
     }
     
-    // Xử lý văn bản thường dòng bằng dòng (headings, bold, lists, threats)
+    // Headings, bold, lists, threats
     const lines = part.split('\n');
     return (
       <div key={index}>
         {lines.map((line, lIdx) => {
-          // Tiêu đề 3: ### Title
+          // H3: ### Title
           if (line.startsWith('### ')) {
             return <h4 key={lIdx} style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '16px', marginBottom: '8px', fontWeight: '600', borderLeft: '3px solid var(--neon-cyan)', paddingLeft: '8px', textAlign: 'left' }}>{line.slice(4)}</h4>;
           }
-          // Tiêu đề 2: ## Title
+          // H2: ## Title
           if (line.startsWith('## ')) {
             return <h3 key={lIdx} style={{ fontSize: '17px', color: 'var(--text-primary)', marginTop: '18px', marginBottom: '10px', fontWeight: '600', textAlign: 'left' }}>{line.slice(3)}</h3>;
           }
           
-          // Danh mục: - Item hoặc * Item
+          // Lists: - Item or * Item
           if (line.startsWith('- ') || line.startsWith('* ')) {
             const content = line.slice(2);
             return (
@@ -84,7 +84,7 @@ const parseMarkdown = (text) => {
             );
           }
 
-          // Cảnh báo mã độc: [!] Content
+          // Threat alert: [!] Content
           if (line.startsWith('[!] ')) {
             const content = line.slice(4);
             return (
@@ -151,10 +151,10 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <button 
             type="button" 
-            onClick={() => insertText('### ', 'Tiêu đề')} 
+            onClick={() => insertText('### ', 'Subheading')} 
             className="btn btn-secondary" 
             style={{ padding: '4px 8px', fontSize: '11px' }}
-            title="Thêm tiêu đề phụ"
+            title="Add subheading"
           >
             H3
           </button>
@@ -163,7 +163,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             onClick={() => insertText('**', '**')} 
             className="btn btn-secondary" 
             style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 'bold' }}
-            title="Tô đậm văn bản"
+            title="Bold text"
           >
             B
           </button>
@@ -172,25 +172,25 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             onClick={() => insertText('```assembly\n', '\n```')} 
             className="btn btn-secondary" 
             style={{ padding: '4px 8px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}
-            title="Thêm khối code"
+            title="Add code block"
           >
             Code
           </button>
           <button 
             type="button" 
-            onClick={() => insertText('- ', 'Danh mục')} 
+            onClick={() => insertText('- ', 'List item')} 
             className="btn btn-secondary" 
             style={{ padding: '4px 8px', fontSize: '11px' }}
-            title="Thêm danh sách gạch đầu dòng"
+            title="Add bullet list"
           >
             List
           </button>
           <button 
             type="button" 
-            onClick={() => insertText('[!] Cảnh báo: ', 'Hành vi độc hại')} 
+            onClick={() => insertText('[!] Warning: ', 'Malicious activity')} 
             className="btn btn-secondary" 
             style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.2)' }}
-            title="Thêm cảnh báo nguy hại"
+            title="Add threat warning"
           >
             Threat
           </button>
@@ -204,7 +204,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             className="btn" 
             style={{ padding: '4px 10px', fontSize: '11.5px', background: !isPreview ? 'var(--neon-cyan)' : 'transparent', color: !isPreview ? '#ffffff' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
           >
-            Viết bài
+            Write
           </button>
           <button 
             type="button" 
@@ -212,7 +212,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
             className="btn" 
             style={{ padding: '4px 10px', fontSize: '11.5px', background: isPreview ? 'var(--neon-cyan)' : 'transparent', color: isPreview ? '#ffffff' : 'var(--text-secondary)', border: 'none', fontWeight: '600' }}
           >
-            Xem trước
+            Preview
           </button>
         </div>
       </div>
@@ -223,7 +223,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
           ref={textareaRef}
           className="form-input form-textarea code-font" 
           style={{ margin: 0, border: 'none', borderRadius: 0, minHeight: '180px', width: '100%', display: 'block' }}
-          placeholder="Nhập nội dung phân tích... Dùng công cụ Markdown phía trên để định dạng chữ đậm, tiêu đề và khối code đẹp mắt."
+          placeholder="Enter analysis findings... Use markdown tools above to format text, headings, and code blocks."
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -257,7 +257,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [uploadingField, setUploadingField] = useState(null)
-  const [saveStatus, setSaveStatus] = useState('Đã đồng bộ với máy chủ') // 'Đang lưu nháp...' | 'Đã đồng bộ với máy chủ' | 'Lỗi lưu nháp!'
+  const [saveStatus, setSaveStatus] = useState('Synced with server') // 'Auto-saving draft in background...' | 'Synced with server' | 'Auto-save error!'
   const [lastSavedTime, setLastSavedTime] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -269,8 +269,8 @@ export default function StudentDashboard() {
 
   // VM Simulator & Real Proxmox Guacamole state
   const [vmActive, setVmActive] = useState(true)
-  const [vmOs, setVmOs] = useState('Lab VM — Chưa khởi tạo phiên kết nối')
-  const [vmLogs, setVmLogs] = useState(['[+] Đang chờ cấu hình máy ảo của bài lab...'])
+  const [vmOs, setVmOs] = useState('Lab VM — Session not initialized')
+  const [vmLogs, setVmLogs] = useState(['[+] Waiting for lab VM configuration...'])
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [guacamoleUrl, setGuacamoleUrl] = useState('')
   const [vmLoading, setVmLoading] = useState(false)
@@ -299,11 +299,11 @@ export default function StudentDashboard() {
       } else {
         const rawText = await res.text()
         if (!res.ok) {
-          throw new Error(`Máy ảo đang được khởi tạo trên Proxmox (HTTP ${res.status}). Vui lòng chờ 15-30 giây và bấm nút "Tải lại kết nối VM".`)
+          throw new Error(`VM is being initialized on Proxmox (HTTP ${res.status}). Please wait 15-30 seconds and click "Reload VM Session".`)
         }
       }
 
-      if (!res.ok) throw new Error(data.detail || 'Không thể tạo phiên kết nối máy ảo')
+      if (!res.ok) throw new Error(data.detail || 'Unable to create VM session')
       setGuacamoleUrl(data.guacamole_url)
       setVmInfo(data)
       setVmOs(`Lab VM ${data.vmid} — ${data.protocol.toUpperCase()} — ${data.ip_address}`)
@@ -316,7 +316,7 @@ export default function StudentDashboard() {
 
   const handleRollbackVm = async () => {
     if (!selectedLab) return
-    if (!confirm('Bạn có chắc chắn muốn khôi phục máy ảo về bản sạch không?')) return
+    if (!confirm('Are you sure you want to revert this VM to a clean state?')) return
     setVmLoading(true)
     const token = localStorage.getItem('malsec_token')
     try {
@@ -332,16 +332,16 @@ export default function StudentDashboard() {
       } else {
         const rawText = await res.text()
         if (!res.ok) {
-          throw new Error(`Thao tác khôi phục máy ảo đang được xử lý trên Proxmox (HTTP ${res.status}). Vui lòng chờ 15-30 giây.`)
+          throw new Error(`VM rollback is currently in progress on Proxmox (HTTP ${res.status}). Please wait 15-30 seconds.`)
         }
       }
 
-      if (!res.ok) throw new Error(data.detail || 'Không thể rollback máy ảo')
+      if (!res.ok) throw new Error(data.detail || 'Unable to rollback VM')
       setGuacamoleUrl('')
       setVmInfo(null)
       await fetchVmSession(selectedLab.id)
     } catch (err) {
-      alert('Lỗi khôi phục máy ảo: ' + err.message)
+      alert('VM rollback error: ' + err.message)
       setVmLoading(false)
     }
   }
@@ -356,7 +356,7 @@ export default function StudentDashboard() {
       })
       if (res.ok) setRuntimeConfig(await res.json())
     } catch (err) {
-      console.error('Lỗi lấy cấu hình runtime:', err)
+      console.error('Failed to fetch runtime config:', err)
     }
   }
 
@@ -371,10 +371,10 @@ export default function StudentDashboard() {
       const res = await fetch('/api/labs/student/active', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (!res.ok) throw new Error('Không thể lấy danh sách bài Lab của bạn')
+      if (!res.ok) throw new Error('Unable to fetch your assigned lab list')
       const allLabs = await res.json()
       
-      // Lấy danh sách submission của sinh viên để phân loại bài đã nộp/chưa nộp
+      // Categorize active vs graded labs
       const active = []
       const graded = []
 
@@ -416,7 +416,7 @@ export default function StudentDashboard() {
   const triggerServerSideAutoSave = async (currentAnswers) => {
     if (!selectedLab || submissionStatus === 'submitted' || submissionStatus === 'graded') return
     
-    setSaveStatus('Đang tự động lưu nháp ngầm...')
+    setSaveStatus('Auto-saving draft in background...')
     const token = localStorage.getItem('malsec_token')
 
     try {
@@ -430,21 +430,20 @@ export default function StudentDashboard() {
       })
 
       if (res.ok) {
-        setSaveStatus('Đã đồng bộ với máy chủ')
+        setSaveStatus('Synced with server')
         const now = new Date()
-        setLastSavedTime(now.toLocaleTimeString('vi-VN'))
+        setLastSavedTime(now.toLocaleTimeString('en-US'))
       } else {
-        setSaveStatus('Lỗi tự động lưu!')
+        setSaveStatus('Auto-save error!')
       }
     } catch (err) {
-      setSaveStatus('Lỗi tự động lưu!')
+      setSaveStatus('Auto-save error!')
     }
   }
 
   // Effect to manage auto-save intervals
   useEffect(() => {
     if (viewState === 'doing_lab' && selectedLab && submissionStatus !== 'submitted' && submissionStatus !== 'graded') {
-      // Thiết lập bộ đếm tự động lưu sau mỗi 30 giây
       autoSaveTimerRef.current = setInterval(() => {
         triggerServerSideAutoSave(answers)
       }, 30000)
@@ -496,13 +495,13 @@ export default function StudentDashboard() {
       }
       
       setViewState('doing_lab')
-      setLastSavedTime(new Date().toLocaleTimeString('vi-VN'))
+      setLastSavedTime(new Date().toLocaleTimeString('en-US'))
 
       if (lab.enable_vm !== false) {
         fetchVmSession(lab.id)
       }
     } catch (err) {
-      setError('Lỗi khi tải trạng thái làm bài')
+      setError('Error loading lab submission state')
     } finally {
       setLoading(false)
     }
@@ -514,7 +513,7 @@ export default function StudentDashboard() {
     setActionLoading(true)
     await triggerServerSideAutoSave(answers)
     setActionLoading(false)
-    setSuccess('Bản nháp báo cáo đã được lưu trữ an toàn phía Server!')
+    setSuccess('Report draft saved securely on the server!')
     setTimeout(() => setSuccess(''), 3000)
   }
 
@@ -545,12 +544,12 @@ export default function StudentDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi tải lên tệp tin chứng cứ')
+      if (!res.ok) throw new Error(data.detail || 'Error uploading evidence file')
 
       setSuccess(data.message)
       setTimeout(() => setSuccess(''), 5000)
 
-      // Cập nhật lại danh sách file đính kèm hiển thị
+      // Refresh attachment list
       const detailRes = await fetch(`/api/submissions/lab/${selectedLab.id}/my`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -558,7 +557,6 @@ export default function StudentDashboard() {
         const sub = await detailRes.json()
         if (sub) {
           setFileAttachments(sub.file_attachments || [])
-          // Đồng thời update câu trả lời của trường này thành tên file
           setAnswers({ ...answers, [fieldId]: data.filename })
         }
       }
@@ -572,17 +570,17 @@ export default function StudentDashboard() {
 
   // Final submission handler
   const handleSubmitSubmission = async () => {
-    // Rà soát xem đã điền các trường bắt buộc chưa
+    // Check required fields
     const missingFields = selectedLab.form_fields.filter(
       f => f.required && !answers[f.id]
     )
 
     if (missingFields.length > 0) {
-      setError(`Vui lòng điền đầy đủ các câu hỏi bắt buộc trước khi nộp bài! Các câu hỏi còn thiếu: ${missingFields.map(f => f.label).join(', ')}`)
+      setError(`Please answer all required questions before submitting! Missing questions: ${missingFields.map(f => f.label).join(', ')}`)
       return
     }
 
-    // Xác nhận tính phạt nộp muộn trước khi nộp chính thức
+    // Confirm late penalty before final submission
     const now = new Date()
     let deadline = new Date(selectedLab.deadline)
     
@@ -592,13 +590,13 @@ export default function StudentDashboard() {
       deadline = new Date(extStr)
     }
 
-    let warningText = 'Bạn có chắc chắn muốn nộp bài báo cáo chính thức không?'
+    let warningText = 'Are you sure you want to submit your final report?'
     if (now > deadline) {
       const policy = selectedLab.late_policy || {}
       const penalty = policy.penalty_per_hour_percent || 0
       const hoursLate = (now - deadline) / 3600000.0
       const calculated = Math.min(hoursLate * penalty, policy.max_penalty_percent || 30)
-      warningText = `CẢNH BÁO: Bài làm đã quá hạn! Nộp bài lúc này sẽ bị phạt trừ ${calculated.toFixed(1)}% điểm số chấm. Bạn vẫn muốn nộp bài chứ?`
+      warningText = `WARNING: Submission is overdue! Submitting now incurs a late penalty of ${calculated.toFixed(1)}%. Do you still want to proceed?`
     }
 
     if (!confirm(warningText)) return
@@ -609,19 +607,18 @@ export default function StudentDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
-      // Tự động gọi Save Draft lần cuối
       await triggerServerSideAutoSave(answers)
 
-      // Nộp chính thức
+      // Submit final
       const res = await fetch(`/api/submissions/lab/${selectedLab.id}/submit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi khi nộp báo cáo')
+      if (!res.ok) throw new Error(data.detail || 'Error submitting report')
 
-      setSuccess('Nộp báo cáo bài tập Lab thành công! Bài làm của bạn đã chuyển sang trạng thái chờ Giảng viên chấm điểm.')
+      setSuccess('Lab report submitted successfully! Your submission is now awaiting instructor grading.')
       setSubmissionStatus(data.status)
       setLatePenalty(data.late_penalty)
       fetchStudentLabs()
@@ -643,7 +640,7 @@ export default function StudentDashboard() {
         `[${time}] [!] PBS: Restoration OK. RAM state purged. VM rebooting...`,
         `[${time}] [+] RDP: Connection re-established cleanly.`
       ])
-      setSuccess('Máy ảo phân tích malware đã được PBS tự động Rollback về trạng thái sạch thành công!')
+      setSuccess('Malware analysis VM rolled back to clean state successfully!')
       setTimeout(() => setSuccess(''), 4000)
     } else if (cmd === 'change_os') {
       if (vmOs.includes('Windows')) {
@@ -675,17 +672,17 @@ export default function StudentDashboard() {
     }
 
     const diff = deadline - new Date()
-    if (diff <= 0) return { text: 'Đã quá hạn nộp', isExpired: true }
+    if (diff <= 0) return { text: 'Overdue / Expired', isExpired: true }
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
 
     let text = ''
-    if (days > 0) text += `${days} ngày `
-    text += `${hours} giờ ${mins} phút`
+    if (days > 0) text += `${days}d `
+    text += `${hours}h ${mins}m remaining`
     
-    return { text: `Còn ${text}`, isExpired: false }
+    return { text: text, isExpired: false }
   }
 
   // Filter and sort active labs
@@ -746,8 +743,8 @@ export default function StudentDashboard() {
       {viewState === 'dashboard' && (
         <div>
           <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Chào {user.full_name}!</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Mã số Sinh viên: <b>{user.username}</b>{user.email && <> | Email: <b>{user.email}</b></>}. Hãy hoàn thành các bài thực hành phân tích mã độc trước thời hạn.</p>
+            <h2 style={{ fontSize: '24px', color: 'var(--text-primary)' }}>Welcome, {user.full_name}!</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Student ID: <b>{user.username}</b>{user.email && <> | Email: <b>{user.email}</b></>}. Complete your assigned malware analysis practical labs before deadlines.</p>
           </div>
 
           {/* Search and Filters Bar */}
@@ -758,36 +755,36 @@ export default function StudentDashboard() {
                 type="text" 
                 className="form-input" 
                 style={{ paddingLeft: '36px', margin: 0 }}
-                placeholder="Tìm kiếm bài Lab..."
+                placeholder="Search labs..."
                 value={studentLabSearch}
                 onChange={(e) => setStudentLabSearch(e.target.value)}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {/* Lọc trạng thái làm bài */}
+              {/* Filter Lab Status */}
               <select 
                 className="form-select" 
                 style={{ width: '180px', margin: 0 }}
                 value={studentLabStatusFilter}
                 onChange={(e) => setStudentLabStatusFilter(e.target.value)}
               >
-                <option value="all">Tất cả Trạng thái</option>
-                <option value="not_started">Chưa bắt đầu</option>
-                <option value="draft">Đang làm nháp</option>
-                <option value="resubmit">Cần làm lại (Re-submit)</option>
+                <option value="all">All Statuses</option>
+                <option value="not_started">Not Started</option>
+                <option value="draft">Drafting</option>
+                <option value="resubmit">Resubmission Required</option>
               </select>
 
-              {/* Sắp xếp */}
+              {/* Sort */}
               <select 
                 className="form-select" 
                 style={{ width: '180px', margin: 0 }}
                 value={studentLabSort}
                 onChange={(e) => setStudentLabSort(e.target.value)}
               >
-                <option value="deadline_asc">Hạn nộp tăng dần</option>
-                <option value="deadline_desc">Hạn nộp giảm dần</option>
-                <option value="title_asc">Tên bài Lab A-Z</option>
+                <option value="deadline_asc">Deadline (Earliest first)</option>
+                <option value="deadline_desc">Deadline (Latest first)</option>
+                <option value="title_asc">Lab Title (A-Z)</option>
               </select>
             </div>
           </div>
@@ -795,19 +792,19 @@ export default function StudentDashboard() {
           {/* Active labs checklist */}
           <div className="cyber-card" style={{ marginBottom: '24px' }}>
             <h3 style={{ fontSize: '18px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <BookOpen size={20} className="brand-icon" /> Các bài Lab thực hành cần làm
+              <BookOpen size={20} className="brand-icon" /> Assigned Practical Labs
             </h3>
             
             <div className="table-container" style={{ margin: 0 }}>
               <table className="cyber-table">
                 <thead>
                   <tr>
-                    <th>Bài Lab Thực hành</th>
-                    <th>Thời hạn khóa bài</th>
-                    <th>Thời gian còn lại</th>
-                    <th>Trạng thái bài làm</th>
-                    <th>Nhận xét cũ</th>
-                    <th style={{ textAlign: 'right' }}>Làm bài</th>
+                    <th>Lab Assignment</th>
+                    <th>Deadline</th>
+                    <th>Time Remaining</th>
+                    <th>Status</th>
+                    <th>Previous Feedback</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -837,15 +834,15 @@ export default function StudentDashboard() {
                           )}
                           {isExtension && (
                             <span className="badge badge-submitted" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9.5px', padding: '2px 6px' }}>
-                              Được thầy gia hạn riêng
+                              Individual Extension Granted
                             </span>
                           )}
                         </td>
 
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
                           {isExtension 
-                            ? new Date(lab.individual_extensions[user.username]).toLocaleString('vi-VN')
-                            : new Date(lab.deadline).toLocaleString('vi-VN')}
+                            ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
+                            : new Date(lab.deadline).toLocaleString('en-US')}
                         </td>
                         <td style={{ 
                           color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
@@ -859,9 +856,9 @@ export default function StudentDashboard() {
                             sub.status === 'draft' ? 'badge-draft' : 
                             sub.status === 'submitted' ? 'badge-submitted' : 'badge-resubmit'
                           }`}>
-                            {!sub ? 'Chưa bắt đầu' : 
-                             sub.status === 'draft' ? 'Đang viết nháp' : 
-                             sub.status === 'submitted' ? 'Đã nộp bài' : 'Cần nộp lại (Re-submit)'}
+                            {!sub ? 'Not Started' : 
+                             sub.status === 'draft' ? 'Draft' : 
+                             sub.status === 'submitted' ? 'Submitted' : 'Resubmission Requested'}
                           </span>
                         </td>
                         <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -869,7 +866,7 @@ export default function StudentDashboard() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <button onClick={() => handleOpenLab(lab)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                            Làm bài &rarr;
+                            Start Lab &rarr;
                           </button>
                         </td>
                       </tr>
@@ -877,7 +874,7 @@ export default function StudentDashboard() {
                   })}
                   {filteredActiveLabs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Không tìm thấy bài thực hành nào phù hợp.</td>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No matching practical labs found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -888,19 +885,19 @@ export default function StudentDashboard() {
           {/* Graded labs / History */}
           <div className="cyber-card">
             <h3 style={{ fontSize: '18px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileCheck size={20} style={{ color: 'var(--neon-emerald)' }} /> Lịch sử & Kết quả chấm điểm bài Lab
+              <FileCheck size={20} style={{ color: 'var(--neon-emerald)' }} /> Lab Grading History & Scores
             </h3>
             
             <div className="table-container" style={{ margin: 0 }}>
               <table className="cyber-table">
                 <thead>
                   <tr>
-                    <th>Bài Lab thực hành</th>
-                    <th>Thời gian nộp bài</th>
-                    <th>Mức phạt muộn</th>
-                    <th>Ý kiến nhận xét của Giảng viên</th>
-                    <th>Điểm nhận được</th>
-                    <th style={{ textAlign: 'right' }}>Xem lại</th>
+                    <th>Lab Assignment</th>
+                    <th>Submission Time</th>
+                    <th>Late Penalty</th>
+                    <th>Instructor Feedback</th>
+                    <th>Score</th>
+                    <th style={{ textAlign: 'right' }}>Review</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -910,20 +907,20 @@ export default function StudentDashboard() {
                       <tr key={lab.id}>
                         <td style={{ fontWeight: '500' }}>{lab.title}</td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          {new Date(sub.submitted_at).toLocaleString('vi-VN')}
+                          {new Date(sub.submitted_at).toLocaleString('en-US')}
                         </td>
                         <td style={{ color: sub.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--text-secondary)' }}>
-                          {sub.late_penalty > 0 ? `Bị phạt -${sub.late_penalty}%` : 'Không'}
+                          {sub.late_penalty > 0 ? `Penalty: -${sub.late_penalty}%` : 'None'}
                         </td>
                         <td style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '400px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {sub.comment || 'Không có nhận xét nào'}
+                          {sub.comment || 'No comments provided'}
                         </td>
                         <td style={{ fontWeight: '700', color: 'var(--neon-emerald)', fontSize: '16px' }}>
                           {sub.score} / 10
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <button onClick={() => handleOpenLab(lab)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                            Xem lại bài
+                            Review Submission
                           </button>
                         </td>
                       </tr>
@@ -931,7 +928,7 @@ export default function StudentDashboard() {
                   })}
                   {filteredGradedLabs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có bài làm nào được chấm điểm hoặc không tìm thấy bài phù hợp.</td>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No graded submissions or matching labs found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -947,11 +944,11 @@ export default function StudentDashboard() {
           {/* Header navigation bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px', flexShrink: 0 }}>
             <button onClick={() => { setViewState('dashboard'); setSelectedLab(null); }} className="btn btn-secondary" style={{ padding: '6px 12px' }}>
-              &larr; Về Dashboard
+              &larr; Back to Dashboard
             </button>
             <div>
               <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{selectedLab.title}</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>MSSV: {user.username} | Trạng thái: <b>{submissionStatus}</b></p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
             </div>
 
             {/* Server-Side Auto-save status light */}
@@ -962,19 +959,19 @@ export default function StudentDashboard() {
                     <span className="tick"></span>
                   </span>
                   <span style={{ 
-                    color: saveStatus.includes('Lỗi') ? 'var(--neon-ruby)' : saveStatus.includes('Đang') ? 'var(--neon-amber)' : 'var(--neon-emerald)',
+                    color: saveStatus.includes('error') || saveStatus.includes('Error') ? 'var(--neon-ruby)' : saveStatus.includes('Auto-saving') ? 'var(--neon-amber)' : 'var(--neon-emerald)',
                     fontFamily: 'var(--font-mono)',
                     fontSize: '11.5px' 
                   }}>
-                    {saveStatus} {lastSavedTime && `lúc ${lastSavedTime}`}
+                    {saveStatus} {lastSavedTime && `at ${lastSavedTime}`}
                   </span>
                 </div>
                 
                 <button onClick={handleManualSaveDraft} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12.5px' }} disabled={actionLoading}>
-                  <Save size={14} /> Lưu bản nháp phía Server
+                  <Save size={14} /> Save Draft to Server
                 </button>
                 <button onClick={handleSubmitSubmission} className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '12.5px' }} disabled={actionLoading}>
-                  <Send size={14} /> Nộp báo cáo chính thức
+                  <Send size={14} /> Submit Final Report
                 </button>
               </div>
             )}
@@ -1009,7 +1006,7 @@ export default function StudentDashboard() {
                         disabled={vmLoading}
                         style={{ padding: '4px 8px', fontSize: '11px', background: '#374151', border: 'none', color: '#fff' }}
                       >
-                        {vmLoading ? 'Đang khởi tạo VM...' : 'Tải lại kết nối VM'}
+                        {vmLoading ? 'Initializing VM...' : 'Reload VM Session'}
                       </button>
                       <button
                         type="button"
@@ -1017,9 +1014,9 @@ export default function StudentDashboard() {
                         className="btn btn-secondary"
                         style={{ padding: '6px 12px', fontSize: '12px' }}
                         disabled={!guacamoleUrl}
-                        title="Chuyển bàn phím vào màn hình máy ảo"
+                        title="Direct keyboard focus to virtual machine"
                       >
-                        Bắt bàn phím
+                        Capture Keyboard
                       </button>
                       {guacamoleUrl && (
                         <a 
@@ -1029,7 +1026,7 @@ export default function StudentDashboard() {
                           className="btn btn-secondary" 
                           style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--neon-cyan)', border: 'none', color: '#000', fontWeight: 'bold', textDecoration: 'none' }}
                         >
-                          Cửa sổ mới ↗
+                          New Window ↗
                         </a>
                       )}
                       <button 
@@ -1038,9 +1035,9 @@ export default function StudentDashboard() {
                         className="btn btn-danger" 
                         disabled={vmLoading}
                         style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                        title="Khôi phục máy ảo về trạng thái sạch ban đầu trên Proxmox"
+                        title="Revert VM to initial clean state on Proxmox"
                       >
-                        <RotateCcw size={11} /> Rollback VM sạch (Proxmox)
+                        <RotateCcw size={11} /> Rollback Clean VM (Proxmox)
                       </button>
                     </div>
                   </div>
@@ -1059,14 +1056,14 @@ export default function StudentDashboard() {
                   }}>
                     {vmLoading ? (
                       <div style={{ textAlign: 'center', color: 'var(--neon-cyan)', padding: '24px' }}>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚡ Đang khởi tạo máy ảo Proxmox & Cấp quyền Guacamole...</div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Đang kết nối Linked Clone trong dải mạng VLAN 30 cách ly...</p>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚡ Initializing Proxmox VM & Authorizing Guacamole...</div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Connecting Linked Clone inside isolated VLAN 30 network...</p>
                       </div>
                     ) : vmError ? (
                       <div style={{ textAlign: 'center', color: 'var(--neon-ruby)', padding: '24px' }}>
                         <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚠️ {vmError}</div>
                         <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '6px 16px', marginTop: '12px' }}>
-                          Thử lại kết nối
+                          Retry Connection
                         </button>
                       </div>
                     ) : guacamoleUrl ? (
@@ -1086,10 +1083,10 @@ export default function StudentDashboard() {
                         <Terminal size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.5))' }} />
                         <h4 style={{ fontSize: '18px', color: '#fff', marginBottom: '8px' }}>APACHE GUACAMOLE VDI LAB</h4>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', margin: '0 auto 20px' }}>
-                          Máy ảo phân tích mã độc VLAN 30 chạy bên trong hạ tầng Proxmox VE.
+                          Malware analysis VM running inside isolated VLAN 30 on Proxmox VE.
                         </p>
                         <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '8px 20px' }}>
-                          Khởi động kết nối Máy ảo
+                          Launch VM Connection
                         </button>
                       </div>
                     )}
@@ -1129,7 +1126,7 @@ export default function StudentDashboard() {
                     borderBottom: '1px dashed rgba(0, 242, 254, 0.2)',
                     paddingBottom: '8px'
                   }}>
-                    <BookOpen size={16} /> Đề bài & Hướng dẫn chi tiết từ Giảng viên
+                    <BookOpen size={16} /> Lab Guide & Instructions
                   </h4>
                   <div style={{ fontSize: '13.5px', color: 'var(--text-primary)', lineHeight: '1.65' }}>
                     {parseMarkdown(selectedLab.description)}
@@ -1138,8 +1135,8 @@ export default function StudentDashboard() {
               )}
 
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Phiếu làm báo cáo</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Điền câu trả lời và đính kèm tệp chứng cứ bên dưới.</p>
+                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Lab Report Submission</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Answer questions and attach evidence files below.</p>
               </div>
 
 
@@ -1147,14 +1144,14 @@ export default function StudentDashboard() {
               {submissionStatus === 'graded' && score !== null && (
                 <div className="cyber-card" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid var(--neon-emerald)', padding: '16px', marginBottom: '20px' }}>
                   <h4 style={{ fontSize: '15px', color: 'var(--neon-emerald)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <Award size={16} /> Báo cáo đã được chấm điểm!
+                    <Award size={16} /> Report Graded!
                   </h4>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--neon-emerald)', fontFamily: 'var(--font-title)', marginBottom: '8px' }}>
                     {score} / 10
                   </div>
                   {comment && (
                     <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-                      <b>Nhận xét:</b> {comment}
+                      <b>Feedback:</b> {comment}
                     </div>
                   )}
                 </div>
@@ -1164,11 +1161,11 @@ export default function StudentDashboard() {
               {submissionStatus === 're_submit_requested' && (
                 <div className="cyber-card" style={{ background: 'rgba(255, 8, 68, 0.05)', border: '1px solid var(--neon-ruby)', padding: '16px', marginBottom: '20px' }}>
                   <h4 style={{ fontSize: '14.5px', color: 'var(--neon-ruby)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <AlertTriangle size={16} /> Yêu cầu làm lại báo cáo (Re-submit)
+                    <AlertTriangle size={16} /> Resubmission Requested
                   </h4>
                   {comment && (
                     <div style={{ fontSize: '13px', color: '#fca5a5' }}>
-                      <b>Yêu cầu của thầy cô:</b> {comment}
+                      <b>Instructor comments:</b> {comment}
                     </div>
                   )}
                 </div>
@@ -1191,7 +1188,7 @@ export default function StudentDashboard() {
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Nhập thông tin..."
+                        placeholder="Enter answer..."
                         disabled={isReadOnly}
                         value={ans}
                         onChange={(e) => handleAnswerChange(field.id, e.target.value)}
@@ -1206,7 +1203,7 @@ export default function StudentDashboard() {
                         value={ans}
                         onChange={(e) => handleAnswerChange(field.id, e.target.value)}
                       >
-                        <option value="">-- Chọn một câu trả lời --</option>
+                        <option value="">-- Select an answer --</option>
                         {field.options?.map((opt, i) => (
                           <option key={i} value={opt}>{opt}</option>
                         ))}
@@ -1222,7 +1219,7 @@ export default function StudentDashboard() {
                               <span key={idx} className="badge badge-submitted" style={{ fontSize: '12px', border: '1px solid var(--neon-cyan)' }}>
                                 {item}
                               </span>
-                            )) : <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>(Trống)</span>}
+                            )) : <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>(Empty)</span>}
                           </div>
                         ) : (
                           field.options?.map((opt, i) => {
@@ -1281,7 +1278,7 @@ export default function StudentDashboard() {
                             </span>
                             {!isReadOnly && (
                               <label style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px' }}>
-                                Tải file khác...
+                                Upload different file...
                                 <input 
                                   type="file" 
                                   style={{ display: 'none' }}
@@ -1291,7 +1288,7 @@ export default function StudentDashboard() {
                             )}
                           </div>
                         ) : isReadOnly ? (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Trống)</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Empty)</span>
                         ) : (
                           <div className="upload-zone" style={{ padding: '16px 24px' }}>
                             <input 
@@ -1304,12 +1301,12 @@ export default function StudentDashboard() {
                             <label htmlFor={`fileInput-${field.id}`} style={{ cursor: 'pointer', display: 'block' }}>
                               <Upload size={20} className="upload-icon" style={{ margin: '0 auto 6px' }} />
                               <p style={{ fontSize: '13px', fontWeight: '500' }}>
-                                {uploadingField === field.id ? 'ĐANG QUÉT BẢO MẬT & TẢI FILE...' : 'Chọn file ảnh chụp/zip chứng cứ'}
+                                {uploadingField === field.id ? 'SCANNING SECURITY & UPLOADING...' : 'Choose evidence image or ZIP file'}
                               </p>
                               {runtimeConfig?.uploads && (
                                 <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  Định dạng cho phép: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
-                                  {' '}Mật khẩu ZIP: '{runtimeConfig.uploads.zip_password}'.
+                                  Allowed formats: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
+                                  {' '}ZIP password: '{runtimeConfig.uploads.zip_password}'.
                                 </p>
                               )}
                             </label>
