@@ -1,7 +1,14 @@
 import logging
 import sys
+import os
+import time
 from sqlalchemy import event
 from app.models import AuditLog
+
+# Enforce Hanoi / Vietnam Timezone (Asia/Ho_Chi_Minh, UTC+7)
+os.environ["TZ"] = "Asia/Ho_Chi_Minh"
+if hasattr(time, "tzset"):
+    time.tzset()
 
 # Configure logger
 logger = logging.getLogger("malsec")

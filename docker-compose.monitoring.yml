@@ -8,7 +8,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./monitoring/data:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      TZ: "Asia/Ho_Chi_Minh"
       DOZZLE_AUTH_PROVIDER: "simple"
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_LEVEL: "info"
@@ -22,9 +25,13 @@ services:
     ports:
       - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - ./monitoring/loki/data:/loki
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - monitoring-network
 
@@ -33,10 +40,14 @@ services:
     container_name: malsec-promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yaml
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - loki
     networks:
@@ -47,12 +58,16 @@ services:
     container_name: malsec-cadvisor
     restart: unless-stopped
     privileged: true
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     devices:
       - /dev/kmsg
     networks:
@@ -66,9 +81,13 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/data:/prometheus
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - cadvisor
       - pve-exporter
@@ -79,8 +98,12 @@ services:
     image: prompve/prometheus-pve-exporter:latest
     container_name: malsec-pve-exporter
     restart: unless-stopped
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - ./monitoring/pve/pve.yml:/etc/prometheus/pve.yml:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - monitoring-network
 
@@ -95,10 +118,14 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=KhongQuanLieu
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_DATE_FORMATS_DEFAULT_TIMEZONE=Asia/Ho_Chi_Minh
+      - TZ=Asia/Ho_Chi_Minh
     volumes:
       - ./monitoring/grafana/data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - loki
       - prometheus

@@ -44,7 +44,7 @@
       "5m"
     ]
   },
-  "timezone": "browser",
+  "timezone": "Asia/Ho_Chi_Minh",
   "title": "Proxmox VE - Cluster & Virtual Machines Intelligence",
   "uid": "proxmox-overview",
   "panels": [

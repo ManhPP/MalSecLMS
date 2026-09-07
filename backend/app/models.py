@@ -23,7 +23,7 @@ class User(Base):
     role = Column(String, nullable=False)  # admin, lecturer, student
     email = Column(String, unique=True, index=True, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     # Relationships
     classes = relationship('Class', secondary=user_class_association, back_populates='users')
@@ -36,7 +36,7 @@ class Class(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     description = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     # Relationships
     users = relationship('User', secondary=user_class_association, back_populates='classes')
@@ -77,7 +77,7 @@ class Lab(Base):
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     # Relationships
     class_ = relationship('Class', back_populates='labs')
@@ -104,7 +104,7 @@ class Submission(Base):
     comment = Column(String, nullable=True)
     
     submitted_at = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # Chống đạo văn
     is_plagiarized = Column(Boolean, default=False)
@@ -123,7 +123,7 @@ class AuditLog(Base):
     action = Column(String, nullable=False)  # login, create_user, update_score, submit_lab, etc.
     target = Column(String, nullable=True)  # Chi tiết đối tượng bị tác động
     ip_address = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
 
     # Relationships
     user = relationship('User', back_populates='audit_logs')

@@ -44,7 +44,7 @@
       "5m"
     ]
   },
-  "timezone": "browser",
+  "timezone": "Asia/Ho_Chi_Minh",
   "title": "MalSec LMS - Full Stack Infrastructure, VDI & Security Intelligence",
   "uid": "malsec-overview",
   "panels": [

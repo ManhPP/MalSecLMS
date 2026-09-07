@@ -69,7 +69,7 @@ def save_draft(
         if submission.status not in ["draft", "re_submit_requested"]:
             raise HTTPException(status_code=400, detail="Bài làm đã nộp trước đó, không thể sửa nháp")
         submission.answers = answers
-        submission.updated_at = datetime.utcnow()
+        submission.updated_at = datetime.now()
 
     db.commit()
     db.refresh(submission)
@@ -131,7 +131,7 @@ def upload_submission_file(
         "original_filename": saved_file_info["original_filename"],
         "saved_filename": saved_file_info["saved_filename"],
         "filepath": saved_file_info["filepath"],
-        "uploaded_at": datetime.utcnow().isoformat()
+        "uploaded_at": datetime.now().isoformat()
     }
     
     current_attachments.append(attachment_record)
@@ -174,7 +174,7 @@ def submit_lab(
         raise HTTPException(status_code=400, detail="Bài làm đã được nộp trước đó")
 
     # 1. Tính toán thời hạn phạt nộp muộn (bao gồm cả Gia hạn cá nhân)
-    now = datetime.utcnow()
+    now = datetime.now()
     deadline = lab.deadline
     
     # Kiểm tra gia hạn riêng cá nhân
@@ -293,7 +293,7 @@ def grade_submission(
         )
 
     submission.comment = grading.comment
-    submission.updated_at = datetime.utcnow()
+    submission.updated_at = datetime.now()
     db.commit()
     db.refresh(submission)
 

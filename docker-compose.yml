@@ -7,10 +7,14 @@ services:
       POSTGRES_USER: "${DB_USER:?DB_USER is required}"
       POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
       POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
+      TZ: "Asia/Ho_Chi_Minh"
+      PGTZ: "Asia/Ho_Chi_Minh"
     ports:
       - "127.0.0.1:${DB_HOST_PORT:?DB_HOST_PORT is required}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -33,6 +37,7 @@ services:
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:?BACKEND_HOST_PORT is required}:${BACKEND_PORT:?BACKEND_PORT is required}"
     environment:
+      TZ: "Asia/Ho_Chi_Minh"
       DATABASE_URL: "postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:?DB_NAME is required}"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
       JWT_ALGORITHM: "${JWT_ALGORITHM:?JWT_ALGORITHM is required}"
@@ -81,6 +86,8 @@ services:
       GUAC_SSH_IGNORE_HOST_KEY: "${GUAC_SSH_IGNORE_HOST_KEY:?GUAC_SSH_IGNORE_HOST_KEY is required}"
     volumes:
       - student_uploads:/app/uploads
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       db:
         condition: service_healthy
@@ -99,6 +106,7 @@ services:
     container_name: malsec-frontend
     restart: always
     environment:
+      TZ: "Asia/Ho_Chi_Minh"
       NGINX_ENVSUBST_FILTER: "^(NGINX_LISTEN_PORT|NGINX_SERVER_NAME|BACKEND_UPSTREAM|GUAC_UPSTREAM|CLIENT_MAX_BODY_SIZE|PROXY_CONNECT_TIMEOUT|PROXY_SEND_TIMEOUT|PROXY_READ_TIMEOUT)$"
       NGINX_LISTEN_PORT: "${NGINX_LISTEN_PORT:?NGINX_LISTEN_PORT is required}"
       NGINX_SERVER_NAME: "${NGINX_SERVER_NAME:?NGINX_SERVER_NAME is required}"
@@ -108,6 +116,9 @@ services:
       PROXY_CONNECT_TIMEOUT: "${PROXY_CONNECT_TIMEOUT:?PROXY_CONNECT_TIMEOUT is required}"
       PROXY_SEND_TIMEOUT: "${PROXY_SEND_TIMEOUT:?PROXY_SEND_TIMEOUT is required}"
       PROXY_READ_TIMEOUT: "${PROXY_READ_TIMEOUT:?PROXY_READ_TIMEOUT is required}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     ports:
       - "${FRONTEND_HTTP_PORT:?FRONTEND_HTTP_PORT is required}:${NGINX_LISTEN_PORT:?NGINX_LISTEN_PORT is required}"
     depends_on:
