@@ -1,3 +1,6 @@
+import time
+import threading
+from collections import defaultdict
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,16 +13,69 @@ from app.request_utils import get_client_ip
 from app.logging_config import logger
 
 
+class LoginRateLimiter:
+    """In-memory sliding window rate limiter to mitigate brute-force and credential stuffing attacks."""
+    def __init__(self, max_attempts: int = 5, window_seconds: int = 300):
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self._ip_failures = defaultdict(list)
+        self._user_failures = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def _cleanup(self, timestamps: list, now: float) -> list:
+        cutoff = now - self.window_seconds
+        return [ts for ts in timestamps if ts > cutoff]
+
+    def is_rate_limited(self, ip: str, username: str) -> bool:
+        now = time.time()
+        with self._lock:
+            self._ip_failures[ip] = self._cleanup(self._ip_failures[ip], now)
+            user_key = username.lower() if username else ""
+            if user_key:
+                self._user_failures[user_key] = self._cleanup(self._user_failures[user_key], now)
+
+            return len(self._ip_failures[ip]) >= self.max_attempts or (
+                bool(user_key) and len(self._user_failures[user_key]) >= self.max_attempts
+            )
+
+    def record_failure(self, ip: str, username: str):
+        now = time.time()
+        with self._lock:
+            self._ip_failures[ip].append(now)
+            user_key = username.lower() if username else ""
+            if user_key:
+                self._user_failures[user_key].append(now)
+
+    def reset_on_success(self, ip: str, username: str):
+        with self._lock:
+            self._ip_failures.pop(ip, None)
+            user_key = username.lower() if username else ""
+            if user_key:
+                self._user_failures.pop(user_key, None)
+
+
+login_limiter = LoginRateLimiter(max_attempts=5, window_seconds=300)
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=Token)
 def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_db)):
-    """API Đăng nhập hệ thống, trả về access token"""
+    """API Đăng nhập hệ thống, trả về access token (có chống dò quét mật khẩu)"""
     cleaned_username = login_data.username.strip() if login_data.username else ""
     client_ip = get_client_ip(request)
+
+    if login_limiter.is_rate_limited(client_ip, cleaned_username):
+        logger.warning(f"[SECURITY] [RATE_LIMITED] Quá nhiều lần đăng nhập thất bại: Username='{cleaned_username}' | IP: {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau 5 phút để đảm bảo an toàn.",
+            headers={"Retry-After": "300"}
+        )
+
     user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
     if not user or not verify_password(login_data.password, user.password_hash):
+        login_limiter.record_failure(client_ip, cleaned_username)
         logger.warning(f"[SECURITY] Đăng nhập THẤT BẠI: Username='{cleaned_username}' | IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -27,11 +83,15 @@ def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_d
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
+        login_limiter.record_failure(client_ip, cleaned_username)
         logger.warning(f"[SECURITY] Đăng nhập vào tài khoản ĐÃ BỊ KHÓA: Username='{cleaned_username}' | IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tài khoản đã bị khóa"
         )
+    
+    # Đăng nhập thành công -> Xóa bộ đếm lỗi
+    login_limiter.reset_on_success(client_ip, cleaned_username)
     
     # Ghi lại Audit Log
     log = AuditLog(

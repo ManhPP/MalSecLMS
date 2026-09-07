@@ -4,7 +4,7 @@ services:
     container_name: malsec-dozzle
     restart: unless-stopped
     ports:
-      - "8888:8080"
+      - "127.0.0.1:8888:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./monitoring/data:/data
@@ -20,7 +20,7 @@ services:
     container_name: malsec-loki
     restart: unless-stopped
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -89,7 +89,7 @@ services:
     container_name: malsec-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=KhongQuanLieu

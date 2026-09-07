@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
       POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
     ports:
-      - "${DB_HOST_PORT:?DB_HOST_PORT is required}:5432"
+      - "127.0.0.1:${DB_HOST_PORT:?DB_HOST_PORT is required}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
       - "--port"
       - "${BACKEND_PORT:?BACKEND_PORT is required}"
     ports:
-      - "${BACKEND_HOST_PORT:?BACKEND_HOST_PORT is required}:${BACKEND_PORT:?BACKEND_PORT is required}"
+      - "127.0.0.1:${BACKEND_HOST_PORT:?BACKEND_HOST_PORT is required}:${BACKEND_PORT:?BACKEND_PORT is required}"
     environment:
       DATABASE_URL: "postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:?DB_NAME is required}"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
