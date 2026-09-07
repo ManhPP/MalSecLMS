@@ -12,6 +12,7 @@ from typing import Tuple, Dict, Any, List
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from app.config import settings
+from app.logging_config import logger
 
 
 def get_pve_client():
@@ -233,6 +234,7 @@ def provision_student_vm(
             if not source_net0:
                 raise VMProvisionError(f"Source VM {template_vmid} has no net0 adapter")
 
+            clone_start = time.perf_counter()
             clone_upid = proxmox.nodes(node).qemu(template_vmid).clone.post(
                 newid=new_vmid,
                 name=_student_vm_name(student_username, lab_id),
@@ -244,6 +246,8 @@ def provision_student_vm(
                 clone_upid,
                 f"cloning source VM {template_vmid} to VM {new_vmid}",
             )
+            clone_duration = time.perf_counter() - clone_start
+            logger.info(f"[VM_ORCHESTRATION] CLONE_COMPLETE | User: {student_username} | Template: {template_vmid} -> VMID: {new_vmid} | Duration: {clone_duration:.1f}s")
 
             proxmox.nodes(node).qemu(new_vmid).config.post(
                 net0=_net0_with_unique_mac(source_net0),
@@ -251,6 +255,7 @@ def provision_student_vm(
             )
 
         status = proxmox.nodes(node).qemu(new_vmid).status.current.get()
+        boot_start = time.perf_counter()
         if status.get("status") != "running":
             print(f"[+] Starting VM {new_vmid}...", flush=True)
             start_upid = proxmox.nodes(node).qemu(new_vmid).status.start.post()
@@ -266,9 +271,12 @@ def provision_student_vm(
                 flush=True,
             )
             time.sleep(settings.VM_BOOT_WAIT_SECONDS)
+        boot_duration = time.perf_counter() - boot_start
+        logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Boot time: {boot_duration:.1f}s")
     except VMProvisionError:
         raise
     except Exception as exc:
+        logger.error(f"[VM_ORCHESTRATION] FAILED on VMID {new_vmid} for User {student_username}: {exc}", exc_info=True)
         raise VMProvisionError(f"Proxmox operation failed for VM {new_vmid}: {exc}") from exc
 
     print(
@@ -396,17 +404,15 @@ def generate_guacamole_auth_json_url(
     
     base_url = settings.GUAC_BASE_URL.rstrip('/')
     url = f"{base_url}/#/client/c/{connection_name}?data={quoted_data}"
+    logger.info(f"[VDI] SESSION_ISSUED | User: {student_username} | Target: {ip_address}:{port} ({protocol.upper()}) | TTL: {settings.GUAC_SESSION_TTL_SECONDS}s")
     return url
 
 def rollback_student_vm(student_username: str, lab_id: int) -> bool:
     """Tắt và xóa VM của sinh viên để clone lại từ đầu ở lần đăng nhập tới"""
     node = settings.PVE_NODE
-
-    
     proxmox = get_pve_client()
     if not proxmox:
         raise VMProvisionError("Cannot connect to the Proxmox API")
-    new_vmid = _preferred_student_vmid(student_username, lab_id)
 
     try:
         resources = proxmox.cluster.resources.get(type="vm")
@@ -424,12 +430,14 @@ def rollback_student_vm(student_username: str, lab_id: int) -> bool:
         print(f"[+] Destroying VM {new_vmid} for rollback...", flush=True)
         destroy_upid = proxmox.nodes(node).qemu(new_vmid).delete(purge=1)
         _wait_for_pve_task(proxmox, node, destroy_upid, f"destroying VM {new_vmid}")
+        logger.info(f"[VM_ORCHESTRATION] ROLLBACK | User: {student_username} | LabID: {lab_id} | Purged VMID: {new_vmid}")
         print(f"[+] VM {new_vmid} purged successfully from Proxmox!", flush=True)
         return True
     except VMProvisionError:
         raise
     except Exception as exc:
-        raise VMProvisionError(f"Rollback failed for VM {new_vmid}: {exc}") from exc
+        logger.error(f"[VM_ORCHESTRATION] ROLLBACK_FAILED for User {student_username} on Lab {lab_id}: {exc}", exc_info=True)
+        raise VMProvisionError(f"Rollback failed: {exc}") from exc
 
 
 def get_available_templates() -> List[Dict[str, Any]]:
@@ -520,7 +528,7 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     """Bật / Tắt / Xóa sạch máy ảo sinh viên trên Proxmox"""
     # Chỉ cho phép thao tác trong dải VMID dành riêng cho sinh viên.
     if not (settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX):
-        print(
+        logger.warning(
             f"[SECURITY BLOCKED] Từ chối thao tác trên VMID {vmid} ngoài dải "
             f"sinh viên ({settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX})!"
         )
@@ -540,10 +548,14 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     try:
         if action == "start":
             proxmox.nodes(node).qemu(vmid).status.start.post()
-            return {"success": True, "message": f"Đã gửi lệnh bật máy ảo sinh viên {vmid}"}
+            msg = f"Đã gửi lệnh bật máy ảo sinh viên {vmid}"
+            logger.info(f"[VM_ORCHESTRATION] CONTROL | Action: START | VMID: {vmid}")
+            return {"success": True, "message": msg}
         elif action == "stop":
             proxmox.nodes(node).qemu(vmid).status.stop.post()
-            return {"success": True, "message": f"Đã gửi lệnh tắt máy ảo sinh viên {vmid}"}
+            msg = f"Đã gửi lệnh tắt máy ảo sinh viên {vmid}"
+            logger.info(f"[VM_ORCHESTRATION] CONTROL | Action: STOP | VMID: {vmid}")
+            return {"success": True, "message": msg}
         elif action in ["purge", "delete"]:
             try:
                 proxmox.nodes(node).qemu(vmid).status.stop.post()
@@ -551,10 +563,13 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
             except Exception:
                 pass
             proxmox.nodes(node).qemu(vmid).delete(purge=1)
-            return {"success": True, "message": f"Đã xóa hoàn toàn máy ảo sinh viên {vmid} khỏi Proxmox cluster"}
+            msg = f"Đã xóa hoàn toàn máy ảo sinh viên {vmid} khỏi Proxmox cluster"
+            logger.info(f"[VM_ORCHESTRATION] CONTROL | Action: PURGE | VMID: {vmid}")
+            return {"success": True, "message": msg}
         else:
             return {"success": False, "message": "Hành động không hợp lệ"}
     except Exception as e:
+        logger.error(f"[VM_ORCHESTRATION] CONTROL_ERROR on VMID {vmid} ({action}): {e}", exc_info=True)
         return {"success": False, "message": f"Lỗi thao tác máy ảo {vmid}: {str(e)}"}
 
 

@@ -8,10 +8,42 @@
   "id": null,
   "links": [],
   "liveNow": true,
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [
+    "malsec",
+    "lms",
+    "infrastructure",
+    "security",
+    "proxmox",
+    "guacamole",
+    "audit"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "timezone": "browser",
+  "title": "MalSec LMS - Full Stack Infrastructure, VDI & Security Intelligence",
+  "uid": "malsec-overview",
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "⚡ Key Performance Indicators (Live KPIs)",
       "type": "row"
@@ -20,31 +52,58 @@
       "id": 1,
       "title": "Total Container CPU (%)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(container_cpu_usage_seconds_total{name=~\"malsec-.*\"}[1m])) * 100",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
           "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -52,25 +111,43 @@
     },
     {
       "id": 2,
-      "title": "Total Container Memory (RAM)",
+      "title": "Total Container RAM",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(container_memory_working_set_bytes{name=~\"malsec-.*\"})",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "bytes"
+          "unit": "bytes",
+          "color": {
+            "mode": "palette-classic"
+          }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -78,25 +155,44 @@
     },
     {
       "id": 3,
-      "title": "PostgreSQL DB Memory",
+      "title": "PostgreSQL DB RAM",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "container_memory_working_set_bytes{name=\"malsec-db\"}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "purple", "mode": "fixed" },
-          "unit": "bytes"
+          "unit": "bytes",
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -104,25 +200,44 @@
     },
     {
       "id": 4,
-      "title": "Backend API Memory",
+      "title": "Backend API RAM",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "container_memory_working_set_bytes{name=\"malsec-backend\"}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "blue", "mode": "fixed" },
-          "unit": "bytes"
+          "unit": "bytes",
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -130,33 +245,60 @@
     },
     {
       "id": 5,
-      "title": "API Request Rate (Req/s)",
+      "title": "API Rate (Req/s)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "sum(rate({container=\"malsec-backend\"} |= \"[API]\" [1m]))",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
           "unit": "reqps",
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 30 },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -164,33 +306,150 @@
     },
     {
       "id": 6,
-      "title": "Security Alerts (24h)",
+      "title": "Active VDI Sessions (1h)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count_over_time({container=\"malsec-backend\"} |= \"[VDI]\" [1h])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "fixedColor": "semi-dark-green",
+            "mode": "fixed"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 7,
+      "title": "File Uploads (24h)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count_over_time({container=\"malsec-backend\"} |= \"[FILE_UPLOAD]\" [24h])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "fixedColor": "orange",
+            "mode": "fixed"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Security Alerts (24h)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "count_over_time({container=\"malsec-backend\"} |= \"[SECURITY]\" [24h])",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
           "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 5 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
             ]
           }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "auto",
         "colorMode": "value",
         "graphMode": "area"
@@ -198,20 +457,36 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "id": 101,
       "title": "🖥️ Container Resource Utilization (CPU & RAM per Container)",
       "type": "row"
     },
     {
-      "id": 7,
+      "id": 9,
       "title": "CPU Utilization per Container (%)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"malsec-.*\"}[1m])) * 100",
           "legendFormat": "{{name}}",
           "refId": "A"
@@ -229,14 +504,25 @@
       }
     },
     {
-      "id": 8,
+      "id": 10,
       "title": "Memory (RAM) Usage per Container",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"malsec-.*\"})",
           "legendFormat": "{{name}}",
           "refId": "A"
@@ -255,26 +541,45 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
       "id": 102,
       "title": "🗄️ Database & Container Network I/O",
       "type": "row"
     },
     {
-      "id": 9,
+      "id": 11,
       "title": "PostgreSQL Database Performance (CPU & Memory)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "rate(container_cpu_usage_seconds_total{name=\"malsec-db\"}[1m]) * 100",
           "legendFormat": "DB CPU (%)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "container_memory_working_set_bytes{name=\"malsec-db\"}",
           "legendFormat": "DB RAM (Bytes)",
           "refId": "B"
@@ -291,20 +596,34 @@
       }
     },
     {
-      "id": 10,
+      "id": 12,
       "title": "Network Traffic per Container (RX / TX Throughput)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"malsec-.*\"}[1m]))",
           "legendFormat": "{{name}} (RX Received)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"malsec-.*\"}[1m]))",
           "legendFormat": "{{name}} (TX Transmitted)",
           "refId": "B"
@@ -323,26 +642,45 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
       "id": 103,
       "title": "📈 HTTP Traffic & Status Code Analytics",
       "type": "row"
     },
     {
-      "id": 11,
+      "id": 13,
       "title": "API Request Traffic Rate over Time (Req/s)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "sum(rate({container=\"malsec-backend\"} |= \"[API]\" [1m]))",
           "legendFormat": "Total Requests",
           "refId": "A"
         },
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "sum(rate({container=\"malsec-backend\"} |= \"[ACTION]\" [1m]))",
           "legendFormat": "User Actions [ACTION]",
           "refId": "B"
@@ -360,27 +698,44 @@
       }
     },
     {
-      "id": 12,
+      "id": 14,
       "title": "HTTP Response Status Code Breakdown (2xx, 4xx, 5xx)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\\\[API\\\\] 2[0-9]{2}\" [1m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 2[0-9]{2}\" [1m]))",
           "legendFormat": "2xx Success",
           "refId": "A"
         },
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\\\[API\\\\] 4[0-9]{2}\" [1m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 4[0-9]{2}\" [1m]))",
           "legendFormat": "4xx Client Error",
           "refId": "B"
         },
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\\\[API\\\\] 5[0-9]{2}\" [1m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 5[0-9]{2}\" [1m]))",
           "legendFormat": "5xx Server Error",
           "refId": "C"
         }
@@ -398,68 +753,37 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
-      "id": 104,
-      "title": "🛡️ User Operations & Security Event Audit Stream",
-      "type": "row"
-    },
-    {
-      "id": 13,
-      "title": "User Action & Lab Activity Timeline [ACTION]",
-      "type": "logs",
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 33 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"malsec-backend\"} |= \"[ACTION]\"",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showLabels": false,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending"
-      }
-    },
-    {
-      "id": 14,
-      "title": "Security Alerts & Authentication Failures [SECURITY]",
-      "type": "logs",
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 33 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"malsec-backend\"} |= \"[SECURITY]\"",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showLabels": false,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending"
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
-      "id": 105,
-      "title": "🔍 Error Diagnostics & Full Request Trace Stream",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 106,
+      "title": "☁️ Proxmox VM Orchestration & Guacamole VDI Operations",
       "type": "row"
     },
     {
       "id": 15,
-      "title": "Server Exceptions & Runtime Crashes (500 / Unhandled / Traceback)",
+      "title": "Proxmox VM Lifecycle, Full Clone & Rollback [VM_ORCHESTRATION]",
       "type": "logs",
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 44 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"malsec-backend\"} |~ \"(5[0-9]{2}|\\\\[UNHANDLED\\\\]|\\\\[EXCEPTION\\\\]|Traceback)\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[VM_ORCHESTRATION]\"",
           "refId": "A"
         }
       ],
@@ -472,13 +796,277 @@
     },
     {
       "id": 16,
-      "title": "Live API Request & Latency Stream [API]",
+      "title": "Guacamole VDI Remote Sessions & Access Grants [VDI]",
       "type": "logs",
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 44 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[VDI]\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 107,
+      "title": "🛡️ Security Forensics, File Integrity & Latency Bottlenecks",
+      "type": "row"
+    },
+    {
+      "id": 17,
+      "title": "File Uploads, Forensic Hashing & Threat Defense [FILE_UPLOAD / FILE_REJECTED]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |~ \"(\\[FILE_UPLOAD\\]|\\[FILE_REJECTED\\])\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 18,
+      "title": "High Latency API Requests (>1500ms) [SLOW_REQUEST]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[SLOW_REQUEST]\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 104,
+      "title": "👤 User Operations & Academic Evaluation Stream",
+      "type": "row"
+    },
+    {
+      "id": 19,
+      "title": "User Action & Lab Activity Timeline [ACTION]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[ACTION]\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 20,
+      "title": "Speed Grader Evaluations & Grade Adjustments [GRADE]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[GRADE]\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "id": 105,
+      "title": "🔍 Error Diagnostics & Live Full Request Trace Stream",
+      "type": "row"
+    },
+    {
+      "id": 21,
+      "title": "Security Alerts & Authentication Failures [SECURITY]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |= \"[SECURITY]\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 22,
+      "title": "Server Exceptions & Runtime Crashes (500 / Unhandled / Traceback)",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"malsec-backend\"} |~ \"(5[0-9]{2}|\\[UNHANDLED\\]|\\[EXCEPTION\\]|Traceback)\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 23,
+      "title": "Live API Request & Latency Stream [API]",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "{container=\"malsec-backend\"} |= \"[API]\"",
           "refId": "A"
         }
@@ -490,15 +1078,5 @@
         "sortOrder": "Descending"
       }
     }
-  ],
-  "refresh": "5s",
-  "schemaVersion": 39,
-  "tags": ["malsec", "lms", "infrastructure", "security"],
-  "time": { "from": "now-1h", "to": "now" },
-  "timepicker": {
-    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
-  },
-  "timezone": "browser",
-  "title": "MalSec LMS - Full Stack Infrastructure & Security",
-  "uid": "malsec-overview"
+  ]
 }

@@ -19,6 +19,7 @@ from app.services.file_service import FileService
 from app.services.plagiarism import PlagiarismService
 from app.config import settings
 from app.request_utils import get_client_ip
+from app.logging_config import logger
 
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
@@ -96,6 +97,12 @@ def upload_submission_file(
     is_image = field_config.get("type") == "file" and file.filename.split('.')[-1].lower() in {'png', 'jpg', 'jpeg'}
     
     saved_file_info = FileService.save_uploaded_file(file, is_image=is_image)
+    size_kb = saved_file_info.get("size_bytes", 0) / 1024.0
+    sha256 = saved_file_info.get("sha256", "N/A")
+    logger.info(
+        f"[FILE_UPLOAD] User: {current_user.username} | LabID: {lab_id} | "
+        f"File: {saved_file_info['original_filename']} ({size_kb:.1f} KB) | SHA256: {sha256}"
+    )
 
     # Tìm hoặc tạo bản nộp bài nháp để liên kết file đính kèm
     submission = db.query(Submission).filter(
@@ -266,6 +273,10 @@ def grade_submission(
     if grading.request_resubmit:
         submission.status = "re_submit_requested"
         submission.score = None
+        logger.info(
+            f"[GRADE] Instructor: {current_user.username} | SubmissionID: {submission.id} | "
+            f"StudentID: {submission.student_id} | Action: Requested Resubmission"
+        )
     else:
         submission.status = "graded"
         # Điểm số thực tế sau khi đã áp dụng hình phạt nộp muộn
@@ -275,6 +286,11 @@ def grade_submission(
         final_score = raw_score * (1.0 - penalty_ratio)
         
         submission.score = round(final_score, 2)
+        logger.info(
+            f"[GRADE] Instructor: {current_user.username} | SubmissionID: {submission.id} | "
+            f"StudentID: {submission.student_id} | RawScore: {raw_score} | "
+            f"Penalty: {submission.late_penalty or 0.0}% | FinalScore: {submission.score}"
+        )
 
     submission.comment = grading.comment
     submission.updated_at = datetime.utcnow()

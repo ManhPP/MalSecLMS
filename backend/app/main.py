@@ -66,6 +66,11 @@ async def log_requests_middleware(request: Request, call_next):
         else:
             logger.info(log_msg)
 
+        if duration_ms > 1500:
+            logger.warning(
+                f"[SLOW_REQUEST] {method} {path}{query} took {duration_ms:.1f}ms (>1500ms) | User: {user_str} | IP: {client_ip}"
+            )
+
         return response
     except Exception as exc:
         duration_ms = (time.perf_counter() - start_time) * 1000

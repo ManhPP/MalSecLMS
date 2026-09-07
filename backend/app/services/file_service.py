@@ -1,10 +1,12 @@
 import os
 import uuid
 import zipfile
+import hashlib
 from io import BytesIO
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 from app.config import settings
+from app.logging_config import logger
 
 class FileService:
     @staticmethod
@@ -12,6 +14,7 @@ class FileService:
         """Kiểm tra xem phần mở rộng file có hợp lệ hay không"""
         ext = filename.split('.')[-1].lower() if '.' in filename else ''
         if ext not in settings.ALLOWED_EXTENSIONS:
+            logger.warning(f"[FILE_REJECTED] Filename: '{filename}' | Reason: Disallowed extension '.{ext}'")
             raise HTTPException(
                 status_code=400,
                 detail=f"Định dạng file '.{ext}' không được phép. Chỉ cho phép các định dạng: {', '.join(settings.ALLOWED_EXTENSIONS)}"
@@ -20,6 +23,7 @@ class FileService:
         # Danh sách đen định dạng thực thi nguy hiểm
         dangerous_extensions = {'exe', 'bat', 'sh', 'elf', 'msi', 'scr', 'cmd', 'vbs', 'js', 'py'}
         if ext in dangerous_extensions:
+            logger.warning(f"[FILE_REJECTED] Filename: '{filename}' | Reason: Dangerous executable extension '.{ext}'")
             raise HTTPException(
                 status_code=400,
                 detail=f"File thực thi nguy hiểm '.{ext}' bị cấm tuyệt đối vì lý do an toàn bảo mật."
@@ -125,17 +129,26 @@ class FileService:
         safe_filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(settings.UPLOAD_DIR, safe_filename)
         
+        hasher = hashlib.sha256()
+        file_size = 0
+
         if is_image and ext in {'png', 'jpg', 'jpeg'}:
             # Làm sạch ảnh trước khi lưu
             cleaned_bytes = FileService.sanitize_image(upload_file)
+            hasher.update(cleaned_bytes)
+            file_size = len(cleaned_bytes)
             with open(filepath, "wb") as f:
                 f.write(cleaned_bytes)
         else:
             # Lưu file thông thường
+            content = upload_file.file.read()
+            hasher.update(content)
+            file_size = len(content)
             with open(filepath, "wb") as f:
-                content = upload_file.file.read()
                 f.write(content)
         
+        sha256_hash = hasher.hexdigest()
+
         # Nếu là file zip, chạy quét bảo mật ảo
         zip_scan = None
         if ext == 'zip':
@@ -146,6 +159,7 @@ class FileService:
                     os.remove(filepath)
                 except Exception:
                     pass
+                logger.warning(f"[FILE_REJECTED] Filename: '{upload_file.filename}' | SHA256: {sha256_hash} | Reason: Malware detected: {', '.join(zip_scan['threats_found'])}")
                 raise HTTPException(
                     status_code=400,
                     detail=f"Từ chối tải lên! Phát hiện nguy cơ bảo mật: {', '.join(zip_scan['threats_found'])}"
@@ -156,5 +170,7 @@ class FileService:
             "saved_filename": safe_filename,
             "filepath": filepath,
             "ext": ext,
+            "size_bytes": file_size,
+            "sha256": sha256_hash,
             "zip_scan_details": zip_scan
         }
