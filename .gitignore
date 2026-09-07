@@ -38,4 +38,7 @@ student_uploads/
 *.sw?
 .DS_Store
 Thumbs.db
+# --- Monitoring ---
+monitoring/data/
+
 ssh
