@@ -1048,7 +1048,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{container=\"malsec-backend\"} |~ \"(5[0-9]{2}|UNHANDLED|EXCEPTION|Traceback)\"",
+          "expr": "{container=\"malsec-backend\"} |~ \"(\\\\[API\\\\] 5[0-9]{2}|\\\\[EXCEPTION\\\\]|\\\\[UNHANDLED\\\\]|Traceback|Internal Server Error)\"",
           "refId": "A"
         }
       ],
