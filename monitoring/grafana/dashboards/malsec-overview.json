@@ -173,7 +173,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{name=\"malsec-db\"}",
+          "expr": "sum(container_memory_working_set_bytes{name=\"malsec-db\"})",
           "refId": "A"
         }
       ],
@@ -218,7 +218,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{name=\"malsec-backend\"}",
+          "expr": "sum(container_memory_working_set_bytes{name=\"malsec-backend\"})",
           "refId": "A"
         }
       ],
@@ -571,7 +571,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=\"malsec-db\"}[1m]) * 100",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{name=\"malsec-db\"}[1m])) * 100",
           "legendFormat": "DB CPU (%)",
           "refId": "A"
         },
@@ -580,7 +580,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{name=\"malsec-db\"}",
+          "expr": "sum(container_memory_working_set_bytes{name=\"malsec-db\"})",
           "legendFormat": "DB RAM (Bytes)",
           "refId": "B"
         }
@@ -717,7 +717,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 2[0-9]{2}\" [1m]))",
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ `\\[API\\] 2[0-9]{2}` [1m]))",
           "legendFormat": "2xx Success",
           "refId": "A"
         },
@@ -726,7 +726,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 4[0-9]{2}\" [1m]))",
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ `\\[API\\] 4[0-9]{2}` [1m]))",
           "legendFormat": "4xx Client Error",
           "refId": "B"
         },
@@ -735,7 +735,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(rate({container=\"malsec-backend\"} |~ \"\\[API\\] 5[0-9]{2}\" [1m]))",
+          "expr": "sum(rate({container=\"malsec-backend\"} |~ `\\[API\\] 5[0-9]{2}` [1m]))",
           "legendFormat": "5xx Server Error",
           "refId": "C"
         }
@@ -857,7 +857,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{container=\"malsec-backend\"} |~ \"(\\[FILE_UPLOAD\\]|\\[FILE_REJECTED\\])\"",
+          "expr": "{container=\"malsec-backend\"} |~ \"(FILE_UPLOAD|FILE_REJECTED)\"",
           "refId": "A"
         }
       ],
@@ -1036,7 +1036,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{container=\"malsec-backend\"} |~ \"(5[0-9]{2}|\\[UNHANDLED\\]|\\[EXCEPTION\\]|Traceback)\"",
+          "expr": "{container=\"malsec-backend\"} |~ \"(5[0-9]{2}|UNHANDLED|EXCEPTION|Traceback)\"",
           "refId": "A"
         }
       ],
