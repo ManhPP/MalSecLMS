@@ -15,7 +15,8 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/login", response_model=Token)
 def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_db)):
     """API Đăng nhập hệ thống, trả về access token"""
-    user = db.query(User).filter(User.username == login_data.username).first()
+    cleaned_username = login_data.username.strip() if login_data.username else ""
+    user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
     if not user or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,7 +55,8 @@ def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_d
 # Endpoint hỗ trợ OAuth2 Swagger UI login
 @router.post("/swagger-login")
 def swagger_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    cleaned_username = form_data.username.strip() if form_data.username else ""
+    user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

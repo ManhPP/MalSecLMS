@@ -36,7 +36,7 @@ def import_students_csv(
         raise HTTPException(status_code=400, detail="Chỉ cho phép nhập file định dạng .csv")
 
     try:
-        content = file.file.read().decode('utf-8')
+        content = file.file.read().decode('utf-8-sig')
         f = StringIO(content)
         reader = csv.reader(f)
         
