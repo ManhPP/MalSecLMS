@@ -14,12 +14,13 @@ from app.logging_config import logger
 
 
 class LoginRateLimiter:
-    """In-memory sliding window rate limiter to mitigate brute-force and credential stuffing attacks."""
-    def __init__(self, max_attempts: int = 5, window_seconds: int = 300):
-        self.max_attempts = max_attempts
+    """Sliding window rate limiter that protects against brute-force while preventing collateral lockout on shared IPs."""
+    def __init__(self, max_user_ip_attempts: int = 10, max_global_ip_attempts: int = 50, window_seconds: int = 300):
+        self.max_user_ip_attempts = max_user_ip_attempts
+        self.max_global_ip_attempts = max_global_ip_attempts
         self.window_seconds = window_seconds
-        self._ip_failures = defaultdict(list)
-        self._user_failures = defaultdict(list)
+        self._user_ip_failures = defaultdict(list)
+        self._global_ip_failures = defaultdict(list)
         self._lock = threading.Lock()
 
     def _cleanup(self, timestamps: list, now: float) -> list:
@@ -29,32 +30,42 @@ class LoginRateLimiter:
     def is_rate_limited(self, ip: str, username: str) -> bool:
         now = time.time()
         with self._lock:
-            self._ip_failures[ip] = self._cleanup(self._ip_failures[ip], now)
-            user_key = username.lower() if username else ""
-            if user_key:
-                self._user_failures[user_key] = self._cleanup(self._user_failures[user_key], now)
+            user_key = username.lower().strip() if username else ""
+            pair_key = f"{ip}:{user_key}"
 
-            return len(self._ip_failures[ip]) >= self.max_attempts or (
-                bool(user_key) and len(self._user_failures[user_key]) >= self.max_attempts
-            )
+            # Clean up history
+            self._global_ip_failures[ip] = self._cleanup(self._global_ip_failures[ip], now)
+            if user_key:
+                self._user_ip_failures[pair_key] = self._cleanup(self._user_ip_failures[pair_key], now)
+
+            # 1. Check if specific account from this IP exceeded limit (10 failed tries)
+            if user_key and len(self._user_ip_failures[pair_key]) >= self.max_user_ip_attempts:
+                return True
+
+            # 2. Check if IP is conducting mass credential stuffing across many accounts (50 failed tries)
+            if len(self._global_ip_failures[ip]) >= self.max_global_ip_attempts:
+                return True
+
+            return False
 
     def record_failure(self, ip: str, username: str):
         now = time.time()
         with self._lock:
-            self._ip_failures[ip].append(now)
-            user_key = username.lower() if username else ""
+            user_key = username.lower().strip() if username else ""
+            pair_key = f"{ip}:{user_key}"
+            self._global_ip_failures[ip].append(now)
             if user_key:
-                self._user_failures[user_key].append(now)
+                self._user_ip_failures[pair_key].append(now)
 
     def reset_on_success(self, ip: str, username: str):
         with self._lock:
-            self._ip_failures.pop(ip, None)
-            user_key = username.lower() if username else ""
+            user_key = username.lower().strip() if username else ""
+            pair_key = f"{ip}:{user_key}"
             if user_key:
-                self._user_failures.pop(user_key, None)
+                self._user_ip_failures.pop(pair_key, None)
 
 
-login_limiter = LoginRateLimiter(max_attempts=5, window_seconds=300)
+login_limiter = LoginRateLimiter(max_user_ip_attempts=10, max_global_ip_attempts=50, window_seconds=300)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
