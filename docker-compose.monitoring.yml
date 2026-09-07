@@ -43,7 +43,7 @@ services:
       - monitoring-network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.2
     container_name: malsec-grafana
     restart: unless-stopped
     ports:
@@ -56,6 +56,7 @@ services:
     volumes:
       - ./monitoring/grafana/data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - loki
     networks:
