@@ -1,5 +1,6 @@
 import time
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -79,6 +80,36 @@ async def log_requests_middleware(request: Request, call_next):
             exc_info=True
         )
         raise exc
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    client_ip = get_client_ip(request)
+    user_str = extract_user_from_request(request)
+    headers = getattr(exc, "headers", None)
+    logger.warning(
+        f"[API_ERROR] {exc.status_code} | {request.method} {request.url.path} | User: {user_str} | IP: {client_ip} | Reason: {exc.detail}"
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    client_ip = get_client_ip(request)
+    user_str = extract_user_from_request(request)
+    errors = exc.errors()
+    error_details = "; ".join([f"{'.'.join(str(loc) for loc in err.get('loc', []))}: {err.get('msg')}" for err in errors])
+    logger.warning(
+        f"[VALIDATION_ERROR] 422 | {request.method} {request.url.path} | User: {user_str} | IP: {client_ip} | InvalidFields: {error_details}"
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors}
+    )
 
 
 @app.exception_handler(Exception)

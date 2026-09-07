@@ -27,26 +27,28 @@ class LoginRateLimiter:
         cutoff = now - self.window_seconds
         return [ts for ts in timestamps if ts > cutoff]
 
-    def is_rate_limited(self, ip: str, username: str) -> bool:
+    def check_rate_limit(self, ip: str, username: str) -> tuple[bool, str]:
         now = time.time()
         with self._lock:
             user_key = username.lower().strip() if username else ""
             pair_key = f"{ip}:{user_key}"
 
-            # Clean up history
+            # Dọn dẹp các mốc thời gian ngoài cửa sổ trượt
             self._global_ip_failures[ip] = self._cleanup(self._global_ip_failures[ip], now)
             if user_key:
                 self._user_ip_failures[pair_key] = self._cleanup(self._user_ip_failures[pair_key], now)
 
-            # 1. Check if specific account from this IP exceeded limit (10 failed tries)
+            # 1. Kiểm tra giới hạn riêng cho tài khoản này từ IP này
             if user_key and len(self._user_ip_failures[pair_key]) >= self.max_user_ip_attempts:
-                return True
+                count = len(self._user_ip_failures[pair_key])
+                return True, f"Tài khoản '{user_key}' đã thử sai {count}/{self.max_user_ip_attempts} lần từ IP {ip}"
 
-            # 2. Check if IP is conducting mass credential stuffing across many accounts (50 failed tries)
+            # 2. Kiểm tra quét mật khẩu diện rộng toàn bộ IP (DDoS/Credential Stuffing)
             if len(self._global_ip_failures[ip]) >= self.max_global_ip_attempts:
-                return True
+                count = len(self._global_ip_failures[ip])
+                return True, f"IP {ip} đã thử sai {count}/{self.max_global_ip_attempts} lần trên nhiều tài khoản"
 
-            return False
+            return False, ""
 
     def record_failure(self, ip: str, username: str):
         now = time.time()
@@ -72,30 +74,53 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=Token)
 def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_db)):
-    """API Đăng nhập hệ thống, trả về access token (có chống dò quét mật khẩu)"""
+    """API Đăng nhập hệ thống, trả về access token (ghi log chi tiết nguyên nhân lỗi)"""
     cleaned_username = login_data.username.strip() if login_data.username else ""
     client_ip = get_client_ip(request)
 
-    if login_limiter.is_rate_limited(client_ip, cleaned_username):
-        logger.warning(f"[SECURITY] [RATE_LIMITED] Quá nhiều lần đăng nhập thất bại: Username='{cleaned_username}' | IP: {client_ip}")
+    # 1. Kiểm tra Rate Limiting
+    is_limited, limit_reason = login_limiter.check_rate_limit(client_ip, cleaned_username)
+    if is_limited:
+        logger.warning(
+            f"[SECURITY] [RATE_LIMITED] Bị chặn đăng nhập: Username='{cleaned_username}' | IP: {client_ip} | Chi tiết: {limit_reason}"
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau 5 phút để đảm bảo an toàn.",
+            detail=f"Quá nhiều lần đăng nhập không thành công ({limit_reason}). Vui lòng thử lại sau 5 phút.",
             headers={"Retry-After": "300"}
         )
 
+    # 2. Tìm tài khoản trong database
     user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
-    if not user or not verify_password(login_data.password, user.password_hash):
+    if not user:
         login_limiter.record_failure(client_ip, cleaned_username)
-        logger.warning(f"[SECURITY] Đăng nhập THẤT BẠI: Username='{cleaned_username}' | IP: {client_ip}")
+        logger.warning(
+            f"[AUTH_FAILED] Nguyên nhân: TÀI_KHOẢN_KHÔNG_TỒN_TẠI (USER_NOT_FOUND) | Username='{cleaned_username}' | IP: {client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tên đăng nhập hoặc mật khẩu không chính xác",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 3. Kiểm tra mật khẩu
+    if not verify_password(login_data.password, user.password_hash):
+        login_limiter.record_failure(client_ip, cleaned_username)
+        logger.warning(
+            f"[AUTH_FAILED] Nguyên nhân: SAI_MẬT_KHẨU (WRONG_PASSWORD) | Username='{cleaned_username}' (UserID: {user.id}, Role: {user.role}) | IP: {client_ip}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tên đăng nhập hoặc mật khẩu không chính xác",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 4. Kiểm tra tài khoản có bị khóa không
     if not user.is_active:
         login_limiter.record_failure(client_ip, cleaned_username)
-        logger.warning(f"[SECURITY] Đăng nhập vào tài khoản ĐÃ BỊ KHÓA: Username='{cleaned_username}' | IP: {client_ip}")
+        logger.warning(
+            f"[AUTH_FAILED] Nguyên nhân: TÀI_KHOẢN_ĐÃ_BỊ_KHÓA (ACCOUNT_INACTIVE) | Username='{cleaned_username}' (UserID: {user.id}) | IP: {client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tài khoản đã bị khóa"
@@ -103,13 +128,16 @@ def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_d
     
     # Đăng nhập thành công -> Xóa bộ đếm lỗi
     login_limiter.reset_on_success(client_ip, cleaned_username)
+    logger.info(
+        f"[AUTH_SUCCESS] Đăng nhập THÀNH CÔNG: User '{user.username}' (UserID: {user.id}, Role: {user.role}) | IP: {client_ip}"
+    )
     
     # Ghi lại Audit Log
     log = AuditLog(
         user_id=user.id,
         action="login",
         target=f"User {user.username} đăng nhập thành công",
-        ip_address=get_client_ip(request)
+        ip_address=client_ip
     )
     db.add(log)
     db.commit()
@@ -132,7 +160,14 @@ def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_d
 def swagger_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     cleaned_username = form_data.username.strip() if form_data.username else ""
     user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user:
+        logger.warning(f"[AUTH_FAILED] [SWAGGER] TÀI_KHOẢN_KHÔNG_TỒN_TẠI: Username='{cleaned_username}'")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tên đăng nhập hoặc mật khẩu không chính xác"
+        )
+    if not verify_password(form_data.password, user.password_hash):
+        logger.warning(f"[AUTH_FAILED] [SWAGGER] SAI_MẬT_KHẨU: Username='{cleaned_username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tên đăng nhập hoặc mật khẩu không chính xác"
