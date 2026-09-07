@@ -71,6 +71,16 @@ services:
       - ./monitoring/prometheus/data:/prometheus
     depends_on:
       - cadvisor
+      - pve-exporter
+    networks:
+      - monitoring-network
+
+  pve-exporter:
+    image: prompve/prometheus-pve-exporter:latest
+    container_name: malsec-pve-exporter
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/pve/pve.yml:/etc/prometheus/pve.yml:ro
     networks:
       - monitoring-network
 

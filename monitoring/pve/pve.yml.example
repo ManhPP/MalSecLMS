@@ -1,0 +1,5 @@
+default:
+  user: "root@pam"
+  token_name: "malsec-token"
+  token_value: "YOUR_PVE_TOKEN_SECRET"
+  verify_ssl: false

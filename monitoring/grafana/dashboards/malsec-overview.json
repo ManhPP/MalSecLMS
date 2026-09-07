@@ -6,7 +6,19 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["proxmox"],
+      "targetBlank": false,
+      "title": "Proxmox VE Cluster & VMs Intelligence",
+      "type": "dashboards",
+      "url": "/d/proxmox-overview"
+    }
+  ],
   "liveNow": true,
   "refresh": "5s",
   "schemaVersion": 39,

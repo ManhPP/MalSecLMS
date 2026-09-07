@@ -42,5 +42,6 @@ Thumbs.db
 monitoring/data/
 monitoring/**/data/
 monitoring/**/*.db
+monitoring/pve/pve.yml
 
 ssh
