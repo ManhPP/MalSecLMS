@@ -1,12 +1,18 @@
 import time
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.models import User
 from app.security import get_password_hash
 from app.routers import auth, users, classes, labs, submissions, admin, configuration
+from app.logging_config import setup_logging, logger
+from app.request_utils import get_client_ip, extract_user_from_request
+
+# Khởi tạo hệ thống logging
+setup_logging()
 
 # Khởi tạo bảng CSDL (Tự động đồng bộ Schema)
 # Thử kết nối nhiều lần phòng trường hợp Postgres Container khởi động chậm hơn FastAPI
@@ -15,7 +21,7 @@ for i in range(5):
         Base.metadata.create_all(bind=engine)
         break
     except Exception as e:
-        print(f"Chưa kết nối được CSDL, đang thử lại lần {i+1}/5... Lỗi: {e}")
+        logger.warning(f"Chưa kết nối được CSDL, đang thử lại lần {i+1}/5... Lỗi: {e}")
         time.sleep(3)
 
 app = FastAPI(
@@ -32,6 +38,57 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    start_time = time.perf_counter()
+    client_ip = get_client_ip(request)
+    user_str = extract_user_from_request(request)
+    path = request.url.path
+    method = request.method
+    query = f"?{request.url.query}" if request.url.query else ""
+
+    try:
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        status_code = response.status_code
+
+        # Bỏ qua log spam endpoint healthcheck gốc nếu thành công
+        if path == "/" and status_code == 200:
+            return response
+
+        log_msg = f"[API] {status_code} | {method} {path}{query} | User: {user_str} | IP: {client_ip} | {duration_ms:.1f}ms"
+        if status_code >= 500:
+            logger.error(log_msg)
+        elif status_code >= 400:
+            logger.warning(log_msg)
+        else:
+            logger.info(log_msg)
+
+        return response
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(
+            f"[EXCEPTION] 500 | {method} {path}{query} | User: {user_str} | IP: {client_ip} | {duration_ms:.1f}ms | Error: {exc}",
+            exc_info=True
+        )
+        raise exc
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    client_ip = get_client_ip(request)
+    user_str = extract_user_from_request(request)
+    logger.error(
+        f"[UNHANDLED] {request.method} {request.url.path} | User: {user_str} | IP: {client_ip} | {type(exc).__name__}: {exc}",
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Lỗi máy chủ nội bộ: {str(exc)}"}
+    )
+
 
 # Gắn các API Routers
 app.include_router(auth.router, prefix="/api")

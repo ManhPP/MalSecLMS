@@ -7,6 +7,7 @@ from app.models import User, AuditLog
 from app.schemas import Token, LoginSchema, UserOut, PasswordChange, ProfileUpdate
 from app.security import verify_password, create_access_token, get_current_user, get_password_hash
 from app.request_utils import get_client_ip
+from app.logging_config import logger
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -16,14 +17,17 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_db)):
     """API Đăng nhập hệ thống, trả về access token"""
     cleaned_username = login_data.username.strip() if login_data.username else ""
+    client_ip = get_client_ip(request)
     user = db.query(User).filter(User.username.ilike(cleaned_username)).first()
     if not user or not verify_password(login_data.password, user.password_hash):
+        logger.warning(f"[SECURITY] Đăng nhập THẤT BẠI: Username='{cleaned_username}' | IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tên đăng nhập hoặc mật khẩu không chính xác",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
+        logger.warning(f"[SECURITY] Đăng nhập vào tài khoản ĐÃ BỊ KHÓA: Username='{cleaned_username}' | IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tài khoản đã bị khóa"
