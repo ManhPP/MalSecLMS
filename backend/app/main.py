@@ -22,12 +22,12 @@ for i in range(5):
         Base.metadata.create_all(bind=engine)
         break
     except Exception as e:
-        logger.warning(f"Chưa kết nối được CSDL, đang thử lại lần {i+1}/5... Lỗi: {e}")
+        logger.warning(f"Database connection failed, retrying {i+1}/5... Error: {e}")
         time.sleep(3)
 
 app = FastAPI(
     title="MalSec LMS API",
-    description="Hệ thống quản lý học tập nộp bài và chấm điểm Lab phân tích mã độc",
+    description="Malware Analysis Lab Learning Management System",
     version="1.0.0"
 )
 
@@ -122,11 +122,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Lỗi máy chủ nội bộ: {str(exc)}"}
+        content={"detail": f"Internal server error: {str(exc)}"}
     )
 
 
-# Gắn các API Routers
+# Register API Routers
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(classes.router, prefix="/api")
@@ -137,14 +137,14 @@ app.include_router(configuration.router, prefix="/api")
 
 @app.get("/")
 def read_root():
-    return {"message": "MalSec LMS API đang hoạt động ổn định!"}
+    return {"message": "MalSec LMS API is running normally"}
 
-# --- DATA SEEDING (SỰ KIỆN KHỞI ĐỘNG HỆ THỐNG) ---
+# --- DATA SEEDING (SYSTEM STARTUP EVENT) ---
 @app.on_event("startup")
 def seed_data():
     db = SessionLocal()
     try:
-        # Auto-migration: Đảm bảo cột template_vmid đã tồn tại trong CSDL PostgreSQL
+        # Auto-migration: Ensure template_vmid columns exist
         try:
             from sqlalchemy import text
             db.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS template_vmid INTEGER;"))
@@ -177,11 +177,11 @@ def seed_data():
             db.rollback()
             print(f"Auto migration template_vmid: {e}")
 
-        # Chỉ tạo duy nhất tài khoản admin trong database trống lần đầu.
+        # Initialize admin account on empty database
         user_count = db.query(User).count()
 
         if user_count == 0:
-            print("Đang khởi tạo tài khoản quản trị ban đầu...")
+            print("Initializing default admin account...")
             admin_user = User(
                 username=settings.INITIAL_ADMIN_USERNAME,
                 password_hash=get_password_hash(settings.INITIAL_ADMIN_PASSWORD),
@@ -193,8 +193,8 @@ def seed_data():
             db.add(admin_user)
             db.commit()
 
-            print("Khởi tạo tài khoản admin hoàn tất!")
+            print("Default admin account created successfully.")
     except Exception as e:
-        print(f"Lỗi xảy ra trong quá trình khởi tạo admin: {e}")
+        print(f"Error during admin account initialization: {e}")
     finally:
         db.close()

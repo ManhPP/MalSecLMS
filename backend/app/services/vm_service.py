@@ -529,14 +529,14 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     # Chỉ cho phép thao tác trong dải VMID dành riêng cho sinh viên.
     if not (settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX):
         logger.warning(
-            f"[SECURITY BLOCKED] Từ chối thao tác trên VMID {vmid} ngoài dải "
-            f"sinh viên ({settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX})!"
+            f"[SECURITY BLOCKED] Operation denied on VMID {vmid} outside allowed student range "
+            f"({settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX})!"
         )
         return {
             "success": False, 
             "message": (
-                f"BẢO VỆ AN TOÀN HỆ THỐNG: từ chối thao tác VMID {vmid} "
-                f"ngoài dải {settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX}!"
+                f"SECURITY GUARD: Operation denied on VMID {vmid} outside student boundary "
+                f"({settings.STUDENT_VMID_MIN} - {settings.STUDENT_VMID_MAX})!"
             )
         }
 

@@ -42,7 +42,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     """Dependency lấy thông tin User hiện tại từ JWT Token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Không thể xác thực thông tin đăng nhập",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -61,12 +61,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tài khoản đã bị khóa"
+            detail="User account is disabled"
         )
     return user
 
 class RoleChecker:
-    """Helper class để kiểm tra vai trò người dùng (RBAC)"""
+    """RBAC role checker dependency"""
     def __init__(self, allowed_roles: list):
         self.allowed_roles = allowed_roles
 
@@ -74,18 +74,18 @@ class RoleChecker:
         if current_user.role not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Bạn không có quyền thực hiện hành động này"
+                detail="Access forbidden: Insufficient permissions"
             )
         return current_user
 
-# Các shortcut check quyền nhanh
+# Shortcut RBAC checkers
 require_admin = RoleChecker(["admin"])
 require_lecturer = RoleChecker(["lecturer", "admin"])
 require_student = RoleChecker(["student"])
 require_any_user = RoleChecker(["admin", "lecturer", "student"])
 
 def get_current_user_flexible(request: Request, db: Session = Depends(get_db)) -> User:
-    """Dependency lấy thông tin User hiện tại từ JWT Token (từ Header hoặc Query Parameter)"""
+    """Dependency getting User from JWT (Header or Query Param)"""
     authorization: str = request.headers.get("Authorization")
     token = None
     if authorization and authorization.startswith("Bearer "):
@@ -95,7 +95,7 @@ def get_current_user_flexible(request: Request, db: Session = Depends(get_db)) -
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Không thể xác thực thông tin đăng nhập",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     if not token:
@@ -117,12 +117,12 @@ def get_current_user_flexible(request: Request, db: Session = Depends(get_db)) -
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tài khoản đã bị khóa"
+            detail="User account is disabled"
         )
     return user
 
 class FlexibleRoleChecker:
-    """Helper class để kiểm tra vai trò người dùng (RBAC) với phương thức xác thực linh hoạt"""
+    """Flexible RBAC role checker dependency"""
     def __init__(self, allowed_roles: list):
         self.allowed_roles = allowed_roles
 
@@ -130,7 +130,7 @@ class FlexibleRoleChecker:
         if current_user.role not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Bạn không có quyền thực hiện hành động này"
+                detail="Access forbidden: Insufficient permissions"
             )
         return current_user
 

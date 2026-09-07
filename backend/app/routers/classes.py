@@ -29,22 +29,22 @@ def get_class(
     """API Lấy thông tin lớp học kèm danh sách sinh viên bên trong"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
     if current_user.role == "lecturer" and current_user not in class_.users:
-        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
+        raise HTTPException(status_code=403, detail="You do not manage this class")
     return class_
 
 @router.post("/", response_model=ClassOut, status_code=status.HTTP_201_CREATED)
 def create_class(
-    class_data: ClassCreate,
+    class_data: ClassCreate, 
     request: Request,
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """API Tạo lớp học phần mới (Chỉ Admin)"""
+    """Create a new class (Admin only)"""
     existing_class = db.query(Class).filter(Class.name == class_data.name).first()
     if existing_class:
-        raise HTTPException(status_code=400, detail="Tên lớp học phần đã tồn tại")
+        raise HTTPException(status_code=400, detail="Class name already exists")
         
     new_class = Class(
         name=class_data.name,
@@ -54,11 +54,10 @@ def create_class(
     db.commit()
     db.refresh(new_class)
     
-    # Ghi log hoạt động
     log = AuditLog(
         user_id=current_user.id,
         action="create_class",
-        target=f"Tạo lớp học: {new_class.name}",
+        target=f"Created class: {new_class.name}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -73,10 +72,10 @@ def update_class(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """API Sửa thông tin lớp học phần (Chỉ Admin)"""
+    """Update class details (Admin only)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
     class_.name = class_data.name
     class_.description = class_data.description
@@ -90,42 +89,42 @@ def delete_class(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """API Xóa lớp học phần (Chỉ Admin)"""
+    """Delete a class (Admin only)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
-    # 1. Xóa các bài nộp thuộc về bài lab của lớp này
+    # 1. Delete submissions for labs belonging to this class
     lab_ids = [lab.id for lab in class_.labs]
     if lab_ids:
         from app.models import Submission
         db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).delete(synchronize_session=False)
 
-    # 2. Xóa các bài lab thuộc lớp này
+    # 2. Delete labs in this class
     from app.models import Lab
     db.query(Lab).filter(Lab.class_id == class_id).delete(synchronize_session=False)
 
-    # 3. Xóa lớp học
+    # 3. Delete class
     db.delete(class_)
     db.commit()
-    return {"message": "Xóa lớp học phần thành công"}
+    return {"message": "Class deleted successfully"}
 
 
 @router.post("/{class_id}/students", status_code=status.HTTP_200_OK)
 def assign_students_to_class(
     class_id: int,
-    payload: Dict[str, Any], # {"usernames": ["sv01", "sv02"]} or {"student_ids": [1, 2]}
+    payload: Dict[str, Any],
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Gán danh sách sinh viên vào lớp theo Username hoặc ID (Giảng viên/Admin)"""
+    """Assign students to class by username or ID"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
     if current_user.role == "lecturer" and current_user not in class_.users:
-        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
+        raise HTTPException(status_code=403, detail="You do not manage this class")
         
     student_ids = payload.get("student_ids", [])
     usernames = payload.get("usernames", [])
@@ -138,7 +137,7 @@ def assign_students_to_class(
     elif student_ids:
         filters.append(User.id.in_(student_ids))
     else:
-        return {"message": "Không có sinh viên nào được cung cấp"}
+        return {"message": "No students provided"}
 
     students = db.query(User).filter(*filters).all()
     
@@ -150,17 +149,16 @@ def assign_students_to_class(
             
     db.commit()
     
-    # Ghi log hoạt động
     log = AuditLog(
         user_id=current_user.id,
         action="assign_students",
-        target=f"Gán {added_count} sinh viên vào lớp {class_.name}",
+        target=f"Assigned {added_count} students to class {class_.name}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
     
-    return {"message": f"Đã thêm {added_count} sinh viên vào lớp học phần"}
+    return {"message": f"Added {added_count} students to class"}
 
 @router.delete("/{class_id}/students/{student_id}", status_code=status.HTTP_200_OK)
 def remove_student_from_class(
@@ -169,36 +167,36 @@ def remove_student_from_class(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Xóa sinh viên khỏi lớp học phần (Giảng viên/Admin)"""
+    """Remove student from class"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
     if current_user.role == "lecturer" and current_user not in class_.users:
-        raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học này")
+        raise HTTPException(status_code=403, detail="You do not manage this class")
         
     student = db.query(User).filter(User.id == student_id, User.role == "student").first()
     if not student:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sinh viên")
+        raise HTTPException(status_code=404, detail="Student not found")
         
     if student in class_.users:
         class_.users.remove(student)
         db.commit()
         
-    return {"message": "Đã xóa sinh viên khỏi lớp học phần"}
+    return {"message": "Student removed from class successfully"}
 
 @router.post("/{class_id}/lecturers", status_code=status.HTTP_200_OK)
 def assign_lecturers_to_class(
     class_id: int,
-    payload: Dict[str, Any], # {"usernames": ["gv01"]} or {"lecturer_ids": [1]}
+    payload: Dict[str, Any],
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Gán giảng viên quản lý lớp theo Username hoặc ID (Chỉ Admin)"""
+    """Assign lecturers to class by username or ID (Admin only)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
     lecturer_ids = payload.get("lecturer_ids", [])
     usernames = payload.get("usernames", [])
@@ -211,7 +209,7 @@ def assign_lecturers_to_class(
     elif lecturer_ids:
         filters.append(User.id.in_(lecturer_ids))
     else:
-        return {"message": "Không có giảng viên nào được cung cấp"}
+        return {"message": "No lecturers provided"}
 
     lecturers = db.query(User).filter(*filters).all()
     
@@ -222,17 +220,16 @@ def assign_lecturers_to_class(
             added_count += 1
     db.commit()
     
-    # Ghi log hoạt động
     log = AuditLog(
         user_id=current_user.id,
         action="assign_lecturers",
-        target=f"Gán {added_count} giảng viên vào quản lý lớp {class_.name}",
+        target=f"Assigned {added_count} lecturers to manage class {class_.name}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
     
-    return {"message": f"Đã gán {added_count} giảng viên vào quản lý lớp học phần"}
+    return {"message": f"Assigned {added_count} lecturers to class"}
 
 
 @router.delete("/{class_id}/lecturers/{lecturer_id}", status_code=status.HTTP_200_OK)
@@ -242,17 +239,17 @@ def remove_lecturer_from_class(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Xóa giảng viên khỏi lớp học phần (Chỉ Admin)"""
+    """Remove lecturer from class (Admin only)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+        raise HTTPException(status_code=404, detail="Class not found")
         
     lecturer = db.query(User).filter(User.id == lecturer_id, User.role == "lecturer").first()
     if not lecturer:
-        raise HTTPException(status_code=404, detail="Không tìm thấy giảng viên")
+        raise HTTPException(status_code=404, detail="Lecturer not found")
         
     if lecturer in class_.users:
         class_.users.remove(lecturer)
         db.commit()
         
-    return {"message": "Đã xóa giảng viên khỏi lớp học phần"}
+    return {"message": "Lecturer removed from class successfully"}

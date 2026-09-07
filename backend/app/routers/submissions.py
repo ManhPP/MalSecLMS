@@ -217,11 +217,11 @@ def submit_lab(
     db.commit()
     db.refresh(submission)
 
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="submit_lab",
-        target=f"Sinh viên {current_user.username} nộp bài Lab {lab.title} (Phạt muộn: {submission.late_penalty}%)",
+        target=f"Student {current_user.username} submitted Lab {lab.title} (Late penalty: {submission.late_penalty}%)",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -297,11 +297,11 @@ def grade_submission(
     db.commit()
     db.refresh(submission)
 
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="grade_submission",
-        target=f"Giảng viên {current_user.username} chấm điểm bài làm ID {submission.id} (Điểm: {submission.score})",
+        target=f"Instructor {current_user.username} graded submission ID {submission.id} (Score: {submission.score})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -422,11 +422,11 @@ def bulk_download_submissions(
     )
     response.headers["Content-Disposition"] = f"attachment; filename=Bulk_Submissions_Lab_{lab_id}.zip"
     
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="bulk_download",
-        target=f"Tải hàng loạt minh chứng bài Lab ID {lab.id}",
+        target=f"Bulk downloaded submissions for Lab ID {lab.id}",
         ip_address=get_client_ip(request)
     )
     db.add(log)

@@ -28,7 +28,7 @@ def get_user(
     """API Lấy chi tiết tài khoản (Chỉ Admin)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+        raise HTTPException(status_code=404, detail="User not found")
     return user
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -38,11 +38,10 @@ def create_user(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """API Tạo tài khoản mới (Chỉ Admin)"""
-    # Kiểm tra trùng lặp username
+    """Create a new user account (Admin only)"""
     existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại")
+        raise HTTPException(status_code=400, detail="Username already exists")
         
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
@@ -57,11 +56,11 @@ def create_user(
     db.commit()
     db.refresh(new_user)
     
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="create_user",
-        target=f"Tạo người dùng: {new_user.username} (Role: {new_user.role})",
+        target=f"Created user: {new_user.username} (Role: {new_user.role})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -77,23 +76,21 @@ def update_user(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_lecturer)
 ):
-    """API Cập nhật thông tin tài khoản (Admin hoặc Giảng viên quản lý lớp của sinh viên)"""
+    """Update user account information"""
     if current_user.role == "lecturer":
-        # Xác thực xem người dùng cần sửa có phải student không
         student = db.query(User).filter(User.id == user_id, User.role == "student").first()
         if not student:
-            raise HTTPException(status_code=404, detail="Không tìm thấy sinh viên")
-        # Xác thực xem student có thuộc lớp giảng viên này quản lý không
+            raise HTTPException(status_code=404, detail="Student not found")
         belongs = db.query(Class).filter(
             Class.users.any(id=current_user.id),
             Class.users.any(id=student.id)
         ).first()
         if not belongs:
-            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần của sinh viên này")
+            raise HTTPException(status_code=403, detail="You do not manage the class of this student")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+        raise HTTPException(status_code=404, detail="User not found")
         
     if user_data.full_name is not None:
         user.full_name = user_data.full_name
@@ -109,11 +106,11 @@ def update_user(
     db.commit()
     db.refresh(user)
     
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="update_user",
-        target=f"Cập nhật tài khoản: {user.username}",
+        target=f"Updated user: {user.username}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -128,25 +125,25 @@ def delete_user(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """API Xóa tài khoản (Chỉ Admin)"""
+    """Delete user account (Admin only)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+        raise HTTPException(status_code=404, detail="User not found")
         
     if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Bạn không thể tự xóa tài khoản của chính mình")
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
         
     db.delete(user)
     db.commit()
     
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="delete_user",
-        target=f"Xóa tài khoản: {user.username}",
+        target=f"Deleted user: {user.username}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
     
-    return {"message": "Xóa người dùng thành công"}
+    return {"message": "User deleted successfully"}

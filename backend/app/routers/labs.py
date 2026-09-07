@@ -150,7 +150,7 @@ def create_lab(
     log = AuditLog(
         user_id=current_user.id,
         action="create_lab",
-        target=f"Tạo bài lab: {new_lab.title} (Lớp: {class_exists.name})",
+        target=f"Created lab: {new_lab.title} (Class: {class_exists.name})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -291,11 +291,11 @@ def update_individual_extensions(
     db.commit()
     db.refresh(lab)
     
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action="grant_extension",
-        target=f"Gia hạn bài lab ID {lab.id} cho {', '.join(extensions.keys())}",
+        target=f"Granted deadline extension on Lab ID {lab.id} to: {', '.join(extensions.keys())}",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -449,11 +449,11 @@ def control_lab_vm(
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["message"])
 
-    # Ghi log hoạt động
+    # Audit log
     log = AuditLog(
         user_id=current_user.id,
         action=f"vm_{action}",
-        target=f"Thao tác {action} trên máy ảo VMID {vmid} thuộc Lab {lab.title}",
+        target=f"VM {action.upper()} executed on VMID {vmid} (Lab: {lab.title})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -469,17 +469,17 @@ def batch_control_lab_vms(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Điều khiển hàng loạt: Tắt tất cả hoặc Xóa tất cả máy ảo sinh viên (Giảng viên/Admin)"""
+    """Batch VM management: stop all or purge all student VMs for a lab"""
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
-        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+        raise HTTPException(status_code=404, detail="Lab not found")
 
     if current_user.role == "lecturer" and current_user not in lab.class_.users:
-        raise HTTPException(status_code=403, detail="Bạn không quản lý bài lab này")
+        raise HTTPException(status_code=403, detail="You do not manage this lab")
 
     action = payload.get("action")
     if action not in ["stop_all", "purge_all"]:
-        raise HTTPException(status_code=400, detail="Hành động hàng loạt không hợp lệ")
+        raise HTTPException(status_code=400, detail="Invalid batch action")
 
     class_students = [u for u in lab.class_.users if u.role == "student"]
     from app.services.vm_service import list_lab_vms, control_student_vm
@@ -497,8 +497,8 @@ def batch_control_lab_vms(
             control_student_vm(vmid, "purge")
             affected_count += 1
 
-    action_text = "tắt tất cả" if action == "stop_all" else "xóa sạch tất cả"
-    msg = f"Đã gửi lệnh {action_text} ({affected_count} máy ảo) thuộc bài Lab {lab.title}"
+    action_text = "stop all" if action == "stop_all" else "purge all"
+    msg = f"Sent {action_text} command ({affected_count} VMs) for Lab {lab.title}"
 
     log = AuditLog(
         user_id=current_user.id,
