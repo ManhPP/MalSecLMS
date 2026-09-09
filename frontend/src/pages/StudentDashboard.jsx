@@ -941,11 +941,8 @@ export default function StudentDashboard() {
                                 return (
                                   <tr key={lab.id}>
                                     <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
-                                      <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                        <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
-                                          ID #{lab.id}
-                                        </span>
-                                        <span>{lab.title}</span>
+                                      <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px' }}>
+                                        {lab.title}
                                       </div>
                                       {lab.description && (
                                         <div style={{ 
@@ -1039,11 +1036,8 @@ export default function StudentDashboard() {
                       return (
                         <tr key={lab.id}>
                           <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
-                            <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
-                                ID #{lab.id}
-                              </span>
-                              <span>{lab.title}</span>
+                            <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px' }}>
+                              {lab.title}
                             </div>
                             {lab.description && (
                               <div style={{ 
@@ -1143,12 +1137,7 @@ export default function StudentDashboard() {
                     return (
                       <tr key={lab.id}>
                         <td style={{ fontWeight: '500' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
-                              ID #{lab.id}
-                            </span>
-                            <span>{lab.title}</span>
-                          </div>
+                          {lab.title}
                         </td>
                         <td>
                           <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
@@ -1197,9 +1186,6 @@ export default function StudentDashboard() {
             </button>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="badge badge-draft" style={{ fontSize: '11px', padding: '2px 8px', fontFamily: 'var(--font-mono)' }}>
-                  ID #{selectedLab.id}
-                </span>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', margin: 0 }}>{selectedLab.title}</h3>
                 {classes.find(c => c.id === selectedLab.class_id) && (
                   <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
