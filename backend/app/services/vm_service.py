@@ -163,6 +163,31 @@ def _net0_with_unique_mac(source_net0: str) -> str:
     return ",".join(parts)
 
 
+def _ensure_fakenet_rdp_whitelist(proxmox, node: str, vmid: int) -> None:
+    """
+    Tự động kiểm tra và thêm BlackListPortsTCP (3389, 22) và HostBlackList (Guacamole IP, Gateway)
+    vào file cấu hình FakeNet-NG nếu tồn tại trong VM Windows.
+    Giúp sinh viên/giảng viên mở FakeNet mà không bao giờ bị ngắt kết nối VDI/RDP làm đóng băng máy ảo.
+    """
+    try:
+        fix_ps = (
+            "$p='C:\\Tools\\fakenet\\fakenet3.5\\configs\\default.ini';"
+            "if(Test-Path $p){"
+            "$c=Get-Content $p -Raw;"
+            "if($c -notmatch 'BlackListPortsTCP.*3389'){"
+            "$c=$c -replace 'BlackListPortsTCP:.*', 'BlackListPortsTCP: 139, 3389, 22';"
+            "$c=$c -replace '#?\\s*HostBlackList:.*', 'HostBlackList: 10.30.0.50, 10.30.0.1, 10.0.80.50';"
+            "Set-Content -Path $p -Value $c -NoNewline"
+            "}"
+            "}"
+        )
+        proxmox.nodes(node).qemu(vmid).agent("exec").post(
+            command=["powershell", "-ExecutionPolicy", "Bypass", "-Command", fix_ps]
+        )
+    except Exception as e:
+        logger.warning(f"Could not check/patch FakeNet RDP whitelist on VM {vmid}: {e}")
+
+
 def _wait_for_connection(
     ip_address: str, vmid: int, protocol: str, port: int
 ) -> None:
@@ -273,6 +298,10 @@ def provision_student_vm(
                 flush=True,
             )
             time.sleep(settings.VM_BOOT_WAIT_SECONDS)
+        # Tự động đảm bảo FakeNet không chặn RDP 3389 và Guacamole IP
+        if protocol.lower() == "rdp" or port == 3389:
+            _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
+
         boot_duration = time.perf_counter() - boot_start
         logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Boot time: {boot_duration:.1f}s")
     except VMProvisionError:
