@@ -617,26 +617,30 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
 }
 
-/* DOCX Preview Page Styling */
+/* DOCX Preview Page Styling - 100% Crisp White Paper Experience */
 .docx-preview-content {
-  background: transparent !important;
+  background: #ffffff !important;
+  width: 100% !important;
 }
 
-.docx-preview-content .docx-wrapper {
-  background: transparent !important;
-  padding: 0 !important;
+.docx-preview-content .docx-wrapper,
+.docx-wrapper {
+  background: #ffffff !important;
+  padding: 16px 0 !important;
 }
 
 .docx-preview-content .docx,
 .docx-preview-content .docx-wrapper > section.docx,
+.docx-wrapper > section.docx,
+section.docx,
 .docx-preview-content article,
 .docx-preview-content section {
   background: #ffffff !important;
   color: #111827 !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-  margin-bottom: 24px !important;
-  border-radius: 6px !important;
-  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  margin: 0 auto 24px auto !important;
+  border-radius: 4px !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 .docx-preview-content p,
@@ -652,4 +656,51 @@ h1, h2, h3, h4, h5, h6 {
 .docx-preview-content h6,
 .docx-preview-content li {
   color: #111827 !important;
+}
+
+/* Speed Grader & Student Lab: Clean Light Backgrounds for Text/Answers */
+.answer-box-text {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+
+.answer-box-select {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+
+.answer-box-textarea {
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 100px;
+  color: #0f172a;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.evaluation-status-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  margin-bottom: 24px;
+}
+
+.evaluation-status-box.late {
+  background: #fef2f2;
+  border-color: #fecaca;
 }

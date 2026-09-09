@@ -1784,14 +1784,14 @@ export default function InstructorDashboard() {
 
                         {/* TEXT FIELD */}
                         {field.type === 'text' && (
-                          <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontFamily: 'var(--font-mono)', fontSize: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                          <div className="answer-box-text">
                             {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
                           </div>
                         )}
 
                         {/* SELECT FIELD */}
                         {field.type === 'select' && (
-                          <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '14px' }}>
+                          <div className="answer-box-select">
                             {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
                           </div>
                         )}
@@ -1800,7 +1800,7 @@ export default function InstructorDashboard() {
                         {field.type === 'checkbox' && (
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', padding: '4px 0' }}>
                             {ans ? ans.split(', ').map((item, idx) => (
-                              <span key={idx} className="badge badge-submitted" style={{ fontSize: '12px', border: '1px solid var(--neon-cyan)' }}>
+                              <span key={idx} className="badge badge-submitted" style={{ fontSize: '12px', border: '1px solid var(--neon-cyan)', background: '#fff' }}>
                                 {item}
                               </span>
                             )) : (
@@ -1811,14 +1811,7 @@ export default function InstructorDashboard() {
 
                         {/* TEXTAREA (MARKDOWN RENDERED WRITINGS) */}
                         {field.type === 'textarea' && (
-                          <div style={{ 
-                            padding: '14px', 
-                            background: 'rgba(5, 8, 15, 0.4)', 
-                            border: '1px solid var(--border-color)', 
-                            borderRadius: '8px', 
-                            minHeight: '100px',
-                            textAlign: 'left'
-                          }}>
+                          <div className="answer-box-textarea">
                             {parseMarkdown(ans)}
                           </div>
                         )}
@@ -1909,15 +1902,15 @@ export default function InstructorDashboard() {
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '24px' }}>
-                  <Clock size={16} style={{ color: activeSubmission.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--neon-emerald)' }} />
+                <div className={`evaluation-status-box ${activeSubmission.late_penalty > 0 ? 'late' : ''}`}>
+                  <Clock size={16} style={{ color: activeSubmission.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--neon-emerald)', flexShrink: 0 }} />
                   <div style={{ fontSize: '13px' }}>
                     {activeSubmission.late_penalty > 0 ? (
-                      <span style={{ color: 'var(--neon-ruby)', fontWeight: '500' }}>
+                      <span style={{ color: 'var(--neon-ruby)', fontWeight: '600' }}>
                         Late submission! Penalty deducted: <b>{activeSubmission.late_penalty}%</b>.
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--neon-emerald)', fontWeight: '500' }}>
+                      <span style={{ color: '#15803d', fontWeight: '600' }}>
                         On-time submission. No penalty applied.
                       </span>
                     )}
@@ -2780,7 +2773,7 @@ export default function InstructorDashboard() {
             </div>
 
             {/* Content Body */}
-            <div style={{ flex: 1, position: 'relative', overflowY: 'auto', background: previewDoc.type === 'pdf' ? '#525659' : '#f1f5f9', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, position: 'relative', overflowY: 'auto', background: previewDoc.type === 'pdf' ? '#525659' : '#ffffff', display: 'flex', flexDirection: 'column' }}>
               {previewLoading && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '40px', color: 'var(--text-primary)' }}>
                   <RefreshCw size={28} className="spin-slow" style={{ color: 'var(--neon-cyan)' }} />
@@ -2822,7 +2815,8 @@ export default function InstructorDashboard() {
                     padding: '24px', 
                     margin: '0 auto', 
                     maxWidth: '900px', 
-                    width: '100%' 
+                    width: '100%',
+                    background: '#ffffff'
                   }} 
                 />
               )}

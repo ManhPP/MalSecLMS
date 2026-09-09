@@ -229,7 +229,7 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
           onChange={(e) => onChange(e.target.value)}
         />
       ) : (
-        <div style={{ padding: '16px', minHeight: '180px', background: 'rgba(5, 8, 15, 0.6)', overflowY: 'auto' }}>
+        <div style={{ padding: '16px', minHeight: '180px', background: '#f8fafc', borderTop: '1px solid var(--border-color)', color: '#0f172a', overflowY: 'auto' }}>
           {parseMarkdown(value)}
         </div>
       )}
