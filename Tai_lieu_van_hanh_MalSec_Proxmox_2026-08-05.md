@@ -1,8 +1,8 @@
 # HỒ SƠ HIỆN TRẠNG, KIẾN TRÚC, TRIỂN KHAI VÀ HƯỚNG DẪN VẬN HÀNH MALSEC
 
 **Hệ thống:** Malware Lab trên Proxmox VE và nền tảng MalSec LMS  
-**Phiên bản tài liệu:** 1.1 — hiệu đính sau rà soát chéo lần hai  
-**Ngày chốt hiện trạng:** 05/08/2026, múi giờ Asia/Ho_Chi_Minh (UTC+7)  
+**Phiên bản tài liệu:** 1.2 — cập nhật tối ưu hóa VDI latency, Docx preview, Multi-class grouping và bảo mật file upload  
+**Ngày chốt hiện trạng:** 09/09/2026, múi giờ Asia/Ho_Chi_Minh (UTC+7)  
 **Phạm vi:** node `pve01`, pfSense, toàn bộ VM/LXC, mạng, storage, Apache Guacamole, Cloudflare Tunnel, VM triển khai `ubuntu-105`, mã nguồn và dữ liệu vận hành MalSec  
 **Nguồn nền:** [Ho_so_kien_truc_Malware_Lab_v3.docx](./Ho_so_kien_truc_Malware_Lab_v3.docx), mã nguồn tại workspace và kiểm tra trực tiếp qua SSH/API/QEMU Guest Agent  
 **Mức độ bí mật:** Nội bộ. Tài liệu cố ý không chứa mật khẩu, API token, khóa JWT, khóa Guacamole, tunnel token, serial phần cứng hoặc UUID nhạy cảm.
@@ -15,6 +15,7 @@
 |---|---|---|
 | 1.0 | 05/08/2026 | Hồ sơ as-is đầu tiên sau kiểm kê source và live system. |
 | 1.1 | 05/08/2026 | Rà soát chéo lần hai: sửa luồng Guacamole/VM và lệnh Sysprep; làm rõ quyền API, timezone, ZIP password, cleanup; bổ sung toàn bộ ISO/template, port CT 103, giới hạn audit pfSense và risk register. |
+| 1.2 | 09/09/2026 | Cập nhật tối ưu độ trễ mở VM (bỏ sleep thừa khi VM đã running), sửa render nền trắng cho DOCX preview, hỗ trợ nộp file DOCX, kiểm tra an toàn đa tầng cho file upload, cho phép sinh viên chỉnh sửa bài nộp trước deadline, chuyển đổi toàn bộ giao diện sang tiếng Anh, Speed Grader chọn nhanh sinh viên. |
 
 ---
 
@@ -856,9 +857,10 @@ sequenceDiagram
 - Nếu QGA không báo IP trong 180 giây, API trả lỗi 502; không phát link sai.
 - Base phải stopped. Nếu source đang running, hệ thống từ chối clone.
 
-### 18.4. Readiness
+### 18.4. Readiness và tối ưu hóa độ trễ phiên (Latency Optimization)
 
-Code có thể thử TCP protocol trước khi trả link, nhưng live `VM_VERIFY_CONNECTION=false`; do đó chỉ chờ `VM_BOOT_WAIT_SECONDS=15` sau khi có IP. Đây là lý do có thể gặp iframe reconnect nếu XRDP/RDP chưa sẵn sàng dù QGA đã lên. Sau khi network policy cho phép backend/hoặc probe từ Guacamole phù hợp, nên bật verify connection hoặc chuyển readiness check sang CT 103.
+- **Trường hợp VM vừa mới tạo hoặc đang tắt:** Backend khởi động VM và đợi QGA báo IP. Khi `VM_VERIFY_CONNECTION=false`, hệ thống chờ `VM_BOOT_WAIT_SECONDS=15` để guest OS hoàn tất boot và cấu hình whitelist cho FakeNet nếu là RDP.
+- **Trường hợp VM đã ở trạng thái chạy (`running`) từ trước:** Backend nhận diện cờ `is_already_running = True`, lấy ngay IP từ QGA và trả về Encrypted JSON URL ngay lập tức (**< 1 giây**), hoàn toàn bỏ qua `time.sleep` 15 giây và lệnh Powershell không cần thiết. Điều này giúp loại bỏ độ trễ khi sinh viên vào lại bài lab đang làm dở.
 
 ### 18.5. Rollback
 
@@ -937,25 +939,27 @@ Lecturer chọn class, deadline, policy nộp muộn, trạng thái active, bậ
 
 Mô tả lab được frontend render theo cú pháp Markdown đơn giản. Không có server-side Markdown sanitizer chuyên dụng được quan sát; React mặc định escape string, parser tự dựng element, nên cần kiểm thử XSS khi mở rộng parser.
 
-### 20.2. Autosave và submit
+### 20.2. Autosave, submit và chỉnh sửa bài nộp (Resubmission before Deadline)
 
 1. Student mở lab active; frontend lấy bài hiện có.
-2. Nếu VM enabled, gọi cấp phiên song song với tải form.
+2. Nếu VM enabled, gọi cấp phiên song song với tải form (tối ưu hóa độ trễ < 1 giây nếu VM đã chạy).
 3. Frontend autosave `answers` mỗi 30 giây và có nút lưu thủ công.
 4. Upload tạo/cập nhật submission draft và attachment metadata.
-5. Trước submit, frontend kiểm tra field required; backend hiện không lặp đầy đủ validation required.
-6. Backend so sánh bằng `datetime.utcnow()` với deadline lưu dạng timestamp không timezone; deadline chung được frontend chuyển sang ISO UTC, nhưng extension cá nhân hiện gửi chuỗi `datetime-local` chưa đổi UTC — xem cảnh báo tại mục 20.6.
+5. Trước submit, frontend kiểm tra field required.
+6. Backend so sánh thời gian nộp với deadline (kể cả thời hạn gia hạn cá nhân).
 7. Nếu muộn: từ chối khi `allow_late=false`, hoặc tính `%/giờ` tới max.
 8. Chạy so tương đồng, chuyển status `submitted`, ghi audit.
-9. Lecturer chấm raw score; final score = raw × (1 − late penalty/100), làm tròn 2 số.
-10. Lecturer có thể yêu cầu nộp lại, đưa status `re_submit_requested` và xóa score.
+9. **Chỉnh sửa bài làm đã nộp (Unsubmit/Edit):** Nếu bài lab chưa hết hạn (hoặc trong khung nộp muộn cho phép) và chưa bị Giảng viên khóa điểm (`graded`), sinh viên được phép quay lại chỉnh sửa câu trả lời, thay đổi file đính kèm và cập nhật lại bài nộp của mình mà không cần chờ Giảng viên gửi yêu cầu làm lại thủ công.
+10. Lecturer chấm raw score; final score = raw × (1 − late penalty/100), làm tròn 2 số.
+11. Lecturer có thể yêu cầu nộp lại (`re_submit_requested`), xóa score và mở khóa cho sinh viên làm lại.
+12. **Giao diện chấm bài Speed Grader nâng cao:** Giảng viên có thể chuyển đổi nhanh và chọn trực tiếp bất kỳ sinh viên nào trong lớp thông qua dropdown / thanh chuyển sinh viên tức thì mà không cần phải thoát ra màn hình danh sách bên ngoài.
 
 ### 20.3. Trạng thái bài
 
 ```text
-draft → submitted → graded
-          ↓
-   re_submit_requested → submitted → graded
+draft ⇄ submitted → graded
+          ↓   ↑
+   re_submit_requested
 ```
 
 ### 20.4. Chống sao chép
@@ -988,12 +992,19 @@ Xử lý mục tiêu: dùng timestamp timezone-aware ở DB/model, chuẩn hóa 
 
 ### 21.1. Đã triển khai
 
-- Allowlist live: `png,jpg,jpeg,txt,log,pcap,pdf,zip`.
+- Allowlist live: `png,jpg,jpeg,txt,log,pcap,pdf,docx,zip`.
 - Blacklist executable trực tiếp: `exe,bat,sh,elf,msi,scr,cmd,vbs,js,py`.
 - Tên lưu dùng UUID, giảm overwrite/path traversal.
 - Ảnh được Pillow decode/re-encode PNG, bỏ EXIF.
-- ZIP có password môn học được thử giải mã; code hiện đánh dấu các extension bên trong gồm `exe,bat,sh,elf,msi,scr,dll` là infected và xóa file ZIP. Tập này không hoàn toàn trùng blacklist file trực tiếp.
-- File response có kiểm tra prefix upload directory và ownership tương ứng, nhưng phép kiểm tra prefix còn lỏng như nêu dưới đây.
+- File PDF và DOCX được hỗ trợ xem trước trực quan (In-browser Document Preview):
+  - File PDF mở qua viewer nhúng trực tiếp.
+  - File DOCX hiển thị qua thư viện `docx-preview`, đã được tùy biến CSS ép container và thẻ nội dung sang giao diện trang in trắng tinh khiết (`#ffffff`), chữ đen tương phản cao (`#111827`) và đổ bóng chuẩn khổ giấy A4, ngăn chặn hoàn toàn lỗi nền tối kế thừa từ dark theme.
+- Kiểm tra an toàn file đính kèm đa tầng:
+  - Kiểm tra Magic Bytes / MIME type thật sự thay vì chỉ dựa vào đuôi mở rộng.
+  - Kiểm tra kích thước file thật (Content-Length và byte stream).
+  - Khử mã độc tiềm ẩn trong file DOCX (quét macro độc hại `vbaProject.bin`, OLE objects độc hại, DDE injection).
+- ZIP có password môn học được thử giải mã; code hiện đánh dấu các extension bên trong gồm `exe,bat,sh,elf,msi,scr,dll` là infected và xóa file ZIP.
+- File response có kiểm tra prefix upload directory và ownership tương ứng.
 
 `MALWARE_ZIP_PASSWORD` hiện **không phải secret bảo mật** theo cách ứng dụng đang vận hành: `/api/config/client` trả giá trị này cho mọi user đã đăng nhập và UI hiển thị cho student/lecturer. Nó chỉ là mật khẩu quy ước để đóng gói mẫu, không được tái sử dụng làm mật khẩu tài khoản, VM, DB hay secret mã hóa.
 
@@ -1444,18 +1455,19 @@ Chọn student và deadline mới. Backend lưu theo username trong JSON và dea
 
 ## 31. Hướng dẫn Sinh viên
 
-### 31.1. Dashboard
+### 31.1. Dashboard Sinh viên
 
-Sau login, danh sách active lab của tất cả class được chia theo trạng thái. Chọn “Làm bài/Xem bài” để vào workbench. Nếu không thấy lab, kiểm tra class assignment, `is_active` và deadline với giảng viên.
+Sau khi đăng nhập, bài lab được tự động phân nhóm trực quan theo từng Lớp học phần (`Class`). Sinh viên tham gia nhiều lớp có thể dễ dàng theo dõi, lọc bài lab theo từng môn học và xem tiến độ làm bài (Chưa bắt đầu, Đang viết nháp, Cần làm lại, Đã nộp/Đã chấm). Không hiển thị lộ mã `lab_id` thô ra giao diện sinh viên nhằm giữ UI tinh gọn, tập trung vào tên bài lab và hạn nộp.
 
-### 31.2. Mở máy ảo
+### 31.2. Mở máy ảo và làm bài
 
-Khi mở lab có VM:
+Khi mở lab có máy ảo:
 
-1. Backend tìm hoặc tạo VM riêng.
-2. Banner hiển thị VMID, protocol và IP.
-3. Iframe Guacamole tự đăng nhập và mở desktop/terminal.
-4. Lần đầu/full clone có thể mất vài phút; không bấm liên tục nhiều tab.
+1. Backend kiểm tra máy ảo của sinh viên. Nếu máy ảo đã được tạo và đang chạy (`running`), phiên làm việc được thiết lập ngay tức thì (**< 1 giây**). Nếu máy ảo chưa tạo hoặc đang tắt, hệ thống sẽ tiến hành full clone/khởi động tự động.
+2. Banner trạng thái hiển thị thông tin máy ảo, protocol và IP nội bộ.
+3. Iframe Guacamole tự đăng nhập và mở desktop/terminal trực tuyến.
+4. Mọi tài liệu minh chứng đính kèm (ảnh, PDF, DOCX) đều có thể xem trước trực tiếp trên giao diện với nền giấy trắng rõ nét mà không cần tải về máy cá nhân.
+5. Khi đã nộp bài, nếu chưa hết hạn deadline và bài chưa bị khóa điểm, sinh viên có thể chọn "Edit Submission" để cập nhật lại bài làm nếu cần sửa đổi.
 
 Nếu iframe reconnect:
 

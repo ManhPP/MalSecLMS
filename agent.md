@@ -7,8 +7,7 @@ Tệp này là tài liệu bàn giao nhanh cho agent hoặc kỹ sư tiếp qu�
 ## 1. Tóm tắt nhanh
 
 - Workspace local: repository MalSec hiện tại.
-- Nhánh tại thời điểm tạo tài liệu: `dev-multi-vms`.
-- Commit nền tại thời điểm tạo tài liệu: `e17630f2de875bb421a84317e6ebf1d71a4a4c0a`.
+- Nhánh chính hiện tại: `main`.
 - Máy triển khai ứng dụng: VM 105, truy cập bằng SSH alias `ubuntu-105`.
 - Thư mục deploy trên VM 105: `/home/iahn/malsec`.
 - Proxmox node thật: `pve01`; SSH alias dùng để truy cập: `pve01-cf`.
@@ -16,10 +15,12 @@ Tệp này là tài liệu bàn giao nhanh cho agent hoặc kỹ sư tiếp qu�
 - Apache Guacamole chạy riêng trong LXC 103 trên Proxmox.
 - pfSense chạy ở VM 100 và làm gateway/DHCP cho VLAN sandbox.
 - VM sinh viên được full-clone từ base VM, có MAC riêng, IP DHCP riêng và được tìm lại bằng stable name `lab-{lab_id}-{username}`.
-- Tài liệu hiện trạng đầy đủ nhất là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.md`.
+- **Tối ưu hóa VDI Latency (09/2026):** Mở VM ngay tức thì (< 1 giây) khi VM đã running, bỏ hoàn toàn thời gian chờ 15 giây không cần thiết.
+- **Tính năng LMS mới:** Xem trước file Word (.docx) chuẩn khổ giấy A4 nền trắng; kiểm tra an toàn đa tầng cho file tải lên; cho phép sinh viên chỉnh sửa bài nộp khi chưa hết hạn; phân nhóm bài lab theo lớp học; Speed Grader với bộ chọn chuyển sinh viên nhanh; chuyển đổi giao diện sang chuẩn tiếng Anh đồng bộ.
+- Tài liệu hiện trạng đầy đủ nhất là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.md` (phiên bản 1.2).
 - Bản Word tương ứng là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.docx`.
 
-Thông tin live trong tài liệu trên được kiểm kê ngày 05/08/2026. Trước mọi thao tác có tác động, phải kiểm tra lại vì VM, IP, snapshot, dung lượng và trạng thái service có thể đã thay đổi.
+Thông tin live trong tài liệu trên được cập nhật định kỳ (mốc kiểm kê lớn 05/08/2026 và cập nhật tính năng 09/09/2026). Trước mọi thao tác có tác động, phải kiểm tra lại vì VM, IP, snapshot, dung lượng và trạng thái service có thể đã thay đổi.
 
 ## 2. Thứ tự ưu tiên nguồn sự thật
 

@@ -76,45 +76,38 @@ Hệ thống đã được tự động nạp sẵn dữ liệu mẫu phong phú
 
 ### 👣 Bước 3: Sinh viên làm bài Split-Screen & Trình soạn thảo Markdown
 1. Đăng xuất, đăng nhập bằng tài khoản sinh viên `sv01` / `student123`.
-2. **Dashboard Sinh viên & Bộ lọc bài Lab:**
-   * Tại trang chủ, sinh viên quan sát thấy thanh công cụ tìm kiếm và lọc bài Lab ở trên cùng.
-   * Sinh viên có thể tìm bài Lab theo tiêu đề, lọc theo trạng thái làm bài (Chưa bắt đầu, Đang viết nháp, Cần làm lại) và sắp xếp theo Hạn nộp/Tiêu đề.
-   * Bạn sẽ thấy danh sách bài Lab 01 đang mở cần làm, kèm theo đồng hồ đếm ngược động màu cam hiển thị chính xác thời gian còn lại (kể cả thời hạn gia hạn cá nhân nếu được gán).
-3. **Màn hình làm bài Split-Screen:** Nhấn "Làm bài" tại bài Lab 01:
-   * **Bên trái (65%):** Giao diện cổng máy ảo Apache Guacamole kết nối trực tuyến tới FLARE-VM/REMnux. Thử bấm nút **"Rollback VM sạch (PBS)"** để phục hồi máy ảo ban đầu qua Proxmox Backup Server, hoặc bấm "Đổi máy ảo" để chuyển hệ điều hành.
+2. **Dashboard Sinh viên & Phân nhóm lớp học:**
+   * Tại trang chủ, toàn bộ bài lab được phân nhóm trực quan theo từng Lớp học phần (`Class`). Sinh viên tham gia nhiều lớp sẽ thấy các khối lớp riêng biệt, dễ dàng tìm kiếm và lọc bài theo môn học.
+   * Mã `lab_id` thô được ẩn hoàn toàn để giữ giao diện tinh gọn, tập trung vào tên bài lab và thời hạn làm bài.
+   * Đồng hồ đếm ngược động hiển thị chính xác thời gian còn lại (bao gồm cả thời hạn gia hạn cá nhân nếu có).
+3. **Màn hình làm bài Split-Screen & Tối ưu mở máy ảo (< 1s):** Nhấn "Start Lab" / "Làm bài":
+   * **Mở VM tức thì:** Nếu máy ảo đã được tạo và đang chạy (`running`), phiên kết nối Guacamole xuất hiện ngay lập tức trong vòng chưa đầy 1 giây mà không phải chờ đợi.
+   * **Bên trái (65%):** Giao diện cổng máy ảo Apache Guacamole kết nối trực tuyến tới FLARE-VM/REMnux. Hỗ trợ rollback máy ảo sạch hoặc đổi máy ảo.
    * **Bên phải (35%):** Form điền báo cáo động được dựng chính xác theo cấu hình bài Lab.
 4. **Trình soạn thảo Markdown & Live Preview:**
-   * Tại trường dán mã Assembly, bạn sẽ thấy thanh công cụ soạn thảo Markdown chuyên dụng phía trên.
-   * Thử bôi đen chữ và nhấn các nút để tự động định dạng: **H3 (Tiêu đề)**, **B (Tô đậm)**, **Code (Tạo khối mã Assembly)**, **List (Danh mục)** hoặc **Threat (Cảnh báo đỏ phát sáng)**.
-   * Nhấn nút **"Xem trước" (Live Preview)** để thấy kết quả hiển thị được định dạng vô cùng lôi cuốn với các khối mã monospace nền tối và thẻ threat đỏ rực.
-5. **Chọn nhiều hành vi mã độc (Checkbox list):**
-   * Đối với câu hỏi phân loại hành vi, sinh viên có thể tích chọn đồng thời nhiều ô checkbox (Ví dụ: WannaCry vừa là *Ransomware* vừa là *Worm* để lan truyền).
-6. **Auto-save phía Server:** Hãy gõ thử văn bản. Quan sát góc trên bên phải, cứ mỗi 30 giây đèn xanh neon sẽ nháy sáng báo trạng thái *"Đã đồng bộ với máy chủ"*. Thử bấm F5 tải lại trang, toàn bộ bài làm thô, tệp tải lên và các checkbox đã tích đều được khôi phục nguyên vẹn!
-7. **Tải file đính kèm an toàn (Airlock Security):**
-   * **Ảnh chụp màn hình:** Tải lên file ảnh `.png`. Backend tự động làm sạch metadata (EXIF) để bảo vệ an toàn.
-   * **File mã hóa zip:** Tải lên file `.zip` chứa log. Thử đặt mật khẩu sai cho file zip, hệ thống sẽ từ chối tải lên và yêu cầu đổi về mật khẩu `infected`. Hệ thống cũng sẽ chặn đứng và xóa file lập tức nếu phát hiện file nguy hại dạng `.exe` bên trong.
-8. Nhấn **"Nộp báo cáo chính thức"** và xác nhận.
-9. **Xem lại bài làm đã chấm:** Sau khi Giảng viên chấm điểm bài làm của sinh viên, bài Lab đó sẽ được chuyển xuống phần **"Lịch sử & Kết quả chấm điểm bài Lab"**. Sinh viên có thể click vào nút **"Xem lại bài"** để:
-   * Xem điểm số trực quan nhận được và ý kiến nhận xét chi tiết của Giảng viên (tránh lỗi crash hiển thị do thiếu import Icon `Award`).
-   * Xem lại toàn bộ câu trả lời, checkbox và báo cáo tự luận Markdown đã nộp.
-   * Xem và tải trực tiếp các tệp chứng cứ đã tải lên một cách an toàn bằng cách click vào tên tệp tin tương ứng.
+   * Hỗ trợ định dạng tiêu đề, danh sách, khối mã phân tích và cảnh báo mối đe dọa (Threat).
+5. **Đính kèm tài liệu & Xem trước file (Word, PDF, Ảnh):**
+   * Cho phép đính kèm file ảnh, file nén mã độc có mật khẩu, file PDF và file `.docx`.
+   * Nhấp chuột vào tên file `.docx` đã tải lên: Hệ thống mở ngay modal xem trước văn bản Word trực tuyến với **nền giấy trắng tinh khiết, chữ đen đậm nét và đổ bóng chân thực**, không bị tối màu hay lỗi giao diện.
+6. **Auto-save phía Server & Nộp bài:**
+   * Tự động lưu bản nháp mỗi 30 giây lên máy chủ.
+   * Nhấn "Nộp báo cáo chính thức" và xác nhận.
+7. **Chỉnh sửa bài nộp (Edit Submission before Deadline):**
+   * Nếu đã nộp bài nhưng vẫn còn trong thời hạn nộp và bài chưa bị chấm điểm, sinh viên có thể nhấn nút **"Edit Submission"** để mở lại form, chỉnh sửa câu trả lời, thay đổi file minh chứng và nộp lại phiên bản mới nhất.
 
 ---
 
-
-### 👣 Bước 4: Giảng viên chấm bài Speed Grader giàu định dạng
+### 👣 Bước 4: Giảng viên chấm bài Speed Grader với bộ chuyển sinh viên nhanh
 1. Đăng xuất, đăng nhập lại bằng tài khoản giảng viên `lecturer` / `lecturer123`.
-2. Nhấn nút **"Chấm bài &rarr;"** tại bài Lab 01. Nhấp **"Chấm Speed Grader"** cho bài của `sv01`.
-3. **Giao diện chấm bài chia đôi màn hình:**
-   * **Bên trái:** Kết xuất (render) toàn bộ báo cáo của sinh viên. 
-     * Ảnh chụp màn hình hiển thị trực tuyến an toàn (nhấp chuột để phóng to).
-     * Báo cáo tự luận dạng Markdown được kết xuất sang HTML an toàn, làm nổi bật các tiêu đề, danh sách, khối code đơn cách nền tối và các cảnh báo threat đỏ neon.
-     * Các checkbox sinh viên chọn được hiển thị dưới dạng **các thẻ tag xanh neon viền sáng rất đẹp mắt**.
-     * File log `.zip` được giải mã và hiển thị chính xác trạng thái quét bảo mật an toàn kèm danh mục các tệp tin bên trong!
-     * Hệ thống tự động đối khớp văn bản và hiển thị **Cảnh báo nghi vấn đạo văn** (nếu sinh viên có hành vi sao chép của bạn khác).
-   * **Bên phải:** Bảng chấm điểm hiển thị rõ sinh viên có nộp muộn hay không để tự áp hình phạt muộn theo cấu hình của bài lab.
-4. Nhập điểm số (ví dụ: `9.5`), nhập nhận xét chi tiết, rồi nhấn "Lưu".
-5. Giảng viên có thể kiểm tra nút "Xuất bảng điểm (CSV)" để tải bảng điểm Excel mẫu về máy, hoặc bấm "Tải toàn bộ bài nộp (.ZIP)" để lưu trữ minh chứng đào tạo gồm đầy đủ file tổng hợp `.txt` của từng sinh viên và các file đính kèm tương ứng.
+2. Nhấn nút **"Chấm bài &rarr;"** tại bài Lab. Nhấp **"Chấm Speed Grader"**.
+3. **Bộ chọn sinh viên nhanh (Fast Student Switcher):**
+   * Ngay trên thanh tiêu đề của Speed Grader, giảng viên có thể:
+     * Dùng dropdown để chọn trực tiếp bất kỳ sinh viên nào trong lớp mà không cần phải thoát ra ngoài.
+     * Sử dụng hai nút điều hướng mũi tên `<` và `>` để chuyển nhanh giữa các bài làm.
+     * Tính năng tự động chuyển sang sinh viên tiếp theo sau khi chấm điểm thành công vẫn được giữ nguyên vẹn.
+4. **Xem trước tài liệu bài nộp trực tiếp:**
+   * Xem trước văn bản Word (`.docx`), PDF và ảnh chụp màn hình ngay trong giao diện chấm điểm.
+5. Nhập điểm số, nhận xét chi tiết và nhấn "Lưu". Toàn bộ thao tác diễn ra liền mạch, tối ưu UX cho giảng viên khi chấm cả lớp.
 
 ---
 

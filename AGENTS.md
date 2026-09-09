@@ -57,8 +57,8 @@ qm guest cmd <vmid> network-get-interfaces
 
 | Layer | Technology | Details |
 |---|---|---|
-| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, responsive VDI canvas, Markdown viewer, dynamic form builder, UserProfileModal |
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine |
+| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, instant VDI canvas (<1s for running VMs), in-browser Word docx / PDF viewer with realistic paper theme, Fast Student Switcher Speed Grader, dynamic form builder, class grouping |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine, multi-layer file security validation (Magic bytes, DOCX macro/OLE scanning, ZIP infection detection), resubmission before deadline |
 | **Database** | PostgreSQL 16 | Relational store for Users, Classes, Labs, Submissions, Audit Logs |
 | **VDI Proxy** | Apache Guacamole 1.6.0 (LXC 103) | `guacamole-auth-json` plugin, guacd daemon, RDP (3389) protocol translation |
 | **Hypervisor** | Proxmox VE (pve01) | Full-clone orchestration, MAC sync, isolated VLAN 30 network |
