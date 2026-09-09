@@ -4,7 +4,8 @@ import {
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
-  Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2
+  Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
+  ChevronLeft, UserCheck
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
@@ -319,7 +320,7 @@ export default function InstructorDashboard() {
       setPreviewLoading(true)
       try {
         const res = await fetch(fileUrl)
-        if (!res.ok) throw new Error('Không thể tải tệp tin Word từ máy chủ')
+        if (!res.ok) throw new Error('Unable to download Word document from server')
         const arrayBuffer = await res.arrayBuffer()
         
         // Wait small tick for modal DOM node to mount
@@ -338,7 +339,7 @@ export default function InstructorDashboard() {
         }, 150)
       } catch (err) {
         console.error('Error rendering DOCX:', err)
-        setPreviewError('Lỗi hiển thị tệp tin DOCX: ' + err.message)
+        setPreviewError('Error displaying DOCX document: ' + err.message)
         setPreviewLoading(false)
       }
     }
@@ -650,10 +651,10 @@ export default function InstructorDashboard() {
   // Clone Lab Handlers
   const openCloneModal = (lab) => {
     setCloneSourceLab(lab)
-    // Tìm các lớp khác lớp hiện tại của lab
+    // Find classes other than current lab's class
     const otherClasses = classes.filter(c => c.id !== lab.class_id)
     setCloneTargetClassId(otherClasses[0]?.id || classes[0]?.id || '')
-    setCloneNewTitle(`${lab.title} (Bản sao)`)
+    setCloneNewTitle(`${lab.title} (Copy)`)
     
     if (lab.deadline) {
       const d = new Date(lab.deadline)
@@ -669,7 +670,7 @@ export default function InstructorDashboard() {
     e.preventDefault()
     if (!cloneSourceLab) return
     if (!cloneTargetClassId) {
-      setError('Vui lòng chọn lớp học phần đích')
+      setError('Please select a target class')
       return
     }
 
@@ -695,9 +696,9 @@ export default function InstructorDashboard() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi khi nhân bản bài lab')
+      if (!res.ok) throw new Error(data.detail || 'Error cloning lab assignment')
 
-      setSuccess(`Nhân bản bài lab "${data.title}" sang lớp mới thành công!`)
+      setSuccess(`Lab "${data.title}" successfully cloned to target class!`)
       setShowCloneModal(false)
       setCloneSourceLab(null)
       fetchData()
@@ -1127,10 +1128,10 @@ export default function InstructorDashboard() {
                   onClick={() => setLabGroupByClass(!labGroupByClass)}
                   className={`btn ${labGroupByClass ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  title="Bật/Tắt gom nhóm bài lab theo từng lớp"
+                  title="Toggle grouping labs by class"
                 >
                   <Layers size={14} />
-                  {labGroupByClass ? 'Gom nhóm: Theo Lớp' : 'Gom nhóm: Tắt'}
+                  {labGroupByClass ? 'Group: By Class' : 'Group: Off'}
                 </button>
               </div>
             </div>
@@ -1179,7 +1180,7 @@ export default function InstructorDashboard() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span className="badge badge-submitted" style={{ fontSize: '12px', fontWeight: '600' }}>
-                            {group.labs.length} bài lab
+                            {group.labs.length} {group.labs.length === 1 ? 'lab' : 'labs'}
                           </span>
                         </div>
                       </div>
@@ -1247,7 +1248,7 @@ export default function InstructorDashboard() {
                                         onClick={() => openCloneModal(lab)} 
                                         className="btn btn-secondary" 
                                         style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
-                                        title="Nhân bản bài lab sang lớp khác"
+                                        title="Clone lab assignment to another class"
                                       >
                                         <Copy size={13} style={{ marginRight: '4px' }} /> Clone
                                       </button>
@@ -1350,12 +1351,12 @@ export default function InstructorDashboard() {
                                   <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
                                 </button>
                               )}
-                              <button 
-                                onClick={() => openCloneModal(lab)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
-                                title="Nhân bản bài lab sang lớp khác"
-                              >
+                                <button 
+                                  onClick={() => openCloneModal(lab)} 
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
+                                  title="Clone lab assignment to another class"
+                                >
                                 <Copy size={13} style={{ marginRight: '4px' }} /> Clone
                               </button>
                               <button 
@@ -1659,20 +1660,96 @@ export default function InstructorDashboard() {
               {/* Left Screen (65%): Student answers dynamically rendered */}
               <div className="split-left">
                 <div className="cyber-card" style={{ flex: 1, overflowY: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
-                      <h3 style={{ fontSize: '18px', color: 'var(--neon-cyan)' }}>
-                        Report: {activeSubmission.student?.full_name}
-                      </h3>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <h3 style={{ fontSize: '18px', color: 'var(--neon-cyan)', margin: 0 }}>
+                          Report: {activeSubmission.student?.full_name}
+                        </h3>
+                        <span className={`badge ${
+                          activeSubmission.status === 'draft' ? 'badge-draft' :
+                          activeSubmission.status === 'submitted' ? 'badge-submitted' :
+                          activeSubmission.status === 'graded' ? 'badge-graded' : 'badge-resubmit'
+                        }`} style={{ fontSize: '11.5px', padding: '2px 8px' }}>
+                          {activeSubmission.status === 'draft' ? 'Draft' :
+                           activeSubmission.status === 'submitted' ? 'Submitted' :
+                           activeSubmission.status === 'graded' ? `Graded: ${activeSubmission.score}/10` : 'Resubmit Requested'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '4px 0 0 0' }}>
                         Student ID: {activeSubmission.student?.username} | Submitted: {new Date(activeSubmission.submitted_at).toLocaleString('en-US')}
                       </p>
                     </div>
-                    {activeSubmission.is_plagiarized && (
-                      <span className="badge badge-resubmit" style={{ fontSize: '12px' }}>
-                        PLAGIARISM ALERT: {activeSubmission.plagiarism_score}%
-                      </span>
-                    )}
+
+                    {/* Quick Student Switcher Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '4px 8px', borderRadius: '8px', border: '1px solid var(--border-color)', gap: '6px' }}>
+                        <Users size={14} style={{ color: 'var(--neon-cyan)' }} />
+                        <select
+                          className="form-select"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12.5px',
+                            margin: 0,
+                            maxWidth: '220px',
+                            background: '#ffffff',
+                            fontWeight: '500',
+                            cursor: 'pointer'
+                          }}
+                          value={activeSubIndex}
+                          onChange={(e) => {
+                            const idx = parseInt(e.target.value)
+                            if (!isNaN(idx) && submissions[idx]) {
+                              handleSelectGrading(submissions[idx], idx)
+                            }
+                          }}
+                        >
+                          {submissions.map((sub, idx) => (
+                            <option key={sub.id} value={idx}>
+                              {idx + 1}. {sub.student?.full_name} ({sub.student?.username}) - {sub.status === 'graded' ? `[${sub.score}/10]` : sub.status === 'submitted' ? '[Submitted]' : `[${sub.status}]`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Previous Student Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeSubIndex > 0) {
+                            handleSelectGrading(submissions[activeSubIndex - 1], activeSubIndex - 1)
+                          }
+                        }}
+                        disabled={activeSubIndex <= 0}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        title="Previous student"
+                      >
+                        <ChevronLeft size={14} /> Prev
+                      </button>
+
+                      {/* Next Student Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeSubIndex < submissions.length - 1) {
+                            handleSelectGrading(submissions[activeSubIndex + 1], activeSubIndex + 1)
+                          }
+                        }}
+                        disabled={activeSubIndex >= submissions.length - 1}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        title="Next student"
+                      >
+                        Next <ChevronRight size={14} />
+                      </button>
+
+                      {activeSubmission.is_plagiarized && (
+                        <span className="badge badge-resubmit" style={{ fontSize: '12px' }}>
+                          SIMILARITY: {activeSubmission.plagiarism_score}%
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Plagiarism warning details */}
@@ -1790,12 +1867,12 @@ export default function InstructorDashboard() {
                                     {/* PREVIEW BUTTON FOR PDF, DOCX, OR IMAGES */}
                                     {['pdf', 'docx'].includes(attachment.original_filename.split('.').pop().toLowerCase()) && (
                                       <button 
-                                        type="button"
+                                        type="button" 
                                         onClick={() => handleOpenDocPreview(attachment)} 
                                         className="btn btn-primary" 
                                         style={{ padding: '7px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
                                       >
-                                        <Eye size={15} /> Xem trực tiếp ({attachment.original_filename.split('.').pop().toUpperCase()})
+                                        <Eye size={15} /> Preview ({attachment.original_filename.split('.').pop().toUpperCase()})
                                       </button>
                                     )}
 
@@ -1807,7 +1884,7 @@ export default function InstructorDashboard() {
                                       target="_blank" 
                                       rel="noreferrer"
                                     >
-                                      <Download size={14} /> Tải file về máy
+                                      <Download size={14} /> Download File
                                     </a>
                                   </div>
                                 )}
@@ -2097,7 +2174,7 @@ export default function InstructorDashboard() {
                             onChange={() => setIsLinkedClone(true)}
                             style={{ accentColor: 'var(--neon-cyan)' }}
                           />
-                          <span><b>Linked Clone</b> (Khuyên dùng: Khởi tạo nhanh, tiết kiệm đĩa)</span>
+                          <span><b>Linked Clone</b> (Recommended: Fast provisioning, disk space efficient)</span>
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: !isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-secondary)', fontSize: '13.5px', fontWeight: !isLinkedClone ? '600' : 'normal' }}>
                           <input
@@ -2107,13 +2184,13 @@ export default function InstructorDashboard() {
                             onChange={() => setIsLinkedClone(false)}
                             style={{ accentColor: 'var(--neon-cyan)' }}
                           />
-                          <span><b>Full Clone</b> (Độc lập hoàn toàn)</span>
+                          <span><b>Full Clone</b> (Completely independent disk)</span>
                         </label>
                       </div>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px', marginBottom: 0, lineHeight: '1.4' }}>
                         {isLinkedClone
-                          ? '💡 Linked Clone: VM sinh viên sử dụng chung base disk với Template và chỉ lưu phần thay đổi (Copy-on-Write). Tiết kiệm tối đa RAM/ổ cứng khi chạy 30+ máy cùng lúc.'
-                          : '⚠️ Full Clone: Sao chép toàn bộ 60GB-120GB ổ đĩa cho từng sinh viên. Phù hợp cho bài lab cần can thiệp tầng sâu hệ thống nhưng tốn tài nguyên hơn.'}
+                          ? '💡 Linked Clone: Student VMs share the base disk with the Template and store only differential changes (Copy-on-Write). Minimizes RAM/disk footprint when running 30+ machines concurrently.'
+                          : '⚠️ Full Clone: Clones the full 60GB-120GB disk image for each individual student. Ideal for deep root/kernel system tasks but requires significantly more storage.'}
                       </p>
                     </div>
 
@@ -2569,7 +2646,7 @@ export default function InstructorDashboard() {
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--neon-emerald)' }}>
-                <Copy size={18} /> Nhân bản bài lab sang lớp khác
+                <Copy size={18} /> Clone Lab to Another Class
               </h3>
               <button onClick={() => setShowCloneModal(false)} className="close-btn">&times;</button>
             </div>
@@ -2577,18 +2654,18 @@ export default function InstructorDashboard() {
             <form onSubmit={handleCloneLabSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '13px' }}>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '12px' }}>Bài lab nguồn:</div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '12px' }}>Source Lab:</div>
                   <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '15px' }}>{cloneSourceLab.title}</div>
                   <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px', fontWeight: '500' }}>
                     {cloneSourceLab.enable_vm ? (
                       `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
-                    ) : 'Không sử dụng máy ảo'}
+                    ) : 'No virtual machine'}
                   </div>
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: '600' }}>
-                    Chọn Lớp học phần đích <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                    Select Target Class <span style={{ color: 'var(--neon-ruby)' }}>*</span>
                   </label>
                   <select
                     className="form-select"
@@ -2597,10 +2674,10 @@ export default function InstructorDashboard() {
                     onChange={(e) => setCloneTargetClassId(e.target.value)}
                     required
                   >
-                    <option value="">-- Chọn lớp cần giao bài --</option>
+                    <option value="">-- Select target class --</option>
                     {classes.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.id === cloneSourceLab.class_id ? '(Lớp hiện tại)' : ''}
+                        {c.name} {c.id === cloneSourceLab.class_id ? '(Current Class)' : ''}
                       </option>
                     ))}
                   </select>
@@ -2608,7 +2685,7 @@ export default function InstructorDashboard() {
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: '600' }}>
-                    Tiêu đề bài lab mới <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                    New Lab Title <span style={{ color: 'var(--neon-ruby)' }}>*</span>
                   </label>
                   <input
                     type="text"
@@ -2616,13 +2693,13 @@ export default function InstructorDashboard() {
                     value={cloneNewTitle}
                     onChange={(e) => setCloneNewTitle(e.target.value)}
                     required
-                    placeholder="VD: IA2008 - Bài tập phân tích PE"
+                    placeholder="e.g. IA2008 - PE Malware Analysis Exercise"
                   />
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: '600' }}>
-                    Hạn nộp bài mới (Deadline) <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                    New Submission Deadline <span style={{ color: 'var(--neon-ruby)' }}>*</span>
                   </label>
                   <input
                     type="datetime-local"
@@ -2634,19 +2711,19 @@ export default function InstructorDashboard() {
                 </div>
 
                 <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
-                  💡 Toàn bộ nội dung câu hỏi động, chính sách phạt nộp muộn, cấu hình máy ảo và mật khẩu kết nối sẽ được sao chép nguyên vẹn sang lớp mới.
+                  💡 All dynamic question fields, late penalty policies, virtual machine configurations, and connection credentials will be cloned intact to the target class.
                 </p>
               </div>
 
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowCloneModal(false)} className="btn btn-secondary">HỦY</button>
+                <button type="button" onClick={() => setShowCloneModal(false)} className="btn btn-secondary">CANCEL</button>
                 <button 
                   type="submit" 
                   className="btn btn-success" 
                   disabled={actionLoading}
                   style={{ background: 'var(--neon-emerald)', borderColor: 'var(--neon-emerald)', color: '#000', fontWeight: 'bold' }}
                 >
-                  {actionLoading ? 'ĐANG SAO CHÉP...' : 'XÁC NHẬN NHÂN BẢN'}
+                  {actionLoading ? 'CLONING...' : 'CONFIRM CLONE'}
                 </button>
               </div>
             </form>
@@ -2688,14 +2765,14 @@ export default function InstructorDashboard() {
                   target="_blank" 
                   rel="noreferrer"
                 >
-                  <Download size={13} /> Tải file gốc
+                  <Download size={13} /> Download Original
                 </a>
                 <button 
                   type="button" 
                   onClick={handleCloseDocPreview} 
                   className="btn btn-secondary" 
                   style={{ padding: '6px 10px', fontSize: '13px', display: 'flex', alignItems: 'center' }}
-                  title="Đóng xem trước"
+                  title="Close preview"
                 >
                   <X size={16} />
                 </button>
@@ -2707,13 +2784,13 @@ export default function InstructorDashboard() {
               {previewLoading && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '40px', color: 'var(--text-primary)' }}>
                   <RefreshCw size={28} className="spin-slow" style={{ color: 'var(--neon-cyan)' }} />
-                  <p style={{ fontSize: '14px', margin: 0 }}>Đang tải và render tài liệu Word...</p>
+                  <p style={{ fontSize: '14px', margin: 0 }}>Loading and rendering Word document...</p>
                 </div>
               )}
 
               {previewError && (
                 <div style={{ margin: '24px auto', maxWidth: '600px', padding: '20px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
-                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Không thể hiển thị tài liệu trực tiếp</p>
+                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Unable to display document directly</p>
                   <p style={{ fontSize: '13px', marginBottom: '16px' }}>{previewError}</p>
                   <a 
                     href={`${previewDoc.url}&download=true`} 
@@ -2722,7 +2799,7 @@ export default function InstructorDashboard() {
                     target="_blank" 
                     rel="noreferrer"
                   >
-                    <Download size={14} style={{ marginRight: '6px' }} /> Tải về máy để xem
+                    <Download size={14} style={{ marginRight: '6px' }} /> Download to view
                   </a>
                 </div>
               )}

@@ -878,10 +878,10 @@ export default function StudentDashboard() {
                 onClick={() => setLabGroupByClass(!labGroupByClass)}
                 className={`btn ${labGroupByClass ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Bật/Tắt gom nhóm bài lab theo lớp học"
+                title="Toggle grouping labs by class"
               >
                 <Layers size={14} />
-                {labGroupByClass ? 'Gom nhóm: Theo Lớp' : 'Gom nhóm: Tắt'}
+                {labGroupByClass ? 'Group: By Class' : 'Group: Off'}
               </button>
             </div>
           </div>
@@ -935,7 +935,7 @@ export default function StudentDashboard() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span className="badge badge-submitted" style={{ fontSize: '12px', fontWeight: '600' }}>
-                            {group.labs.length} bài lab
+                            {group.labs.length} {group.labs.length === 1 ? 'lab' : 'labs'}
                           </span>
                         </div>
                       </div>
@@ -1448,10 +1448,10 @@ export default function StudentDashboard() {
               {submissionStatus === 'submitted' && canEditSubmission() && (
                 <div className="cyber-card" style={{ background: 'rgba(0, 243, 255, 0.05)', border: '1px solid var(--neon-cyan)', padding: '16px', marginBottom: '20px' }}>
                   <h4 style={{ fontSize: '14.5px', color: 'var(--neon-cyan)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <CheckCircle size={16} /> Bài đã nộp - Đang mở quyền chỉnh sửa
+                    <CheckCircle size={16} /> Submitted - Editing Enabled
                   </h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                    Bạn đã nộp bài này trước đó. Do bài lab vẫn <b>chưa đến hạn chót</b>, bạn có thể tiếp tục chỉnh sửa câu trả lời, cập nhật file minh chứng và bấm <b>"Resubmit Report"</b> để nộp lại bản mới nhất.
+                    You have submitted this report. Because the lab deadline <b>has not passed yet</b>, you can continue modifying your answers, re-upload evidence files, and click <b>"Resubmit Report"</b> to update your final submission.
                   </p>
                 </div>
               )}
@@ -1460,10 +1460,10 @@ export default function StudentDashboard() {
               {submissionStatus === 'submitted' && !canEditSubmission() && (
                 <div className="cyber-card" style={{ background: 'rgba(255, 170, 0, 0.05)', border: '1px solid var(--neon-amber)', padding: '16px', marginBottom: '20px' }}>
                   <h4 style={{ fontSize: '14.5px', color: 'var(--neon-amber)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <Lock size={16} /> Bài đã nộp (Đã khóa chỉnh sửa)
+                    <Lock size={16} /> Submitted (Submission Locked)
                   </h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                    Bài làm đã nộp và thời hạn làm lab đã kết thúc. Bạn chỉ có thể xem lại nội dung đã nộp ở chế độ chỉ đọc.
+                    Your report has been submitted and the deadline has passed. This submission is now in read-only mode.
                   </p>
                 </div>
               )}
