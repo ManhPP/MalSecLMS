@@ -36,6 +36,17 @@ def get_my_submission(
         Submission.student_id == current_user.id
     ).first()
 
+def _get_student_lab_deadline(lab: Lab, username: str) -> datetime:
+    """Lấy thời hạn cuối cùng của sinh viên cho bài lab (tính cả gia hạn cá nhân nếu có)"""
+    deadline = lab.deadline
+    individual_deadline_str = (lab.individual_extensions or {}).get(username)
+    if individual_deadline_str:
+        try:
+            deadline = datetime.fromisoformat(individual_deadline_str)
+        except Exception:
+            pass
+    return deadline
+
 @router.post("/lab/{lab_id}/draft", response_model=SubmissionOut)
 def save_draft(
     lab_id: int,
@@ -65,11 +76,21 @@ def save_draft(
         )
         db.add(submission)
     else:
-        # Nếu đang ở trạng thái nháp hoặc cần nộp lại thì cho phép lưu
-        if submission.status not in ["draft", "re_submit_requested"]:
-            raise HTTPException(status_code=400, detail="Bài làm đã nộp trước đó, không thể sửa nháp")
+        # Nếu đã nộp trước đó nhưng chưa chấm, kiểm tra hạn chót
+        if submission.status == "graded":
+            raise HTTPException(status_code=400, detail="Bài làm đã được giảng viên chấm điểm, không thể chỉnh sửa")
+        
+        now = datetime.now()
+        effective_deadline = _get_student_lab_deadline(lab, current_user.username)
+        
+        if submission.status == "submitted":
+            if now > effective_deadline:
+                raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể chỉnh sửa bài đã nộp")
+            # Đang trước hạn: cho phép sinh viên chỉnh sửa nội dung bài làm
+            submission.status = "draft"
+
         submission.answers = answers
-        submission.updated_at = datetime.now()
+        submission.updated_at = now
 
     db.commit()
     db.refresh(submission)
@@ -93,6 +114,21 @@ def upload_submission_file(
     if not field_config:
         raise HTTPException(status_code=400, detail="Trường tải lên không nằm trong cấu hình bài lab")
 
+    # Tìm bản nộp bài nếu có
+    submission = db.query(Submission).filter(
+        Submission.lab_id == lab_id,
+        Submission.student_id == current_user.id
+    ).first()
+
+    now = datetime.now()
+    effective_deadline = _get_student_lab_deadline(lab, current_user.username)
+
+    if submission:
+        if submission.status == "graded":
+            raise HTTPException(status_code=400, detail="Bài làm đã được chấm điểm, không thể tải tệp mới")
+        if submission.status == "submitted" and now > effective_deadline:
+            raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể thay đổi tệp đã nộp")
+
     # Gọi FileService để kiểm tra định dạng và làm sạch
     is_image = field_config.get("type") == "file" and file.filename.split('.')[-1].lower() in {'png', 'jpg', 'jpeg'}
     
@@ -104,12 +140,6 @@ def upload_submission_file(
         f"File: {saved_file_info['original_filename']} ({size_kb:.1f} KB) | SHA256: {sha256}"
     )
 
-    # Tìm hoặc tạo bản nộp bài nháp để liên kết file đính kèm
-    submission = db.query(Submission).filter(
-        Submission.lab_id == lab_id,
-        Submission.student_id == current_user.id
-    ).first()
-
     if not submission:
         submission = Submission(
             lab_id=lab_id,
@@ -120,6 +150,8 @@ def upload_submission_file(
         db.add(submission)
         db.commit()
         db.refresh(submission)
+    elif submission.status == "submitted" and now <= effective_deadline:
+        submission.status = "draft"
 
     # Cập nhật thông tin file đính kèm vào submission
     current_attachments = list(submission.file_attachments or [])
@@ -170,20 +202,16 @@ def submit_lab(
     if not submission:
         raise HTTPException(status_code=400, detail="Bạn chưa điền báo cáo hoặc chưa lưu nháp")
 
-    if submission.status not in ["draft", "re_submit_requested"]:
-        raise HTTPException(status_code=400, detail="Bài làm đã được nộp trước đó")
+    if submission.status == "graded":
+        raise HTTPException(status_code=400, detail="Bài làm đã được giảng viên chấm điểm, không thể nộp lại")
 
     # 1. Tính toán thời hạn phạt nộp muộn (bao gồm cả Gia hạn cá nhân)
     now = datetime.now()
-    deadline = lab.deadline
-    
-    # Kiểm tra gia hạn riêng cá nhân
-    individual_deadline_str = (lab.individual_extensions or {}).get(current_user.username)
-    if individual_deadline_str:
-        try:
-            deadline = datetime.fromisoformat(individual_deadline_str)
-        except Exception:
-            pass
+    deadline = _get_student_lab_deadline(lab, current_user.username)
+
+    # Nếu đã nộp và quá hạn thì không cho nộp lại
+    if submission.status == "submitted" and now > deadline:
+        raise HTTPException(status_code=400, detail="Bài lab đã hết hạn nộp!")
 
     late_penalty = 0.0
     if now > deadline:

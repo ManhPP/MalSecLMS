@@ -430,9 +430,31 @@ export default function StudentDashboard() {
     fetchRuntimeConfig()
   }, [])
 
+  // Helper tính hạn chót thực tế của sinh viên (kể cả gia hạn cá nhân)
+  const getEffectiveDeadline = (lab) => {
+    if (!lab) return null
+    const extStr = (lab.individual_extensions || {})[user?.username]
+    return extStr ? new Date(extStr) : (lab.deadline ? new Date(lab.deadline) : null)
+  }
+
+  const isLabPastDeadline = (lab) => {
+    const d = getEffectiveDeadline(lab)
+    if (!d) return false
+    return new Date() > d
+  }
+
+  // Quyền chỉnh sửa bài làm: được phép sửa nếu chưa chấm điểm VÀ (chưa hết hạn nộp HOẶC đang là nháp/yêu cầu nộp lại)
+  const canEditSubmission = () => {
+    if (!selectedLab) return false
+    if (submissionStatus === 'graded') return false
+    if (submissionStatus === 'draft' || submissionStatus === 're_submit_requested') return true
+    // Nếu status === 'submitted', chỉ được sửa khi chưa quá hạn nộp
+    return !isLabPastDeadline(selectedLab)
+  }
+
   // Auto-save logic (triggers every 30 seconds during doing_lab view)
   const triggerServerSideAutoSave = async (currentAnswers) => {
-    if (!selectedLab || submissionStatus === 'submitted' || submissionStatus === 'graded') return
+    if (!selectedLab || !canEditSubmission()) return
     
     setSaveStatus('Auto-saving draft in background...')
     const token = localStorage.getItem('malsec_token')
@@ -461,7 +483,7 @@ export default function StudentDashboard() {
 
   // Effect to manage auto-save intervals
   useEffect(() => {
-    if (viewState === 'doing_lab' && selectedLab && submissionStatus !== 'submitted' && submissionStatus !== 'graded') {
+    if (viewState === 'doing_lab' && selectedLab && canEditSubmission()) {
       autoSaveTimerRef.current = setInterval(() => {
         triggerServerSideAutoSave(answers)
       }, 30000)
@@ -1196,8 +1218,8 @@ export default function StudentDashboard() {
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
             </div>
 
-            {/* Server-Side Auto-save status light */}
-            {submissionStatus !== 'submitted' && submissionStatus !== 'graded' && (
+            {/* Server-Side Auto-save status light & action buttons */}
+            {canEditSubmission() ? (
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
                   <span className="slot active" style={{ display: 'inline-block', width: '8px', height: '8px', border: 'none', padding: 0, margin: 0, borderRadius: '50%' }}>
@@ -1213,11 +1235,17 @@ export default function StudentDashboard() {
                 </div>
                 
                 <button onClick={handleManualSaveDraft} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12.5px' }} disabled={actionLoading}>
-                  <Save size={14} /> Save Draft to Server
+                  <Save size={14} /> Save Draft
                 </button>
                 <button onClick={handleSubmitSubmission} className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '12.5px' }} disabled={actionLoading}>
-                  <Send size={14} /> Submit Final Report
+                  <Send size={14} /> {submissionStatus === 'submitted' ? 'Resubmit Report' : 'Submit Final Report'}
                 </button>
+              </div>
+            ) : (
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className={`badge badge-${submissionStatus}`} style={{ fontSize: '12px', padding: '5px 12px' }}>
+                  {submissionStatus === 'graded' ? 'Graded (Read Only)' : 'Submitted (Locked - Past Deadline)'}
+                </span>
               </div>
             )}
           </div>
@@ -1416,9 +1444,33 @@ export default function StudentDashboard() {
                 </div>
               )}
 
+              {/* Show edit permission banner if already submitted but before deadline */}
+              {submissionStatus === 'submitted' && canEditSubmission() && (
+                <div className="cyber-card" style={{ background: 'rgba(0, 243, 255, 0.05)', border: '1px solid var(--neon-cyan)', padding: '16px', marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '14.5px', color: 'var(--neon-cyan)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <CheckCircle size={16} /> Bài đã nộp - Đang mở quyền chỉnh sửa
+                  </h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                    Bạn đã nộp bài này trước đó. Do bài lab vẫn <b>chưa đến hạn chót</b>, bạn có thể tiếp tục chỉnh sửa câu trả lời, cập nhật file minh chứng và bấm <b>"Resubmit Report"</b> để nộp lại bản mới nhất.
+                  </p>
+                </div>
+              )}
+
+              {/* Show locked submission banner if submitted and past deadline */}
+              {submissionStatus === 'submitted' && !canEditSubmission() && (
+                <div className="cyber-card" style={{ background: 'rgba(255, 170, 0, 0.05)', border: '1px solid var(--neon-amber)', padding: '16px', marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '14.5px', color: 'var(--neon-amber)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <Lock size={16} /> Bài đã nộp (Đã khóa chỉnh sửa)
+                  </h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                    Bài làm đã nộp và thời hạn làm lab đã kết thúc. Bạn chỉ có thể xem lại nội dung đã nộp ở chế độ chỉ đọc.
+                  </p>
+                </div>
+              )}
+
               {/* Render dynamic Form fields based on selectedLab layout */}
               {selectedLab.form_fields.map((field) => {
-                const isReadOnly = submissionStatus === 'submitted' || submissionStatus === 'graded'
+                const isReadOnly = !canEditSubmission()
                 const ans = answers[field.id] || ''
                 const attachment = fileAttachments.find(a => a.field_id === field.id)
 
