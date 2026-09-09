@@ -51,7 +51,7 @@ class Semester(Base):
     name = Column(String, unique=True, index=True, nullable=False) # e.g. "FA25", "SP26", "SU26"
     is_active = Column(Boolean, default=False, nullable=False)     # True if marked as current active semester
     description = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=datetime.now, server_default=text('CURRENT_TIMESTAMP'))
 
 
 class Lab(Base):

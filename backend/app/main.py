@@ -36,12 +36,13 @@ for i in range(5):
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
+            conn.execute(text("UPDATE semesters SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL;"))
             # Populate semesters from existing classes if semesters table is empty
             sem_count = conn.execute(text("SELECT COUNT(*) FROM semesters;")).scalar()
             if sem_count == 0:
                 conn.execute(text("""
-                    INSERT INTO semesters (name, is_active, description)
-                    SELECT DISTINCT semester, FALSE, 'Imported from existing classes'
+                    INSERT INTO semesters (name, is_active, description, created_at)
+                    SELECT DISTINCT semester, FALSE, 'Imported from existing classes', CURRENT_TIMESTAMP
                     FROM classes 
                     WHERE semester IS NOT NULL AND semester != 'unknown'
                     ON CONFLICT (name) DO NOTHING;
@@ -53,7 +54,7 @@ for i in range(5):
                     if first_id:
                         conn.execute(text("UPDATE semesters SET is_active = TRUE WHERE id = :id;"), {"id": first_id})
                     else:
-                        conn.execute(text("INSERT INTO semesters (name, is_active, description) VALUES ('FA26', TRUE, 'Default Semester');"))
+                        conn.execute(text("INSERT INTO semesters (name, is_active, description, created_at) VALUES ('FA26', TRUE, 'Default Semester', CURRENT_TIMESTAMP);"))
             conn.commit()
         break
     except Exception as e:
