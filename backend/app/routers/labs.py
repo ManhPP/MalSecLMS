@@ -248,7 +248,11 @@ def delete_lab(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Xóa bài lab (Giảng viên/Admin)"""
+    """API Xóa bài lab (Giảng viên/Admin) - Tự động xóa file vật lý đính kèm và máy ảo sinh viên trên Proxmox"""
+    import os
+    from app.models import Submission
+    from app.services.vm_service import get_pve_client, control_student_vm
+
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
@@ -257,10 +261,38 @@ def delete_lab(
         class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
-            
+
+    # 1. Xóa sạch các file vật lý đính kèm của các bài nộp thuộc lab này
+    submissions = db.query(Submission).filter(Submission.lab_id == lab_id).all()
+    for sub in submissions:
+        attachments = sub.file_attachments or []
+        for att in attachments:
+            filepath = att.get("filepath")
+            if filepath and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+
+    # 2. Thu dọn và xóa hoàn toàn các máy ảo (VM) sinh viên thuộc lab này trên Proxmox
+    proxmox = get_pve_client()
+    if proxmox:
+        try:
+            resources = proxmox.cluster.resources.get(type="vm")
+            for res in resources:
+                vm_name = res.get("name", "")
+                vmid = int(res.get("vmid", -1))
+                if vm_name == f"lab-{lab_id}" or vm_name.startswith(f"lab-{lab_id}-"):
+                    try:
+                        control_student_vm(vmid, "purge")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     db.delete(lab)
     db.commit()
-    return {"message": "Xóa bài lab thành công"}
+    return {"message": "Xóa bài lab và thu dọn máy ảo, tệp đính kèm thành công"}
 
 @router.post("/{lab_id}/clone", response_model=LabOut, status_code=status.HTTP_201_CREATED)
 def clone_lab(

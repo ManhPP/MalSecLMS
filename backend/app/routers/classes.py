@@ -89,25 +89,59 @@ def delete_class(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_admin)
 ):
-    """Delete a class (Admin only)"""
+    """Delete a class (Admin only) - Automatically cleans up physical attachment files and Proxmox student VMs"""
+    import os
+    from app.models import Lab, Submission
+    from app.services.vm_service import get_pve_client, control_student_vm
+
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Class not found")
         
-    # 1. Delete submissions for labs belonging to this class
     lab_ids = [lab.id for lab in class_.labs]
+
+    # 1. Thu thập và xóa sạch các file vật lý đính kèm trên ổ cứng
     if lab_ids:
-        from app.models import Submission
+        submissions = db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).all()
+        for sub in submissions:
+            attachments = sub.file_attachments or []
+            for att in attachments:
+                filepath = att.get("filepath")
+                if filepath and os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
+
+        # 2. Thu dọn và xóa hoàn toàn các máy ảo (VM) của sinh viên trên Proxmox liên quan đến các lab này
+        proxmox = get_pve_client()
+        if proxmox:
+            try:
+                resources = proxmox.cluster.resources.get(type="vm")
+                for res in resources:
+                    vm_name = res.get("name", "")
+                    vmid = int(res.get("vmid", -1))
+                    # Kiểm tra xem VM có thuộc về bất kỳ lab nào trong lớp này hay không
+                    # Quy chuẩn đặt tên: lab-{lab_id}-{username} hoặc lab-{lab_id}-...
+                    for lid in lab_ids:
+                        if vm_name == f"lab-{lid}" or vm_name.startswith(f"lab-{lid}-"):
+                            try:
+                                control_student_vm(vmid, "purge")
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+        # 3. Xóa submissions trong database
         db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).delete(synchronize_session=False)
 
-    # 2. Delete labs in this class
-    from app.models import Lab
+    # 4. Xóa labs trong class
     db.query(Lab).filter(Lab.class_id == class_id).delete(synchronize_session=False)
 
-    # 3. Delete class
+    # 5. Xóa class
     db.delete(class_)
     db.commit()
-    return {"message": "Class deleted successfully"}
+    return {"message": "Class and associated data, files, and VMs cleaned up successfully"}
 
 
 @router.post("/{class_id}/students", status_code=status.HTTP_200_OK)
