@@ -190,10 +190,11 @@ def provision_student_vm(
     template_vmid: int,
     protocol: str,
     port: int,
+    is_linked_clone: bool = True,
 ) -> Tuple[str, int]:
     """
     1. Kiểm tra xem sinh viên đã có máy ảo cho bài lab này chưa.
-    2. Nếu chưa có, clone từ template.
+    2. Nếu chưa có, clone từ template (Linked Clone hoặc Full Clone tùy cấu hình lab).
     3. Gán MAC riêng và lấy IP DHCP thật qua QEMU Guest Agent.
     4. Bật máy ảo.
     """
@@ -224,8 +225,9 @@ def provision_student_vm(
                     f"Source VM {template_vmid} is running; stop it before cloning"
                 )
 
+            clone_type_str = "Linked Clone (full=0)" if is_linked_clone else "Full Clone (full=1)"
             print(
-                f"[+] Cloning source VM {template_vmid} to VM {new_vmid} "
+                f"[+] Cloning source VM {template_vmid} ({clone_type_str}) to VM {new_vmid} "
                 f"for {student_username}...",
                 flush=True,
             )
@@ -238,7 +240,7 @@ def provision_student_vm(
             clone_upid = proxmox.nodes(node).qemu(template_vmid).clone.post(
                 newid=new_vmid,
                 name=_student_vm_name(student_username, lab_id),
-                full=1,
+                full=0 if is_linked_clone else 1,
             )
             _wait_for_pve_task(
                 proxmox,
@@ -247,7 +249,7 @@ def provision_student_vm(
                 f"cloning source VM {template_vmid} to VM {new_vmid}",
             )
             clone_duration = time.perf_counter() - clone_start
-            logger.info(f"[VM_ORCHESTRATION] CLONE_COMPLETE | User: {student_username} | Template: {template_vmid} -> VMID: {new_vmid} | Duration: {clone_duration:.1f}s")
+            logger.info(f"[VM_ORCHESTRATION] CLONE_COMPLETE | User: {student_username} | Template: {template_vmid} -> VMID: {new_vmid} | Mode: {clone_type_str} | Duration: {clone_duration:.1f}s")
 
             proxmox.nodes(node).qemu(new_vmid).config.post(
                 net0=_net0_with_unique_mac(source_net0),

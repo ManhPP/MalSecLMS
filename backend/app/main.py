@@ -170,12 +170,13 @@ def seed_data():
             db.execute(text("ALTER TABLE labs ALTER COLUMN vm_port SET NOT NULL;"))
             db.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS vm_username VARCHAR;"))
             db.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS vm_password VARCHAR;"))
-            db.execute(text("ALTER TABLE labs ALTER COLUMN vm_username DROP DEFAULT;"))
-            db.execute(text("ALTER TABLE labs ALTER COLUMN vm_password DROP DEFAULT;"))
+            db.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS is_linked_clone BOOLEAN DEFAULT TRUE;"))
+            db.execute(text("UPDATE labs SET is_linked_clone = TRUE WHERE is_linked_clone IS NULL;"))
+            db.execute(text("ALTER TABLE labs ALTER COLUMN is_linked_clone SET NOT NULL;"))
             db.commit()
         except Exception as e:
             db.rollback()
-            print(f"Auto migration template_vmid: {e}")
+            print(f"Auto migration template_vmid / is_linked_clone: {e}")
 
         # Initialize admin account on empty database
         user_count = db.query(User).count()

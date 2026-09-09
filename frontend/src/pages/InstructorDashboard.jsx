@@ -133,6 +133,7 @@ export default function InstructorDashboard() {
   const [enableVm, setEnableVm] = useState(true)
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
+  const [isLinkedClone, setIsLinkedClone] = useState(true)
   const [vmProtocol, setVmProtocol] = useState('')
   const [vmPort, setVmPort] = useState('')
   const [vmUsername, setVmUsername] = useState('')
@@ -460,6 +461,7 @@ export default function InstructorDashboard() {
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
+        payload.is_linked_clone = isLinkedClone
         payload.vm_protocol = vmProtocol
         payload.vm_port = parseInt(vmPort)
         payload.vm_username = vmUsername.trim()
@@ -502,6 +504,7 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
     setEnableVm(true)
+    setIsLinkedClone(true)
     const defaultProtocol = runtimeConfig?.vm?.default_protocol || ''
     setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || pveTemplates[0]?.vmid || '')
     setVmProtocol(defaultProtocol)
@@ -536,6 +539,7 @@ export default function InstructorDashboard() {
     setMaxPenalty(lab.late_policy?.max_penalty_percent ?? 30.0)
     setFormFields(lab.form_fields || [])
     setEnableVm(lab.enable_vm !== false)
+    setIsLinkedClone(lab.is_linked_clone !== false)
     const configuredProtocol = lab.vm_protocol || runtimeConfig?.vm?.default_protocol || ''
     setTemplateVmid(lab.template_vmid || runtimeConfig?.vm?.default_template_vmid || '')
     setVmProtocol(configuredProtocol)
@@ -1714,6 +1718,40 @@ export default function InstructorDashboard() {
                         </option>
                       ))}
                     </select>
+
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '12px', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', border: '1px solid rgba(0, 243, 255, 0.2)' }}>
+                      <label className="form-label" style={{ color: '#fff', fontSize: '12.5px', marginBottom: '8px', display: 'block', fontWeight: 'bold' }}>
+                        ⚡ VM Provisioning Mode (Clone Type)
+                      </label>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-muted)', fontSize: '13px' }}>
+                          <input
+                            type="radio"
+                            name="cloneMode"
+                            checked={isLinkedClone === true}
+                            onChange={() => setIsLinkedClone(true)}
+                            style={{ accentColor: 'var(--neon-cyan)' }}
+                          />
+                          <span><b>Linked Clone</b> (Khuyên dùng: Siêu nhanh ~2s, tiết kiệm đĩa)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: !isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-muted)', fontSize: '13px' }}>
+                          <input
+                            type="radio"
+                            name="cloneMode"
+                            checked={isLinkedClone === false}
+                            onChange={() => setIsLinkedClone(false)}
+                            style={{ accentColor: 'var(--neon-cyan)' }}
+                          />
+                          <span><b>Full Clone</b> (Độc lập hoàn toàn, sao chép chậm ~90s)</span>
+                        </label>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                        {isLinkedClone
+                          ? '💡 Linked Clone: VM sinh viên sử dụng chung base disk với Template và chỉ lưu phần thay đổi (Copy-on-Write). Tiết kiệm tối đa RAM/ổ cứng khi chạy 30+ máy cùng lúc.'
+                          : '⚠️ Full Clone: Sao chép toàn bộ 60GB-120GB ổ đĩa cho từng sinh viên. Phù hợp cho bài lab cần can thiệp tầng sâu hệ thống nhưng tốn tài nguyên hơn.'}
+                      </p>
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
                       <div className="form-group" style={{ margin: 0 }}>
                         <label className="form-label">Connection Protocol</label>

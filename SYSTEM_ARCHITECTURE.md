@@ -223,12 +223,19 @@ Sử dụng Extension `guacamole-auth-json-1.6.0.jar` xác thực một lần (S
      $$\text{URL} = \text{/guacamole/\#/client/c/Lab-VM-\{username\}-\{timestamp\}?data=\{quoted\_data\}}$$
    - Thẻ `<iframe>` phía React Frontend được gán `key={guacamoleUrl}` giúp ép trình duyệt mount lại hoàn toàn iFrame mỗi khi sinh viên yêu cầu khởi tạo phiên làm việc mới.
 
-### 4.4. Hạ tầng Mạng Cách ly Mã độc (VLAN 30 Sandbox)
+### 4.4. Hạ tầng Mạng Cách ly Mã độc (VLAN 30 Sandbox) & Cô lập Sinh viên (Micro-segmentation)
 
 - **Mạng VLAN 30 (`10.30.0.0/24`)**: Dành riêng cho các máy ảo thực hành phân tích mã độc. Mạng này bị chặn toàn bộ lưu lượng ra Internet và không thể kết nối tới mạng nội bộ trường học hay mạng quản lý Proxmox.
 - **Ủy quyền qua Daemon `guacd`**:
   - Trình duyệt sinh viên chỉ giao tiếp với cổng HTTP/WebSocket của Nginx (Port 80/443).
-  - `guacd` daemon mở kết nối RDP nội bộ (Port 3389) tới IP `10.30.0.100` trong VLAN 30 và truyền luồng hình ảnh đồ họa dạng H.264/PNG về trình duyệt sinh viên.
+  - `guacd` daemon mở kết nối RDP nội bộ (Port 3389) hoặc SSH (Port 22) từ `10.30.0.50` tới IP máy ảo sinh viên trong VLAN 30 và truyền luồng hình ảnh/terminal về trình duyệt sinh viên.
+- **🛡️ Cơ chế Cô lập Đa chiều giữa các Máy ảo Sinh viên (Anti-Cheat Micro-segmentation)**:
+  - Nhằm ngăn chặn sinh viên gian lận hoặc gửi bài thi/mã nguồn cho nhau qua mạng nội bộ VLAN 30, hệ thống triển khai bộ lọc Stateful Firewall ở cấp Hypervisor (Proxmox VE Firewall) trên toàn bộ máy ảo mẫu (`1001`, `1002`, `1003`) và máy ảo sinh viên:
+    1. **Chỉ chấp nhận (IN ACCEPT)** kết nối quản trị từ Apache Guacamole (`10.30.0.50`) trên cổng RDP (`3389`) và SSH (`22`).
+    2. **Chỉ chấp nhận (IN ACCEPT)** gói tin DHCP/DNS thiết yếu từ Gateway pfSense (`10.30.0.1:67/68`).
+    3. **Chặn toàn bộ chiều vào (IN DROP)** từ mọi địa chỉ IP khác trong dải mạng sinh viên `10.30.0.0/24`.
+    4. **Chặn toàn bộ chiều ra (OUT DROP)** khi sinh viên cố tình gửi gói tin sang máy ảo của sinh viên khác trong dải `10.30.0.0/24` (ngoại trừ Gateway `10.30.0.1` và Guacamole `10.30.0.50`).
+  - Toàn bộ cơ chế kiểm soát bởi Hypervisor, sinh viên dù có quyền `root` hay `Administrator` trong máy ảo cũng không thể vô hiệu hóa hay can thiệp.
 
 ### 4.5. Trình hiển thị Đề bài Markdown & Form Báo cáo Động
 

@@ -91,6 +91,7 @@ class LabBase(BaseModel):
     is_active: Optional[bool] = True
     enable_vm: Optional[bool] = True
     template_vmid: Optional[int] = settings.DEFAULT_TEMPLATE_VMID
+    is_linked_clone: Optional[bool] = True
     vm_protocol: Literal["rdp", "vnc", "ssh"] = settings.DEFAULT_VM_PROTOCOL
     vm_port: int = Field(default=settings.DEFAULT_VM_PORT, ge=1, le=65535)
     vm_username: Optional[str] = None
@@ -109,6 +110,7 @@ class LabUpdate(BaseModel):
     is_active: Optional[bool] = None
     enable_vm: Optional[bool] = None
     template_vmid: Optional[int] = None
+    is_linked_clone: Optional[bool] = None
     vm_protocol: Optional[Literal["rdp", "vnc", "ssh"]] = None
     vm_port: Optional[int] = Field(default=None, ge=1, le=65535)
     vm_username: Optional[str] = None

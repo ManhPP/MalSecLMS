@@ -68,6 +68,7 @@ class Lab(Base):
     template_vmid = Column(
         Integer, default=lambda: settings.DEFAULT_TEMPLATE_VMID, nullable=False
     )
+    is_linked_clone = Column(Boolean, default=True, server_default='true', nullable=False)
     vm_protocol = Column(
         String, default=lambda: settings.DEFAULT_VM_PROTOCOL, nullable=False
     )

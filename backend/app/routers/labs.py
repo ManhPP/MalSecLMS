@@ -137,6 +137,7 @@ def create_lab(
         is_active=lab_data.is_active,
         enable_vm=lab_data.enable_vm,
         template_vmid=lab_data.template_vmid,
+        is_linked_clone=lab_data.is_linked_clone if lab_data.is_linked_clone is not None else True,
         vm_protocol=lab_data.vm_protocol,
         vm_port=lab_data.vm_port,
         vm_username=vm_username,
@@ -193,6 +194,8 @@ def update_lab(
         lab.enable_vm = lab_data.enable_vm
     if lab_data.template_vmid is not None:
         lab.template_vmid = lab_data.template_vmid
+    if lab_data.is_linked_clone is not None:
+        lab.is_linked_clone = lab_data.is_linked_clone
     if lab_data.vm_protocol is not None:
         lab.vm_protocol = lab_data.vm_protocol
     if lab_data.vm_port is not None:
@@ -338,6 +341,9 @@ def get_or_create_vm_session(
     )
 
     template_vmid = lab.template_vmid or settings.DEFAULT_TEMPLATE_VMID
+    is_linked = getattr(lab, 'is_linked_clone', True)
+    if is_linked is None:
+        is_linked = True
     try:
         ip_address, vmid = provision_student_vm(
             student_username=current_user.username,
@@ -345,6 +351,7 @@ def get_or_create_vm_session(
             template_vmid=template_vmid,
             protocol=lab.vm_protocol,
             port=lab.vm_port,
+            is_linked_clone=is_linked,
         )
     except VMProvisionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

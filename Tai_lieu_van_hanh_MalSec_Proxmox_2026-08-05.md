@@ -311,7 +311,17 @@ Console live xác nhận:
 
 pfSense kiểm soát lưu lượng **đi qua gateway**. Hai host trong cùng `10.30.0.0/24` trao đổi trực tiếp bằng ARP/lớp 2, không đi qua pfSense. Netgate cũng nêu rõ firewall không thể kiểm soát host-to-host trong cùng segment; muốn làm vậy phải tách VLAN/subnet hoặc dùng PVLAN/port isolation ([Netgate — Troubleshooting Firewall Rules](https://docs.netgate.com/pfsense/en/latest/troubleshooting/firewall.html), [IP Subnet Concepts](https://docs.netgate.com/pfsense/en/latest/network/subnets.html)).
 
-Do đó rule pfSense “chỉ cho Guacamole tới RDP” chưa đủ nếu tất cả VM sinh viên và Guacamole cùng VLAN. Biện pháp mục tiêu là micro-segmentation ở PVE firewall/SDN, PVLAN, mỗi sinh viên một VLAN, hoặc firewall guest chỉ allow nguồn `10.30.0.50`.
+Do đó rule pfSense “chỉ cho Guacamole tới RDP” chưa đủ nếu tất cả VM sinh viên và Guacamole cùng VLAN.
+
+**Cập nhật triển khai an ninh:** Hệ thống đã kích hoạt **Proxmox VE Stateful Firewall (Micro-segmentation)** trực tiếp tại Hypervisor trên toàn bộ các Base VM `1001`, `1002`, `1003`:
+- Bật `cluster.fw` (`enable: 1`).
+- Các file rule tại `/etc/pve/nodes/pve01/qemu-server/<VMID>.fw` thiết lập:
+  - **IN ACCEPT**: DHCP từ `10.30.0.1` (UDP 67, 68).
+  - **IN ACCEPT**: RDP (`3389`) và SSH (`22`) duy nhất từ nguồn `10.30.0.50` (Apache Guacamole LXC 103).
+  - **IN ACCEPT**: Gateway pfSense `10.30.0.1` và INetSim `10.40.0.1`.
+  - **IN DROP**: Toàn bộ lưu lượng đến từ các IP sinh viên khác trong dải `10.30.0.0/24`.
+  - **OUT DROP**: Toàn bộ lưu lượng sinh viên gửi sang máy ảo của bạn cùng phòng thi trong dải `10.30.0.0/24` (ngoại trừ Gateway `10.30.0.1` và Guacamole `10.30.0.50`).
+- Cơ chế này hoàn toàn ngăn chặn việc quét mạng, gửi file (HTTP server, netcat, scp) giữa các máy ảo sinh viên mà vẫn giữ Guacamole hoạt động 100% ổn định.
 
 ### 5.5. Phạm vi cấu hình pfSense chưa được xuất/đối chiếu
 
