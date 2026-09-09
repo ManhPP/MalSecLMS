@@ -226,6 +226,7 @@ export default function InstructorDashboard() {
 
   // Class Analytics state
   const [analyticsClassId, setAnalyticsClassId] = useState('')
+  const [analyticsLabFilter, setAnalyticsLabFilter] = useState('')
   const [analyticsData, setAnalyticsData] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [studentAnalyticsSearch, setStudentAnalyticsSearch] = useState('')
@@ -235,14 +236,17 @@ export default function InstructorDashboard() {
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
-  // Fetch Class Analytics
-  const fetchClassAnalytics = async (classId) => {
+  // Fetch Class Analytics (supports optional labId filter)
+  const fetchClassAnalytics = async (classId, labId = '') => {
     if (!classId) return
     setAnalyticsLoading(true)
     setError('')
     const token = localStorage.getItem('malsec_token')
     try {
-      const res = await fetch(`/api/classes/${classId}/analytics`, {
+      const url = labId 
+        ? `/api/classes/${classId}/analytics?lab_id=${labId}`
+        : `/api/classes/${classId}/analytics`
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (!res.ok) {
@@ -1085,10 +1089,10 @@ export default function InstructorDashboard() {
           <button 
             onClick={() => {
               setViewState('analytics')
-              if (analyticsClassId) fetchClassAnalytics(analyticsClassId)
+              if (analyticsClassId) fetchClassAnalytics(analyticsClassId, analyticsLabFilter)
               else if (classes.length > 0) {
                 setAnalyticsClassId(classes[0].id)
-                fetchClassAnalytics(classes[0].id)
+                fetchClassAnalytics(classes[0].id, '')
               }
             }} 
             className={`btn ${viewState === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
@@ -1703,25 +1707,51 @@ export default function InstructorDashboard() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Select Class:</label>
-              <select
-                className="form-select"
-                style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
-                value={analyticsClassId}
-                onChange={(e) => {
-                  const cId = parseInt(e.target.value)
-                  setAnalyticsClassId(cId)
-                  fetchClassAnalytics(cId)
-                }}
-              >
-                {classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Class:</label>
+                <select
+                  className="form-select"
+                  style={{ width: '200px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                  value={analyticsClassId}
+                  onChange={(e) => {
+                    const cId = parseInt(e.target.value)
+                    setAnalyticsClassId(cId)
+                    setAnalyticsLabFilter('') // reset lab filter when switching class
+                    fetchClassAnalytics(cId, '')
+                  }}
+                >
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Lab Filter:</label>
+                <select
+                  className="form-select"
+                  style={{ width: '230px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                  value={analyticsLabFilter}
+                  onChange={(e) => {
+                    const lId = e.target.value
+                    setAnalyticsLabFilter(lId)
+                    fetchClassAnalytics(analyticsClassId, lId)
+                  }}
+                >
+                  <option value="">All Labs in Class</option>
+                  {labs
+                    .filter(l => l.class_id === analyticsClassId)
+                    .map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
 
               <button
-                onClick={() => fetchClassAnalytics(analyticsClassId)}
+                onClick={() => fetchClassAnalytics(analyticsClassId, analyticsLabFilter)}
                 className="btn btn-secondary"
                 disabled={analyticsLoading}
                 style={{ padding: '8px 12px' }}
@@ -1758,14 +1788,18 @@ export default function InstructorDashboard() {
                   </div>
                 </div>
 
-                {/* Total Labs */}
+                {/* Total Labs / Filtered Lab */}
                 <div className="stat-card">
                   <div className="stat-icon-wrap" style={{ background: 'rgba(242, 112, 36, 0.08)', color: 'var(--neon-cyan)' }}>
                     <BookOpen size={22} />
                   </div>
                   <div>
-                    <div className="stat-number" style={{ color: '#1e293b' }}>{analyticsData.summary.total_labs}</div>
-                    <div className="stat-label">Assigned Labs</div>
+                    <div className="stat-number" style={{ color: '#1e293b' }}>
+                      {analyticsData.selected_lab ? '1' : analyticsData.summary.total_labs}
+                    </div>
+                    <div className="stat-label">
+                      {analyticsData.selected_lab ? `Selected: ${analyticsData.selected_lab.title}` : 'Assigned Labs in Class'}
+                    </div>
                   </div>
                 </div>
 
@@ -1902,11 +1936,17 @@ export default function InstructorDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {analyticsData.lab_performance.map(lab => (
-                          <tr key={lab.lab_id}>
-                            <td style={{ fontWeight: '600', color: 'var(--text-primary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {lab.title}
-                            </td>
+                        {analyticsData.lab_performance.map(lab => {
+                          const isSelected = analyticsData.selected_lab && analyticsData.selected_lab.id === lab.lab_id
+                          return (
+                            <tr 
+                              key={lab.lab_id}
+                              style={isSelected ? { background: 'rgba(242, 112, 36, 0.08)', fontWeight: '600' } : {}}
+                            >
+                              <td style={{ fontWeight: '600', color: isSelected ? 'var(--neon-cyan)' : 'var(--text-primary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {isSelected && <span style={{ marginRight: '6px' }}>▶</span>}
+                                {lab.title}
+                              </td>
                             <td style={{ minWidth: '140px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <div style={{ flex: 1, height: '7px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
@@ -1953,7 +1993,8 @@ export default function InstructorDashboard() {
                               )}
                             </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

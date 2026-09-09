@@ -258,11 +258,12 @@ def remove_lecturer_from_class(
 @router.get("/{class_id}/analytics")
 def get_class_analytics(
     class_id: int,
+    lab_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
     """
-    API Thống kê & Phân tích tổng quan Lớp học phần dành cho Giảng viên / Admin:
+    API Thống kê & Phân tích Lớp học phần (có hỗ trợ lọc theo bài lab cụ thể hoặc toàn bộ lớp):
     - Tổng số sinh viên, tổng số bài lab
     - Tỷ lệ nộp bài, tỷ lệ nộp đúng hạn / muộn
     - Điểm trung bình, phân phối điểm số (phổ điểm)
@@ -278,12 +279,22 @@ def get_class_analytics(
         raise HTTPException(status_code=403, detail="You do not manage this class")
 
     students = [u for u in class_.users if u.role == "student"]
-    labs = class_.labs
+    all_labs = class_.labs
     total_students = len(students)
-    total_labs = len(labs)
+    total_labs = len(all_labs)
+
+    # Nếu người dùng chọn lọc theo lab_id cụ thể
+    selected_lab = None
+    if lab_id:
+        selected_lab = next((l for l in all_labs if l.id == lab_id), None)
+        if not selected_lab:
+            raise HTTPException(status_code=404, detail="Lab not found in this class")
+        target_labs = [selected_lab]
+    else:
+        target_labs = all_labs
     
     # 1. Truy vấn tài nguyên Proxmox để kiểm tra máy ảo của sinh viên lớp này
-    from app.services.vm_service import get_pve_client, _is_vm_owned_by_student
+    from app.services.vm_service import get_pve_client, _is_vm_owned_by_student, _find_student_vm
     running_vms_count = 0
     total_cloned_vms = 0
     student_vm_status_map = {} # {student_username: {status: 'running'|'stopped'|'none', vmid: int|None}}
@@ -300,7 +311,13 @@ def get_class_analytics(
                 status = res.get("status", "")
                 
                 for s_name in student_usernames:
-                    if _is_vm_owned_by_student(name, s_name):
+                    # Nếu lọc theo lab cụ thể, chỉ đếm VM thuộc lab đó
+                    if selected_lab:
+                        owned = (name == f"lab-{selected_lab.id}-{s_name}" or name.startswith(f"lab-{selected_lab.id}-{s_name}-"))
+                    else:
+                        owned = _is_vm_owned_by_student(name, s_name)
+
+                    if owned:
                         total_cloned_vms += 1
                         if status == "running":
                             running_vms_count += 1
@@ -312,33 +329,40 @@ def get_class_analytics(
 
     # 2. Thu thập và tính toán dữ liệu bài nộp (Submissions)
     from app.models import Submission
-    lab_ids = [lab.id for lab in labs]
-    submissions = []
-    if lab_ids:
-        submissions = db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).all()
+    target_lab_ids = [lab.id for lab in target_labs]
+    all_lab_ids = [lab.id for lab in all_labs]
+    
+    all_submissions = []
+    if all_lab_ids:
+        all_submissions = db.query(Submission).filter(Submission.lab_id.in_(all_lab_ids)).all()
+
+    # Lọc submissions thuộc các lab mục tiêu (nếu chọn 1 lab thì chỉ lấy lab đó)
+    target_submissions = [s for s in all_submissions if s.lab_id in target_lab_ids]
 
     # Map submission theo lab và sinh viên
-    sub_by_lab = {lid: [] for lid in lab_ids}
+    sub_by_lab = {lid: [] for lid in all_lab_ids}
     sub_by_student = {s.id: [] for s in students}
     
-    for sub in submissions:
+    for sub in all_submissions:
         if sub.lab_id in sub_by_lab:
             sub_by_lab[sub.lab_id].append(sub)
+    for sub in target_submissions:
         if sub.student_id in sub_by_student:
             sub_by_student[sub.student_id].append(sub)
 
-    # 3. Tính toán các chỉ số tổng quan
-    total_possible_submissions = total_students * total_labs if total_students and total_labs else 0
-    total_submitted = sum(1 for s in submissions if s.status in ['submitted', 'graded'])
-    total_graded = sum(1 for s in submissions if s.status == 'graded' and s.score is not None)
-    total_late = sum(1 for s in submissions if s.status in ['submitted', 'graded'] and s.late_penalty > 0)
+    # 3. Tính toán các chỉ số tổng quan (áp dụng theo phạm vi target_labs)
+    active_lab_count = len(target_labs)
+    total_possible_submissions = total_students * active_lab_count if total_students and active_lab_count else 0
+    total_submitted = sum(1 for s in target_submissions if s.status in ['submitted', 'graded'])
+    total_graded = sum(1 for s in target_submissions if s.status == 'graded' and s.score is not None)
+    total_late = sum(1 for s in target_submissions if s.status in ['submitted', 'graded'] and s.late_penalty > 0)
     total_ontime = total_submitted - total_late
 
     overall_submission_rate = round((total_submitted / total_possible_submissions * 100), 1) if total_possible_submissions else 0
     ontime_rate = round((total_ontime / total_submitted * 100), 1) if total_submitted else 0
 
-    # Phân phối điểm số (Grade distribution) & Điểm trung bình
-    graded_scores = [s.score for s in submissions if s.status == 'graded' and s.score is not None]
+    # Phân phối điểm số (Grade distribution) & Điểm trung bình của target_submissions
+    graded_scores = [s.score for s in target_submissions if s.status == 'graded' and s.score is not None]
     avg_score = round(sum(graded_scores) / len(graded_scores), 2) if graded_scores else None
     max_score = max(graded_scores) if graded_scores else None
     min_score = min(graded_scores) if graded_scores else None
@@ -365,7 +389,7 @@ def get_class_analytics(
 
     # 4. Thống kê chi tiết từng bài Lab
     lab_performance = []
-    for lab in sorted(labs, key=lambda l: l.id):
+    for lab in sorted(all_labs, key=lambda l: l.id):
         l_subs = sub_by_lab.get(lab.id, [])
         l_submitted = [s for s in l_subs if s.status in ['submitted', 'graded']]
         l_graded = [s.score for s in l_submitted if s.status == 'graded' and s.score is not None]
@@ -390,13 +414,14 @@ def get_class_analytics(
 
     # 5. Thống kê tiến độ từng sinh viên
     student_progress = []
+    comparison_total_labs = len(target_labs)
     for st in sorted(students, key=lambda s: s.full_name):
         s_subs = sub_by_student.get(st.id, [])
         s_completed = [s for s in s_subs if s.status in ['submitted', 'graded']]
         s_scores = [s.score for s in s_completed if s.status == 'graded' and s.score is not None]
         s_late = sum(1 for s in s_completed if s.late_penalty > 0)
         s_avg = round(sum(s_scores) / len(s_scores), 2) if s_scores else None
-        completion_pct = round((len(s_completed) / total_labs * 100), 1) if total_labs else 0
+        completion_pct = round((len(s_completed) / comparison_total_labs * 100), 1) if comparison_total_labs else 0
         
         vm_info = student_vm_status_map.get(st.username, {"status": "none", "vmid": None})
 
@@ -406,7 +431,7 @@ def get_class_analytics(
             "full_name": st.full_name,
             "email": st.email,
             "completed_labs": len(s_completed),
-            "total_labs": total_labs,
+            "total_labs": comparison_total_labs,
             "completion_percentage": completion_pct,
             "average_score": s_avg,
             "late_submissions": s_late,
@@ -419,9 +444,14 @@ def get_class_analytics(
         "class_id": class_.id,
         "class_name": class_.name,
         "description": class_.description,
+        "selected_lab": {
+            "id": selected_lab.id,
+            "title": selected_lab.title
+        } if selected_lab else None,
         "summary": {
             "total_students": total_students,
             "total_labs": total_labs,
+            "filtered_labs_count": len(target_labs),
             "total_submitted": total_submitted,
             "total_graded": total_graded,
             "total_possible_submissions": total_possible_submissions,
