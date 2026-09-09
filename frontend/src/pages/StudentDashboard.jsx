@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { 
   BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
-  Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle 
+  Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
+  School, Layers, ChevronDown
 } from 'lucide-react'
 import { useAuth } from '../App.jsx'
 
@@ -263,6 +264,10 @@ export default function StudentDashboard() {
   const [success, setSuccess] = useState('')
 
   // Search & Filter state for Labs
+  const [classes, setClasses] = useState([])
+  const [labGroupByClass, setLabGroupByClass] = useState(true)
+  const [collapsedClassGroups, setCollapsedClassGroups] = useState({})
+  const [studentLabClassFilter, setStudentLabClassFilter] = useState('')
   const [studentLabSearch, setStudentLabSearch] = useState('')
   const [studentLabStatusFilter, setStudentLabStatusFilter] = useState('all') // 'all' | 'not_started' | 'draft' | 'resubmit'
   const [studentLabSort, setStudentLabSort] = useState('deadline_asc') // 'deadline_asc' | 'deadline_desc' | 'title_asc'
@@ -361,13 +366,26 @@ export default function StudentDashboard() {
   }
 
 
-  // Fetch initial labs list
+  // Fetch initial labs list & student enrolled classes
   const fetchStudentLabs = async () => {
     setLoading(true)
     setError('')
     const token = localStorage.getItem('malsec_token')
 
     try {
+      // Fetch classes for class metadata and grouping
+      try {
+        const clsRes = await fetch('/api/classes/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (clsRes.ok) {
+          const clsData = await clsRes.json()
+          setClasses(clsData)
+        }
+      } catch (clsErr) {
+        console.error('Failed to fetch student classes:', clsErr)
+      }
+
       const res = await fetch('/api/labs/student/active', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -690,6 +708,8 @@ export default function StudentDashboard() {
     const matchesSearch = lab.title.toLowerCase().includes(studentLabSearch.toLowerCase()) || 
                           (lab.description && lab.description.toLowerCase().includes(studentLabSearch.toLowerCase()))
     
+    const matchesClass = studentLabClassFilter === '' ? true : lab.class_id === parseInt(studentLabClassFilter)
+
     const sub = lab.submission
     let matchesStatus = true
     if (studentLabStatusFilter === 'not_started') {
@@ -700,7 +720,7 @@ export default function StudentDashboard() {
       matchesStatus = sub && sub.status === 're_submit_requested'
     }
     
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesClass && matchesStatus
   }).sort((a, b) => {
     if (studentLabSort === 'deadline_asc') {
       return new Date(a.deadline) - new Date(b.deadline)
@@ -714,10 +734,38 @@ export default function StudentDashboard() {
     return 0
   })
 
+  // Group filtered active labs by class
+  const groupedActiveLabs = React.useMemo(() => {
+    const groups = {}
+    filteredActiveLabs.forEach(lab => {
+      const cid = lab.class_id || 0
+      if (!groups[cid]) {
+        const cls = classes.find(c => c.id === cid)
+        groups[cid] = {
+          classId: cid,
+          className: cls ? cls.name : `Class #${cid}`,
+          classDesc: cls?.description || '',
+          labs: []
+        }
+      }
+      groups[cid].labs.push(lab)
+    })
+    return Object.values(groups)
+  }, [filteredActiveLabs, classes])
+
+  const toggleClassGroup = (classId) => {
+    setCollapsedClassGroups(prev => ({
+      ...prev,
+      [classId]: !prev[classId]
+    }))
+  }
+
   // Filter and sort graded labs
   const filteredGradedLabs = gradedLabs.filter(lab => {
-    return lab.title.toLowerCase().includes(studentLabSearch.toLowerCase()) || 
-           (lab.description && lab.description.toLowerCase().includes(studentLabSearch.toLowerCase()))
+    const matchesSearch = lab.title.toLowerCase().includes(studentLabSearch.toLowerCase()) || 
+                          (lab.description && lab.description.toLowerCase().includes(studentLabSearch.toLowerCase()))
+    const matchesClass = studentLabClassFilter === '' ? true : lab.class_id === parseInt(studentLabClassFilter)
+    return matchesSearch && matchesClass
   }).sort((a, b) => {
     return new Date(b.submission?.submitted_at) - new Date(a.submission?.submitted_at)
   })
@@ -762,10 +810,25 @@ export default function StudentDashboard() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Class Filter */}
+              {classes.length > 1 && (
+                <select 
+                  className="form-select" 
+                  style={{ width: '180px', margin: 0 }}
+                  value={studentLabClassFilter}
+                  onChange={(e) => setStudentLabClassFilter(e.target.value)}
+                >
+                  <option value="">All Classes</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+
               {/* Filter Lab Status */}
               <select 
                 className="form-select" 
-                style={{ width: '180px', margin: 0 }}
+                style={{ width: '160px', margin: 0 }}
                 value={studentLabStatusFilter}
                 onChange={(e) => setStudentLabStatusFilter(e.target.value)}
               >
@@ -786,6 +849,18 @@ export default function StudentDashboard() {
                 <option value="deadline_desc">Deadline (Latest first)</option>
                 <option value="title_asc">Lab Title (A-Z)</option>
               </select>
+
+              {/* Group By Class Toggle */}
+              <button
+                type="button"
+                onClick={() => setLabGroupByClass(!labGroupByClass)}
+                className={`btn ${labGroupByClass ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Bật/Tắt gom nhóm bài lab theo lớp học"
+              >
+                <Layers size={14} />
+                {labGroupByClass ? 'Gom nhóm: Theo Lớp' : 'Gom nhóm: Tắt'}
+              </button>
             </div>
           </div>
 
@@ -795,91 +870,251 @@ export default function StudentDashboard() {
               <BookOpen size={20} className="brand-icon" /> Assigned Practical Labs
             </h3>
             
-            <div className="table-container" style={{ margin: 0 }}>
-              <table className="cyber-table">
-                <thead>
-                  <tr>
-                    <th>Lab Assignment</th>
-                    <th>Deadline</th>
-                    <th>Time Remaining</th>
-                    <th>Status</th>
-                    <th>Previous Feedback</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredActiveLabs.map(lab => {
-                    const timer = getRemainingTime(lab)
-                    const sub = lab.submission
-                    const isExtension = (lab.individual_extensions || {})[user.username] !== undefined
-
-                    return (
-                      <tr key={lab.id}>
-                        <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
-                          <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px' }}>{lab.title}</div>
-                          {lab.description && (
-                            <div style={{ 
-                              fontSize: '12.5px', 
-                              color: 'var(--text-secondary)', 
-                              fontWeight: 'normal',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              lineHeight: '1.45',
-                              marginTop: '2px'
-                            }}>
-                              {lab.description}
-                            </div>
-                          )}
-                          {isExtension && (
-                            <span className="badge badge-submitted" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9.5px', padding: '2px 6px' }}>
-                              Individual Extension Granted
+            {labGroupByClass ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {groupedActiveLabs.map(group => {
+                  const isCollapsed = !!collapsedClassGroups[group.classId]
+                  return (
+                    <div 
+                      key={group.classId} 
+                      style={{ 
+                        border: '1px solid var(--border-color)', 
+                        borderRadius: '10px', 
+                        overflow: 'hidden', 
+                        background: '#ffffff',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      {/* Group Header */}
+                      <div 
+                        onClick={() => toggleClassGroup(group.classId)}
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '14px 18px', 
+                          background: '#f8fafc', 
+                          cursor: 'pointer',
+                          borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {isCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
+                          <School size={18} style={{ color: 'var(--neon-cyan)' }} />
+                          <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                            {group.className}
+                          </span>
+                          {group.classDesc && (
+                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                              — {group.classDesc}
                             </span>
                           )}
-                        </td>
-
-                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          {isExtension 
-                            ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
-                            : new Date(lab.deadline).toLocaleString('en-US')}
-                        </td>
-                        <td style={{ 
-                          color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
-                          fontWeight: '500'
-                        }}>
-                          {timer.text}
-                        </td>
-                        <td>
-                          <span className={`badge ${
-                            !sub ? 'badge-draft' : 
-                            sub.status === 'draft' ? 'badge-draft' : 
-                            sub.status === 'submitted' ? 'badge-submitted' : 'badge-resubmit'
-                          }`}>
-                            {!sub ? 'Not Started' : 
-                             sub.status === 'draft' ? 'Draft' : 
-                             sub.status === 'submitted' ? 'Submitted' : 'Resubmission Requested'}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="badge badge-submitted" style={{ fontSize: '12px', fontWeight: '600' }}>
+                            {group.labs.length} bài lab
                           </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          {sub?.comment ? sub.comment : '—'}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button onClick={() => handleOpenLab(lab)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                            Start Lab &rarr;
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {filteredActiveLabs.length === 0 && (
+                        </div>
+                      </div>
+
+                      {/* Group Labs Table */}
+                      {!isCollapsed && (
+                        <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
+                          <table className="cyber-table">
+                            <thead>
+                              <tr>
+                                <th>Lab Assignment</th>
+                                <th>Deadline</th>
+                                <th>Time Remaining</th>
+                                <th>Status</th>
+                                <th>Previous Feedback</th>
+                                <th style={{ textAlign: 'right' }}>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.labs.map(lab => {
+                                const timer = getRemainingTime(lab)
+                                const sub = lab.submission
+                                const isExtension = (lab.individual_extensions || {})[user.username] !== undefined
+
+                                return (
+                                  <tr key={lab.id}>
+                                    <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
+                                      <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
+                                          ID #{lab.id}
+                                        </span>
+                                        <span>{lab.title}</span>
+                                      </div>
+                                      {lab.description && (
+                                        <div style={{ 
+                                          fontSize: '12.5px', 
+                                          color: 'var(--text-secondary)', 
+                                          fontWeight: 'normal',
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 2,
+                                          WebkitBoxOrient: 'vertical',
+                                          overflow: 'hidden',
+                                          lineHeight: '1.45',
+                                          marginTop: '2px'
+                                        }}>
+                                          {lab.description}
+                                        </div>
+                                      )}
+                                      {isExtension && (
+                                        <span className="badge badge-submitted" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9.5px', padding: '2px 6px' }}>
+                                          Individual Extension Granted
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                      {isExtension 
+                                        ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
+                                        : new Date(lab.deadline).toLocaleString('en-US')}
+                                    </td>
+                                    <td style={{ 
+                                      color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
+                                      fontWeight: '500'
+                                    }}>
+                                      {timer.text}
+                                    </td>
+                                    <td>
+                                      <span className={`badge ${
+                                        !sub ? 'badge-draft' : 
+                                        sub.status === 'draft' ? 'badge-draft' : 
+                                        sub.status === 'submitted' ? 'badge-submitted' : 'badge-resubmit'
+                                      }`}>
+                                        {!sub ? 'Not Started' : 
+                                         sub.status === 'draft' ? 'Draft' : 
+                                         sub.status === 'submitted' ? 'Submitted' : 'Resubmission Requested'}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                      {sub?.comment ? sub.comment : '—'}
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <button onClick={() => handleOpenLab(lab)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }}>
+                                        Start Lab &rarr;
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {groupedActiveLabs.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                    No matching practical labs found.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="table-container" style={{ margin: 0 }}>
+                <table className="cyber-table">
+                  <thead>
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No matching practical labs found.</td>
+                      <th>Lab Assignment</th>
+                      <th>Class</th>
+                      <th>Deadline</th>
+                      <th>Time Remaining</th>
+                      <th>Status</th>
+                      <th>Previous Feedback</th>
+                      <th style={{ textAlign: 'right' }}>Action</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredActiveLabs.map(lab => {
+                      const timer = getRemainingTime(lab)
+                      const sub = lab.submission
+                      const isExtension = (lab.individual_extensions || {})[user.username] !== undefined
+                      const cls = classes.find(c => c.id === lab.class_id)
+
+                      return (
+                        <tr key={lab.id}>
+                          <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
+                            <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
+                                ID #{lab.id}
+                              </span>
+                              <span>{lab.title}</span>
+                            </div>
+                            {lab.description && (
+                              <div style={{ 
+                                fontSize: '12.5px', 
+                                color: 'var(--text-secondary)', 
+                                fontWeight: 'normal',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                lineHeight: '1.45',
+                                marginTop: '2px'
+                              }}>
+                                {lab.description}
+                              </div>
+                            )}
+                            {isExtension && (
+                              <span className="badge badge-submitted" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9.5px', padding: '2px 6px' }}>
+                                Individual Extension Granted
+                              </span>
+                            )}
+                          </td>
+
+                          <td>
+                            <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                              {cls ? cls.name : `Class #${lab.class_id}`}
+                            </span>
+                          </td>
+
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                            {isExtension 
+                              ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
+                              : new Date(lab.deadline).toLocaleString('en-US')}
+                          </td>
+                          <td style={{ 
+                            color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
+                            fontWeight: '500'
+                          }}>
+                            {timer.text}
+                          </td>
+                          <td>
+                            <span className={`badge ${
+                              !sub ? 'badge-draft' : 
+                              sub.status === 'draft' ? 'badge-draft' : 
+                              sub.status === 'submitted' ? 'badge-submitted' : 'badge-resubmit'
+                            }`}>
+                              {!sub ? 'Not Started' : 
+                               sub.status === 'draft' ? 'Draft' : 
+                               sub.status === 'submitted' ? 'Submitted' : 'Resubmission Requested'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                            {sub?.comment ? sub.comment : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button onClick={() => handleOpenLab(lab)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }}>
+                              Start Lab &rarr;
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {filteredActiveLabs.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No matching practical labs found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Graded labs / History */}
@@ -893,6 +1128,7 @@ export default function StudentDashboard() {
                 <thead>
                   <tr>
                     <th>Lab Assignment</th>
+                    <th>Class</th>
                     <th>Submission Time</th>
                     <th>Late Penalty</th>
                     <th>Instructor Feedback</th>
@@ -903,9 +1139,22 @@ export default function StudentDashboard() {
                 <tbody>
                   {filteredGradedLabs.map(lab => {
                     const sub = lab.submission
+                    const cls = classes.find(c => c.id === lab.class_id)
                     return (
                       <tr key={lab.id}>
-                        <td style={{ fontWeight: '500' }}>{lab.title}</td>
+                        <td style={{ fontWeight: '500' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span className="badge badge-draft" style={{ fontSize: '10px', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>
+                              ID #{lab.id}
+                            </span>
+                            <span>{lab.title}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                            {cls ? cls.name : `Class #${lab.class_id}`}
+                          </span>
+                        </td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
                           {new Date(sub.submitted_at).toLocaleString('en-US')}
                         </td>
@@ -928,7 +1177,7 @@ export default function StudentDashboard() {
                   })}
                   {filteredGradedLabs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No graded submissions or matching labs found.</td>
+                      <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No graded submissions or matching labs found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -947,8 +1196,18 @@ export default function StudentDashboard() {
               &larr; Back to Dashboard
             </button>
             <div>
-              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{selectedLab.title}</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="badge badge-draft" style={{ fontSize: '11px', padding: '2px 8px', fontFamily: 'var(--font-mono)' }}>
+                  ID #{selectedLab.id}
+                </span>
+                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', margin: 0 }}>{selectedLab.title}</h3>
+                {classes.find(c => c.id === selectedLab.class_id) && (
+                  <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                    {classes.find(c => c.id === selectedLab.class_id)?.name}
+                  </span>
+                )}
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
             </div>
 
             {/* Server-Side Auto-save status light */}

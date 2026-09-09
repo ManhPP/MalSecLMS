@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from app.database import get_db
 from app.models import Class, User, AuditLog
 from app.schemas import ClassOut, ClassCreate, ClassWithStudents
-from app.security import require_lecturer, require_admin
+from app.security import require_lecturer, require_admin, require_any_user
 from app.request_utils import get_client_ip
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
@@ -13,10 +13,10 @@ router = APIRouter(prefix="/classes", tags=["Classes"])
 @router.get("/", response_model=List[ClassOut])
 def get_classes(
     db: Session = Depends(get_db), 
-    current_user: User = Depends(require_lecturer)
+    current_user: User = Depends(require_any_user)
 ):
-    """API Lấy danh sách lớp học phần (Giảng viên/Admin)"""
-    if current_user.role == "lecturer":
+    """API Lấy danh sách lớp học phần (Admin: toàn bộ, Giảng viên/Sinh viên: các lớp tham gia)"""
+    if current_user.role in ["lecturer", "student"]:
         return db.query(Class).filter(Class.users.any(id=current_user.id)).order_by(Class.id.desc()).all()
     return db.query(Class).order_by(Class.id.desc()).all()
 
