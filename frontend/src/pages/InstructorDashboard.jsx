@@ -1082,10 +1082,11 @@ export default function InstructorDashboard() {
                     <div 
                       key={group.classId} 
                       style={{ 
-                        border: '1px solid rgba(0, 243, 255, 0.25)', 
-                        borderRadius: '8px', 
+                        border: '1px solid var(--border-color)', 
+                        borderRadius: '10px', 
                         overflow: 'hidden', 
-                        background: 'rgba(15, 23, 42, 0.6)' 
+                        background: '#ffffff',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
                       }}
                     >
                       {/* Group Header */}
@@ -1095,27 +1096,27 @@ export default function InstructorDashboard() {
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           alignItems: 'center', 
-                          padding: '12px 16px', 
-                          background: 'rgba(0, 243, 255, 0.08)', 
+                          padding: '14px 18px', 
+                          background: '#f8fafc', 
                           cursor: 'pointer',
-                          borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 243, 255, 0.15)',
+                          borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)',
                           userSelect: 'none'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           {isCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
                           <School size={18} style={{ color: 'var(--neon-cyan)' }} />
-                          <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
                             {group.className}
                           </span>
                           {group.classDesc && (
-                            <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                               — {group.classDesc}
                             </span>
                           )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-submitted" style={{ fontSize: '11.5px' }}>
+                          <span className="badge badge-submitted" style={{ fontSize: '12px', fontWeight: '600' }}>
                             {group.labs.length} bài lab
                           </span>
                         </div>
@@ -1123,7 +1124,7 @@ export default function InstructorDashboard() {
 
                       {/* Group Labs Table */}
                       {!isCollapsed && (
-                        <div className="table-container" style={{ margin: 0 }}>
+                        <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
                           <table className="cyber-table">
                             <thead>
                               <tr>
@@ -1139,7 +1140,7 @@ export default function InstructorDashboard() {
                               {group.labs.map(lab => (
                                 <tr key={lab.id}>
                                   <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
-                                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
                                     {new Date(lab.deadline).toLocaleString('en-US')}
                                   </td>
                                   <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -1149,11 +1150,11 @@ export default function InstructorDashboard() {
                                   </td>
                                   <td>
                                     {lab.enable_vm !== false ? (
-                                      <span style={{ fontSize: '11px', color: lab.is_linked_clone ? 'var(--neon-cyan)' : 'var(--neon-orange)', fontFamily: 'var(--font-mono)' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: '500', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
                                         {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
                                       </span>
                                     ) : (
-                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No VM</span>
+                                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
                                     )}
                                   </td>
                                   <td>
@@ -1167,7 +1168,7 @@ export default function InstructorDashboard() {
                                         <button 
                                           onClick={() => openVmManagerModal(lab)} 
                                           className="btn btn-secondary" 
-                                          style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
+                                          style={{ padding: '5px 10px', fontSize: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
                                           title="Manage & Purge Student VMs"
                                         >
                                           <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
@@ -1176,7 +1177,7 @@ export default function InstructorDashboard() {
                                       <button 
                                         onClick={() => openCloneModal(lab)} 
                                         className="btn btn-secondary" 
-                                        style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: 'var(--neon-emerald)' }}
+                                        style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
                                         title="Nhân bản bài lab sang lớp khác"
                                       >
                                         <Copy size={13} style={{ marginRight: '4px' }} /> Clone
@@ -1184,20 +1185,20 @@ export default function InstructorDashboard() {
                                       <button 
                                         onClick={() => openEditLabModal(lab)} 
                                         className="btn btn-secondary" 
-                                        style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
+                                        style={{ padding: '5px 10px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
                                         title="Edit Lab"
                                       >
-                                        <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
+                                        <Edit2 size={13} style={{ marginRight: '4px', color: '#475569' }} /> Edit
                                       </button>
                                       <button 
                                         onClick={() => handleDeleteLab(lab.id, lab.title)} 
                                         className="btn btn-danger" 
-                                        style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
+                                        style={{ padding: '5px 10px', fontSize: '12px' }}
                                         title="Delete Lab"
                                       >
                                         <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
                                       </button>
-                                      <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                                      <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '12px' }}>
                                         Grade &rarr;
                                       </button>
                                     </div>
@@ -1238,22 +1239,22 @@ export default function InstructorDashboard() {
                       return (
                         <tr key={lab.id}>
                           <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
-                          <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                          <td style={{ color: 'var(--text-primary)' }}>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
                             {new Date(lab.deadline).toLocaleString('en-US')}
                           </td>
-                          <td style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+                          <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                             {lab.late_policy?.allow_late 
                               ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
                               : 'No late submissions allowed'}
                           </td>
                           <td>
                             {lab.enable_vm !== false ? (
-                              <span style={{ fontSize: '11px', color: lab.is_linked_clone ? 'var(--neon-cyan)' : 'var(--neon-orange)', fontFamily: 'var(--font-mono)' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '500', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
                                 {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
                               </span>
                             ) : (
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No VM</span>
+                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
                             )}
                           </td>
                           <td>
@@ -1267,7 +1268,7 @@ export default function InstructorDashboard() {
                                 <button 
                                   onClick={() => openVmManagerModal(lab)} 
                                   className="btn btn-secondary" 
-                                  style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
+                                  style={{ padding: '5px 10px', fontSize: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
                                   title="Manage & Purge Student VMs"
                                 >
                                   <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
@@ -1276,7 +1277,7 @@ export default function InstructorDashboard() {
                               <button 
                                 onClick={() => openCloneModal(lab)} 
                                 className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: 'var(--neon-emerald)' }}
+                                style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
                                 title="Nhân bản bài lab sang lớp khác"
                               >
                                 <Copy size={13} style={{ marginRight: '4px' }} /> Clone
@@ -1284,20 +1285,20 @@ export default function InstructorDashboard() {
                               <button 
                                 onClick={() => openEditLabModal(lab)} 
                                 className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
+                                style={{ padding: '5px 10px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
                                 title="Edit Lab"
                               >
-                                <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
+                                <Edit2 size={13} style={{ marginRight: '4px', color: '#475569' }} /> Edit
                               </button>
                               <button 
                                 onClick={() => handleDeleteLab(lab.id, lab.title)} 
                                 className="btn btn-danger" 
-                                style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
                                 title="Delete Lab"
                               >
                                 <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
                               </button>
-                              <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                              <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '12px' }}>
                                 Grade &rarr;
                               </button>
                             </div>
