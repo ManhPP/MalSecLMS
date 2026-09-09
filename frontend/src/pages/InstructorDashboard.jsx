@@ -329,10 +329,17 @@ export default function InstructorDashboard() {
             docxContainerRef.current.innerHTML = ''
             await renderAsync(arrayBuffer, docxContainerRef.current, null, {
               className: 'docx-preview-content',
-              inWrapper: true,
+              inWrapper: false,
               ignoreWidth: false,
               ignoreHeight: false,
               breakPages: true
+            })
+            // Xóa triệt để mọi inline style background gray hoặc thẻ STYLE nội bộ nếu có
+            const grayEls = docxContainerRef.current.querySelectorAll('*')
+            grayEls.forEach(el => {
+              if (el.style && (el.style.background === 'gray' || el.style.backgroundColor === 'gray')) {
+                el.style.background = '#ffffff'
+              }
             })
           }
           setPreviewLoading(false)

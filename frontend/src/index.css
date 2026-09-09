@@ -617,30 +617,33 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
 }
 
-/* DOCX Preview Page Styling - 100% Crisp White Paper Experience */
-.docx-preview-content {
-  background: #ffffff !important;
-  width: 100% !important;
+/* DOCX Preview Page Styling - 100% Pure White Paper Layout */
+.docx-preview-content,
+[class*="docx"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
 }
 
-.docx-preview-content .docx-wrapper,
+div.docx-wrapper,
 .docx-wrapper {
   background: #ffffff !important;
-  padding: 16px 0 !important;
+  background-color: #ffffff !important;
+  padding: 20px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
 }
 
-.docx-preview-content .docx,
-.docx-preview-content .docx-wrapper > section.docx,
-.docx-wrapper > section.docx,
 section.docx,
-.docx-preview-content article,
-.docx-preview-content section {
+.docx-wrapper > section.docx,
+.docx-preview-content section,
+.docx-preview-content article {
   background: #ffffff !important;
+  background-color: #ffffff !important;
   color: #111827 !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid #e2e8f0 !important;
   margin: 0 auto 24px auto !important;
-  border-radius: 4px !important;
-  border: 1px solid #e5e7eb !important;
 }
 
 .docx-preview-content p,
