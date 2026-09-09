@@ -627,10 +627,29 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0 !important;
 }
 
-.docx-preview-content .docx {
+.docx-preview-content .docx,
+.docx-preview-content .docx-wrapper > section.docx,
+.docx-preview-content article,
+.docx-preview-content section {
   background: #ffffff !important;
-  color: #1f2937 !important;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
-  margin-bottom: 20px !important;
-  border-radius: 4px !important;
+  color: #111827 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  margin-bottom: 24px !important;
+  border-radius: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.docx-preview-content p,
+.docx-preview-content span,
+.docx-preview-content td,
+.docx-preview-content th,
+.docx-preview-content div,
+.docx-preview-content h1,
+.docx-preview-content h2,
+.docx-preview-content h3,
+.docx-preview-content h4,
+.docx-preview-content h5,
+.docx-preview-content h6,
+.docx-preview-content li {
+  color: #111827 !important;
 }

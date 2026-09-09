@@ -332,27 +332,32 @@ def provision_student_vm(
 
         status = proxmox.nodes(node).qemu(new_vmid).status.current.get()
         boot_start = time.perf_counter()
-        if status.get("status") != "running":
+        is_already_running = (status.get("status") == "running")
+        if not is_already_running:
             print(f"[+] Starting VM {new_vmid}...", flush=True)
             start_upid = proxmox.nodes(node).qemu(new_vmid).status.start.post()
             _wait_for_pve_task(proxmox, node, start_upid, f"starting VM {new_vmid}")
 
+        # Lấy IP từ QEMU guest agent (nếu VM đang chạy sẵn, hàm này trả về ngay tức thì)
         ip_address = _wait_for_guest_vlan_ip(proxmox, node, new_vmid)
-        if settings.VM_VERIFY_CONNECTION:
-            _wait_for_connection(ip_address, new_vmid, protocol, port)
-        else:
-            print(
-                f"[+] Waiting {settings.VM_BOOT_WAIT_SECONDS}s for guest VM "
-                f"{new_vmid} to finish booting...",
-                flush=True,
-            )
-            time.sleep(settings.VM_BOOT_WAIT_SECONDS)
-        # Tự động đảm bảo FakeNet không chặn RDP 3389 và Guacamole IP
-        if protocol.lower() == "rdp" or port == 3389:
-            _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
+
+        # Chỉ áp dụng độ trễ boot và cấu hình whitelist nếu VM vừa mới được bật lên
+        if not is_already_running:
+            if settings.VM_VERIFY_CONNECTION:
+                _wait_for_connection(ip_address, new_vmid, protocol, port)
+            else:
+                print(
+                    f"[+] Waiting {settings.VM_BOOT_WAIT_SECONDS}s for guest VM "
+                    f"{new_vmid} to finish booting...",
+                    flush=True,
+                )
+                time.sleep(settings.VM_BOOT_WAIT_SECONDS)
+            # Tự động đảm bảo FakeNet không chặn RDP 3389 và Guacamole IP khi vừa khởi động
+            if protocol.lower() == "rdp" or port == 3389:
+                _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
 
         boot_duration = time.perf_counter() - boot_start
-        logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Boot time: {boot_duration:.1f}s")
+        logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Status: {'warm_hit' if is_already_running else 'cold_boot'} | Duration: {boot_duration:.1f}s")
     except VMProvisionError:
         raise
     except Exception as exc:
