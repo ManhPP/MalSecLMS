@@ -5,7 +5,7 @@ from app.database import get_db
 from app.config import settings
 from app.models import Lab, User, Class, AuditLog
 from app.request_utils import get_client_ip
-from app.schemas import LabOut, LabCreate, LabUpdate
+from app.schemas import LabOut, LabCreate, LabUpdate, LabClone
 from app.security import require_lecturer, require_student, get_current_user, require_any_user
 
 router = APIRouter(prefix="/labs", tags=["Labs"])
@@ -261,6 +261,67 @@ def delete_lab(
     db.delete(lab)
     db.commit()
     return {"message": "Xóa bài lab thành công"}
+
+@router.post("/{lab_id}/clone", response_model=LabOut, status_code=status.HTTP_201_CREATED)
+def clone_lab(
+    lab_id: int,
+    clone_data: LabClone,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Nhân bản bài lab sang lớp khác (Giảng viên/Admin)"""
+    source_lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not source_lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab gốc")
+
+    # Kiểm tra quyền với lớp nguồn (nếu là giảng viên)
+    if current_user.role == "lecturer":
+        source_class = db.query(Class).filter(Class.id == source_lab.class_id).first()
+        if not source_class or current_user not in source_class.users:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý bài lab nguồn này")
+
+    # Kiểm tra lớp đích
+    target_class = db.query(Class).filter(Class.id == clone_data.target_class_id).first()
+    if not target_class:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học phần đích")
+
+    if current_user.role == "lecturer" and current_user not in target_class.users:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền giao bài cho lớp học phần đích này")
+
+    title = clone_data.new_title.strip() if clone_data.new_title and clone_data.new_title.strip() else f"{source_lab.title} (Bản sao)"
+    deadline = clone_data.new_deadline if clone_data.new_deadline else source_lab.deadline
+
+    # Tạo bản sao bài lab với dữ liệu cấu hình giống bài lab gốc
+    cloned_lab = Lab(
+        title=title,
+        description=source_lab.description,
+        form_fields=source_lab.form_fields,
+        deadline=deadline,
+        late_policy=source_lab.late_policy,
+        individual_extensions={}, # Làm mới danh sách gia hạn cá nhân
+        class_id=clone_data.target_class_id,
+        created_by_id=current_user.id,
+        is_active=source_lab.is_active,
+        enable_vm=source_lab.enable_vm,
+        template_vmid=source_lab.template_vmid,
+        is_linked_clone=source_lab.is_linked_clone,
+        vm_protocol=source_lab.vm_protocol,
+        vm_port=source_lab.vm_port,
+        vm_username=source_lab.vm_username,
+        vm_password=source_lab.vm_password
+    )
+    db.add(cloned_lab)
+    db.commit()
+    db.refresh(cloned_lab)
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="CLONE_LAB",
+        details=f"Nhân bản bài lab '{source_lab.title}' (ID {source_lab.id}) sang lớp '{target_class.name}' (ID {target_class.id}) thành '{cloned_lab.title}' (ID {cloned_lab.id})"
+    )
+    db.add(log)
+    db.commit()
+    return cloned_lab
 
 @router.post("/{lab_id}/extensions", response_model=LabOut)
 def update_individual_extensions(

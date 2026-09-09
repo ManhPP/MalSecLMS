@@ -3,7 +3,8 @@ import {
   BookOpen, Plus, Calendar, FileSpreadsheet, Download, 
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
-  School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play
+  School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
+  Copy, Layers, ChevronDown, ChevronRight
 } from 'lucide-react'
 
 
@@ -188,6 +189,13 @@ export default function InstructorDashboard() {
   const [extensionStudent, setExtensionStudent] = useState('')
   const [extensionDeadline, setExtensionDeadline] = useState('')
 
+  // Clone Lab State
+  const [showCloneModal, setShowCloneModal] = useState(false)
+  const [cloneSourceLab, setCloneSourceLab] = useState(null)
+  const [cloneTargetClassId, setCloneTargetClassId] = useState('')
+  const [cloneNewTitle, setCloneNewTitle] = useState('')
+  const [cloneNewDeadline, setCloneNewDeadline] = useState('')
+
   // Instructor Classes/Students management states
   const [selectedClass, setSelectedClass] = useState(null)
   const [studentIdsInput, setStudentIdsInput] = useState('')
@@ -205,6 +213,8 @@ export default function InstructorDashboard() {
   const [labClassFilter, setLabClassFilter] = useState('')
   const [labStatusFilter, setLabStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
   const [labSortOrder, setLabSortOrder] = useState('newest') // 'newest' | 'deadline_asc' | 'deadline_desc' | 'title_asc'
+  const [labGroupByClass, setLabGroupByClass] = useState(true) // Gom nhóm theo lớp mặc định
+  const [collapsedClassGroups, setCollapsedClassGroups] = useState({}) // { [classId]: boolean }
 
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -575,6 +585,67 @@ export default function InstructorDashboard() {
     }
   }
 
+  // Clone Lab Handlers
+  const openCloneModal = (lab) => {
+    setCloneSourceLab(lab)
+    // Tìm các lớp khác lớp hiện tại của lab
+    const otherClasses = classes.filter(c => c.id !== lab.class_id)
+    setCloneTargetClassId(otherClasses[0]?.id || classes[0]?.id || '')
+    setCloneNewTitle(`${lab.title} (Bản sao)`)
+    
+    if (lab.deadline) {
+      const d = new Date(lab.deadline)
+      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      setCloneNewDeadline(localIso)
+    } else {
+      setCloneNewDeadline('')
+    }
+    setShowCloneModal(true)
+  }
+
+  const handleCloneLabSubmit = async (e) => {
+    e.preventDefault()
+    if (!cloneSourceLab) return
+    if (!cloneTargetClassId) {
+      setError('Vui lòng chọn lớp học phần đích')
+      return
+    }
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const payload = {
+        target_class_id: parseInt(cloneTargetClassId),
+        new_title: cloneNewTitle.trim(),
+        new_deadline: cloneNewDeadline ? new Date(cloneNewDeadline).toISOString() : null
+      }
+
+      const res = await fetch(`/api/labs/${cloneSourceLab.id}/clone`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi khi nhân bản bài lab')
+
+      setSuccess(`Nhân bản bài lab "${data.title}" sang lớp mới thành công!`)
+      setShowCloneModal(false)
+      setCloneSourceLab(null)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   // VM Manager Handlers
   const fetchLabVms = async (labId) => {
     setVmActionLoading(true)
@@ -842,6 +913,32 @@ export default function InstructorDashboard() {
     return 0
   })
 
+  // Group filtered labs by class
+  const groupedLabs = React.useMemo(() => {
+    const groups = {}
+    filteredLabs.forEach(lab => {
+      const cid = lab.class_id || 0
+      if (!groups[cid]) {
+        const cls = classes.find(c => c.id === cid)
+        groups[cid] = {
+          classId: cid,
+          className: cls ? cls.name : `Class ID ${cid}`,
+          classDesc: cls?.description || '',
+          labs: []
+        }
+      }
+      groups[cid].labs.push(lab)
+    })
+    return Object.values(groups)
+  }, [filteredLabs, classes])
+
+  const toggleClassGroup = (classId) => {
+    setCollapsedClassGroups(prev => ({
+      ...prev,
+      [classId]: !prev[classId]
+    }))
+  }
+
   return (
     <div>
       {/* Dynamic Alerts */}
@@ -961,87 +1058,263 @@ export default function InstructorDashboard() {
                   <option value="deadline_desc">Deadline (Latest first)</option>
                   <option value="title_asc">Title (A-Z)</option>
                 </select>
+
+                {/* Group By Class Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setLabGroupByClass(!labGroupByClass)}
+                  className={`btn ${labGroupByClass ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Bật/Tắt gom nhóm bài lab theo từng lớp"
+                >
+                  <Layers size={14} />
+                  {labGroupByClass ? 'Gom nhóm: Theo Lớp' : 'Gom nhóm: Tắt'}
+                </button>
               </div>
             </div>
             
-            <div className="table-container" style={{ margin: 0 }}>
-              <table className="cyber-table">
-                <thead>
-                  <tr>
-                    <th>Lab Assignment</th>
-                    <th>Class</th>
-                    <th>Deadline</th>
-                    <th>Late Penalty Policy</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions & Grading</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLabs.map(lab => {
-                    const cls = classes.find(c => c.id === lab.class_id)
-                    return (
-                      <tr key={lab.id}>
-                        <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
-                        <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
-                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          {new Date(lab.deadline).toLocaleString('en-US')}
-                        </td>
-                        <td style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-                          {lab.late_policy?.allow_late 
-                            ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
-                            : 'No late submissions allowed'}
-                        </td>
-                        <td>
-                          <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
-                            {lab.is_active ? 'Active' : 'Inactive'}
+            {/* RENDER LABS: GROUPED BY CLASS OR FLAT LIST */}
+            {labGroupByClass ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {groupedLabs.map(group => {
+                  const isCollapsed = !!collapsedClassGroups[group.classId]
+                  return (
+                    <div 
+                      key={group.classId} 
+                      style={{ 
+                        border: '1px solid rgba(0, 243, 255, 0.25)', 
+                        borderRadius: '8px', 
+                        overflow: 'hidden', 
+                        background: 'rgba(15, 23, 42, 0.6)' 
+                      }}
+                    >
+                      {/* Group Header */}
+                      <div 
+                        onClick={() => toggleClassGroup(group.classId)}
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '12px 16px', 
+                          background: 'rgba(0, 243, 255, 0.08)', 
+                          cursor: 'pointer',
+                          borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 243, 255, 0.15)',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {isCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
+                          <School size={18} style={{ color: 'var(--neon-cyan)' }} />
+                          <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>
+                            {group.className}
                           </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            {lab.enable_vm !== false && (
-                              <button 
-                                onClick={() => openVmManagerModal(lab)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
-                                title="Manage & Purge Student VMs"
-                              >
-                                <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => openEditLabModal(lab)} 
-                              className="btn btn-secondary" 
-                              style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
-                              title="Edit Lab"
-                            >
-                              <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteLab(lab.id, lab.title)} 
-                              className="btn btn-danger" 
-                              style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
-                              title="Delete Lab"
-                            >
-                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
-                            </button>
-                            <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
-                              Grade &rarr;
-                            </button>
-                          </div>
+                          {group.classDesc && (
+                            <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                              — {group.classDesc}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="badge badge-submitted" style={{ fontSize: '11.5px' }}>
+                            {group.labs.length} bài lab
+                          </span>
+                        </div>
+                      </div>
 
-                        </td>
-                      </tr>
-                    )
-                  })}
+                      {/* Group Labs Table */}
+                      {!isCollapsed && (
+                        <div className="table-container" style={{ margin: 0 }}>
+                          <table className="cyber-table">
+                            <thead>
+                              <tr>
+                                <th>Lab Assignment</th>
+                                <th>Deadline</th>
+                                <th>Late Penalty Policy</th>
+                                <th>VM Provision</th>
+                                <th>Status</th>
+                                <th style={{ textAlign: 'right' }}>Actions & Grading</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.labs.map(lab => (
+                                <tr key={lab.id}>
+                                  <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                    {new Date(lab.deadline).toLocaleString('en-US')}
+                                  </td>
+                                  <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                    {lab.late_policy?.allow_late 
+                                      ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
+                                      : 'No late submissions allowed'}
+                                  </td>
+                                  <td>
+                                    {lab.enable_vm !== false ? (
+                                      <span style={{ fontSize: '11px', color: lab.is_linked_clone ? 'var(--neon-cyan)' : 'var(--neon-orange)', fontFamily: 'var(--font-mono)' }}>
+                                        {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No VM</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
+                                      {lab.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                      {lab.enable_vm !== false && (
+                                        <button 
+                                          onClick={() => openVmManagerModal(lab)} 
+                                          className="btn btn-secondary" 
+                                          style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
+                                          title="Manage & Purge Student VMs"
+                                        >
+                                          <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
+                                        </button>
+                                      )}
+                                      <button 
+                                        onClick={() => openCloneModal(lab)} 
+                                        className="btn btn-secondary" 
+                                        style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: 'var(--neon-emerald)' }}
+                                        title="Nhân bản bài lab sang lớp khác"
+                                      >
+                                        <Copy size={13} style={{ marginRight: '4px' }} /> Clone
+                                      </button>
+                                      <button 
+                                        onClick={() => openEditLabModal(lab)} 
+                                        className="btn btn-secondary" 
+                                        style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
+                                        title="Edit Lab"
+                                      >
+                                        <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteLab(lab.id, lab.title)} 
+                                        className="btn btn-danger" 
+                                        style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
+                                        title="Delete Lab"
+                                      >
+                                        <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                                      </button>
+                                      <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                                        Grade &rarr;
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
-                  {labs.length === 0 && (
+                {groupedLabs.length === 0 && (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
+                    No labs designed yet or no labs match current filter. Click the button above to create one.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="table-container" style={{ margin: 0 }}>
+                <table className="cyber-table">
+                  <thead>
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No labs designed yet. Click the button above to create one.</td>
+                      <th>Lab Assignment</th>
+                      <th>Class</th>
+                      <th>Deadline</th>
+                      <th>Late Penalty Policy</th>
+                      <th>VM Provision</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions & Grading</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredLabs.map(lab => {
+                      const cls = classes.find(c => c.id === lab.class_id)
+                      return (
+                        <tr key={lab.id}>
+                          <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
+                          <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                            {new Date(lab.deadline).toLocaleString('en-US')}
+                          </td>
+                          <td style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+                            {lab.late_policy?.allow_late 
+                              ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
+                              : 'No late submissions allowed'}
+                          </td>
+                          <td>
+                            {lab.enable_vm !== false ? (
+                              <span style={{ fontSize: '11px', color: lab.is_linked_clone ? 'var(--neon-cyan)' : 'var(--neon-orange)', fontFamily: 'var(--font-mono)' }}>
+                                {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No VM</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
+                              {lab.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {lab.enable_vm !== false && (
+                                <button 
+                                  onClick={() => openVmManagerModal(lab)} 
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0, 242, 254, 0.1)', border: '1px solid rgba(0, 242, 254, 0.3)', color: 'var(--neon-cyan)' }}
+                                  title="Manage & Purge Student VMs"
+                                >
+                                  <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => openCloneModal(lab)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: 'var(--neon-emerald)' }}
+                                title="Nhân bản bài lab sang lớp khác"
+                              >
+                                <Copy size={13} style={{ marginRight: '4px' }} /> Clone
+                              </button>
+                              <button 
+                                onClick={() => openEditLabModal(lab)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '12px', background: '#334155', border: 'none' }}
+                                title="Edit Lab"
+                              >
+                                <Edit2 size={13} style={{ marginRight: '4px' }} /> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteLab(lab.id, lab.title)} 
+                                className="btn btn-danger" 
+                                style={{ padding: '4px 8px', fontSize: '12px', border: 'none' }}
+                                title="Delete Lab"
+                              >
+                                <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                              </button>
+                              <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                                Grade &rarr;
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {labs.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No labs designed yet. Click the button above to create one.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2191,6 +2464,97 @@ export default function InstructorDashboard() {
             <div className="modal-footer">
               <button type="button" onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary">CLOSE</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CLONE LAB TO ANOTHER CLASS */}
+      {showCloneModal && cloneSourceLab && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--neon-emerald)' }}>
+                <Copy size={18} /> Nhân bản bài lab sang lớp khác
+              </h3>
+              <button onClick={() => setShowCloneModal(false)} className="close-btn">&times;</button>
+            </div>
+            
+            <form onSubmit={handleCloneLabSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '13px' }}>
+                  <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Bài lab nguồn:</div>
+                  <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>{cloneSourceLab.title}</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--neon-cyan)', marginTop: '4px' }}>
+                    {cloneSourceLab.enable_vm ? (
+                      `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone ~2s' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
+                    ) : 'Không sử dụng máy ảo'}
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '600' }}>
+                    Chọn Lớp học phần đích <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                  </label>
+                  <select
+                    className="form-select"
+                    style={{ width: '100%' }}
+                    value={cloneTargetClassId}
+                    onChange={(e) => setCloneTargetClassId(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Chọn lớp cần giao bài --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.id === cloneSourceLab.class_id ? '(Lớp hiện tại)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '600' }}>
+                    Tiêu đề bài lab mới <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={cloneNewTitle}
+                    onChange={(e) => setCloneNewTitle(e.target.value)}
+                    required
+                    placeholder="VD: IA2008 - Bài tập phân tích PE"
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '600' }}>
+                    Hạn nộp bài mới (Deadline) <span style={{ color: 'var(--neon-ruby)' }}>*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-input"
+                    value={cloneNewDeadline}
+                    onChange={(e) => setCloneNewDeadline(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                  💡 Toàn bộ nội dung câu hỏi động, chính sách phạt nộp muộn, cấu hình máy ảo và mật khẩu kết nối sẽ được sao chép nguyên vẹn sang lớp mới.
+                </p>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowCloneModal(false)} className="btn btn-secondary">HỦY</button>
+                <button 
+                  type="submit" 
+                  className="btn btn-success" 
+                  disabled={actionLoading}
+                  style={{ background: 'var(--neon-emerald)', borderColor: 'var(--neon-emerald)', color: '#000', fontWeight: 'bold' }}
+                >
+                  {actionLoading ? 'ĐANG SAO CHÉP...' : 'XÁC NHẬN NHÂN BẢN'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

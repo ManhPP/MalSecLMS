@@ -117,6 +117,11 @@ class LabUpdate(BaseModel):
     vm_password: Optional[str] = Field(default=None, min_length=1)
     class_id: Optional[int] = None
 
+class LabClone(BaseModel):
+    target_class_id: int
+    new_title: Optional[str] = None
+    new_deadline: Optional[datetime] = None
+
 
 class LabOut(LabBase):
     id: int
