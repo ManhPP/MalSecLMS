@@ -2368,7 +2368,7 @@ export default function InstructorDashboard() {
 
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                     {gradebookViewMode === 'tags' 
-                      ? '⚡ Averaging scores of all labs assigned under the same category tag (e.g. "Đầu điểm 1", "Chuyên cần", "Default").' 
+                      ? '⚡ Averaging scores of all labs assigned under the same category tag (e.g. "Assignment 1", "Homework", "Default").' 
                       : '⚡ Showing raw individual scores and late penalty deductions for every single lab.'}
                   </span>
                 </div>
@@ -3231,13 +3231,13 @@ export default function InstructorDashboard() {
 
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Grade Category Tag (Đầu điểm đánh giá)</span>
+                    <span>Grade Category Tag</span>
                     <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Optional (Default: "Default")</span>
                   </label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="e.g. Đầu điểm 1, Chuyên cần, Giữa kỳ, Thực hành..."
+                    placeholder="e.g. Assignment 1, Homework, Midterm, Practice..."
                     value={gradeTag}
                     onChange={(e) => setGradeTag(e.target.value)}
                   />
