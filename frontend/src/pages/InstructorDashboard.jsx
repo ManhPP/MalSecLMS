@@ -1971,13 +1971,13 @@ export default function InstructorDashboard() {
                 </div>
 
                 {enableVm && (
-                  <div style={{ padding: '12px 16px', background: 'rgba(0, 243, 255, 0.05)', borderRadius: '6px', border: '1px solid var(--neon-cyan)', marginBottom: '16px' }}>
+                  <div style={{ padding: '16px', background: 'rgba(242, 112, 36, 0.04)', borderRadius: '8px', border: '1px solid rgba(242, 112, 36, 0.3)', marginBottom: '16px' }}>
                     <label className="form-label" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       🖥️ Select Proxmox Template VM
                     </label>
                     <select 
                       className="form-input" 
-                      style={{ marginTop: '6px', background: '#0f172a', color: '#fff', borderColor: 'var(--neon-cyan)' }}
+                      style={{ marginTop: '6px', background: '#ffffff', color: 'var(--text-primary)', borderColor: 'var(--border-color)' }}
                       value={templateVmid}
                       onChange={(e) => setTemplateVmid(e.target.value)}
                       required
@@ -1993,12 +1993,12 @@ export default function InstructorDashboard() {
                       ))}
                     </select>
 
-                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '12px', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', border: '1px solid rgba(0, 243, 255, 0.2)' }}>
-                      <label className="form-label" style={{ color: '#fff', fontSize: '12.5px', marginBottom: '8px', display: 'block', fontWeight: 'bold' }}>
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <label className="form-label" style={{ color: 'var(--text-primary)', fontSize: '13px', marginBottom: '10px', display: 'block', fontWeight: 'bold' }}>
                         ⚡ VM Provisioning Mode (Clone Type)
                       </label>
-                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-muted)', fontSize: '13px' }}>
+                      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-secondary)', fontSize: '13.5px', fontWeight: isLinkedClone ? '600' : 'normal' }}>
                           <input
                             type="radio"
                             name="cloneMode"
@@ -2008,7 +2008,7 @@ export default function InstructorDashboard() {
                           />
                           <span><b>Linked Clone</b> (Khuyên dùng: Siêu nhanh ~2s, tiết kiệm đĩa)</span>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: !isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-muted)', fontSize: '13px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: !isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-secondary)', fontSize: '13.5px', fontWeight: !isLinkedClone ? '600' : 'normal' }}>
                           <input
                             type="radio"
                             name="cloneMode"
@@ -2019,7 +2019,7 @@ export default function InstructorDashboard() {
                           <span><b>Full Clone</b> (Độc lập hoàn toàn, sao chép chậm ~90s)</span>
                         </label>
                       </div>
-                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px', marginBottom: 0, lineHeight: '1.4' }}>
                         {isLinkedClone
                           ? '💡 Linked Clone: VM sinh viên sử dụng chung base disk với Template và chỉ lưu phần thay đổi (Copy-on-Write). Tiết kiệm tối đa RAM/ổ cứng khi chạy 30+ máy cùng lúc.'
                           : '⚠️ Full Clone: Sao chép toàn bộ 60GB-120GB ổ đĩa cho từng sinh viên. Phù hợp cho bài lab cần can thiệp tầng sâu hệ thống nhưng tốn tài nguyên hơn.'}
@@ -2080,7 +2080,7 @@ export default function InstructorDashboard() {
                       </div>
                     </div>
                     {runtimeConfig?.vm && (
-                      <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                      <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px', marginBottom: 0 }}>
                         📌 Template VMs are in VMID range <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Student VMs are in range <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.
                       </p>
                     )}
@@ -2091,7 +2091,7 @@ export default function InstructorDashboard() {
 
 
                 {allowLate && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
                     <div className="form-group" style={{ margin: 0 }}>
                       <label className="form-label">Late Penalty (% per hour)</label>
                       <input 
@@ -2482,10 +2482,10 @@ export default function InstructorDashboard() {
             
             <form onSubmit={handleCloneLabSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '13px' }}>
-                  <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Bài lab nguồn:</div>
-                  <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>{cloneSourceLab.title}</div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--neon-cyan)', marginTop: '4px' }}>
+                <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '13px' }}>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '12px' }}>Bài lab nguồn:</div>
+                  <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '15px' }}>{cloneSourceLab.title}</div>
+                  <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px', fontWeight: '500' }}>
                     {cloneSourceLab.enable_vm ? (
                       `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone ~2s' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
                     ) : 'Không sử dụng máy ảo'}
