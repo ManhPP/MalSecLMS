@@ -253,3 +253,189 @@ def remove_lecturer_from_class(
         db.commit()
         
     return {"message": "Lecturer removed from class successfully"}
+
+
+@router.get("/{class_id}/analytics")
+def get_class_analytics(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """
+    API Thống kê & Phân tích tổng quan Lớp học phần dành cho Giảng viên / Admin:
+    - Tổng số sinh viên, tổng số bài lab
+    - Tỷ lệ nộp bài, tỷ lệ nộp đúng hạn / muộn
+    - Điểm trung bình, phân phối điểm số (phổ điểm)
+    - Số máy ảo thực tế của lớp đang chạy trên Proxmox
+    - Chi tiết hiệu suất theo từng bài lab
+    - Bảng tiến độ và tỷ lệ hoàn thành của từng sinh viên
+    """
+    class_ = db.query(Class).filter(Class.id == class_id).first()
+    if not class_:
+        raise HTTPException(status_code=404, detail="Class not found")
+        
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="You do not manage this class")
+
+    students = [u for u in class_.users if u.role == "student"]
+    labs = class_.labs
+    total_students = len(students)
+    total_labs = len(labs)
+    
+    # 1. Truy vấn tài nguyên Proxmox để kiểm tra máy ảo của sinh viên lớp này
+    from app.services.vm_service import get_pve_client, _is_vm_owned_by_student
+    running_vms_count = 0
+    total_cloned_vms = 0
+    student_vm_status_map = {} # {student_username: {status: 'running'|'stopped'|'none', vmid: int|None}}
+    
+    try:
+        proxmox = get_pve_client()
+        if proxmox:
+            pve_resources = proxmox.cluster.resources.get(type="vm")
+            student_usernames = {s.username for s in students}
+            
+            for res in pve_resources:
+                name = res.get("name", "")
+                vmid = int(res.get("vmid", -1))
+                status = res.get("status", "")
+                
+                for s_name in student_usernames:
+                    if _is_vm_owned_by_student(name, s_name):
+                        total_cloned_vms += 1
+                        if status == "running":
+                            running_vms_count += 1
+                            student_vm_status_map[s_name] = {"status": "running", "vmid": vmid}
+                        elif s_name not in student_vm_status_map:
+                            student_vm_status_map[s_name] = {"status": "stopped", "vmid": vmid}
+    except Exception as exc:
+        print(f"[!] Warning: Could not collect live Proxmox VM metrics for class analytics: {exc}")
+
+    # 2. Thu thập và tính toán dữ liệu bài nộp (Submissions)
+    from app.models import Submission
+    lab_ids = [lab.id for lab in labs]
+    submissions = []
+    if lab_ids:
+        submissions = db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).all()
+
+    # Map submission theo lab và sinh viên
+    sub_by_lab = {lid: [] for lid in lab_ids}
+    sub_by_student = {s.id: [] for s in students}
+    
+    for sub in submissions:
+        if sub.lab_id in sub_by_lab:
+            sub_by_lab[sub.lab_id].append(sub)
+        if sub.student_id in sub_by_student:
+            sub_by_student[sub.student_id].append(sub)
+
+    # 3. Tính toán các chỉ số tổng quan
+    total_possible_submissions = total_students * total_labs if total_students and total_labs else 0
+    total_submitted = sum(1 for s in submissions if s.status in ['submitted', 'graded'])
+    total_graded = sum(1 for s in submissions if s.status == 'graded' and s.score is not None)
+    total_late = sum(1 for s in submissions if s.status in ['submitted', 'graded'] and s.late_penalty > 0)
+    total_ontime = total_submitted - total_late
+
+    overall_submission_rate = round((total_submitted / total_possible_submissions * 100), 1) if total_possible_submissions else 0
+    ontime_rate = round((total_ontime / total_submitted * 100), 1) if total_submitted else 0
+
+    # Phân phối điểm số (Grade distribution) & Điểm trung bình
+    graded_scores = [s.score for s in submissions if s.status == 'graded' and s.score is not None]
+    avg_score = round(sum(graded_scores) / len(graded_scores), 2) if graded_scores else None
+    max_score = max(graded_scores) if graded_scores else None
+    min_score = min(graded_scores) if graded_scores else None
+
+    # Phổ điểm: Excellent (9-10), Good (8-8.9), Fair (6.5-7.9), Average (5-6.4), Poor (<5)
+    grade_distribution = {
+        "excellent": 0,  # 9.0 - 10.0
+        "good": 0,       # 8.0 - 8.9
+        "fair": 0,       # 6.5 - 7.9
+        "average": 0,    # 5.0 - 6.4
+        "poor": 0        # < 5.0
+    }
+    for sc in graded_scores:
+        if sc >= 9.0:
+            grade_distribution["excellent"] += 1
+        elif sc >= 8.0:
+            grade_distribution["good"] += 1
+        elif sc >= 6.5:
+            grade_distribution["fair"] += 1
+        elif sc >= 5.0:
+            grade_distribution["average"] += 1
+        else:
+            grade_distribution["poor"] += 1
+
+    # 4. Thống kê chi tiết từng bài Lab
+    lab_performance = []
+    for lab in sorted(labs, key=lambda l: l.id):
+        l_subs = sub_by_lab.get(lab.id, [])
+        l_submitted = [s for s in l_subs if s.status in ['submitted', 'graded']]
+        l_graded = [s.score for s in l_submitted if s.status == 'graded' and s.score is not None]
+        l_late = sum(1 for s in l_submitted if s.late_penalty > 0)
+        l_plag = sum(1 for s in l_submitted if s.is_plagiarized)
+        l_avg = round(sum(l_graded) / len(l_graded), 2) if l_graded else None
+        
+        lab_performance.append({
+            "lab_id": lab.id,
+            "title": lab.title,
+            "deadline": lab.deadline.isoformat() if lab.deadline else None,
+            "is_active": lab.is_active,
+            "enable_vm": lab.enable_vm,
+            "total_students": total_students,
+            "submitted_count": len(l_submitted),
+            "submission_rate": round((len(l_submitted) / total_students * 100), 1) if total_students else 0,
+            "late_count": l_late,
+            "ontime_count": len(l_submitted) - l_late,
+            "average_score": l_avg,
+            "plagiarism_flags": l_plag
+        })
+
+    # 5. Thống kê tiến độ từng sinh viên
+    student_progress = []
+    for st in sorted(students, key=lambda s: s.full_name):
+        s_subs = sub_by_student.get(st.id, [])
+        s_completed = [s for s in s_subs if s.status in ['submitted', 'graded']]
+        s_scores = [s.score for s in s_completed if s.status == 'graded' and s.score is not None]
+        s_late = sum(1 for s in s_completed if s.late_penalty > 0)
+        s_avg = round(sum(s_scores) / len(s_scores), 2) if s_scores else None
+        completion_pct = round((len(s_completed) / total_labs * 100), 1) if total_labs else 0
+        
+        vm_info = student_vm_status_map.get(st.username, {"status": "none", "vmid": None})
+
+        student_progress.append({
+            "student_id": st.id,
+            "username": st.username,
+            "full_name": st.full_name,
+            "email": st.email,
+            "completed_labs": len(s_completed),
+            "total_labs": total_labs,
+            "completion_percentage": completion_pct,
+            "average_score": s_avg,
+            "late_submissions": s_late,
+            "ontime_submissions": len(s_completed) - s_late,
+            "vm_status": vm_info["status"],
+            "vm_id": vm_info["vmid"]
+        })
+
+    return {
+        "class_id": class_.id,
+        "class_name": class_.name,
+        "description": class_.description,
+        "summary": {
+            "total_students": total_students,
+            "total_labs": total_labs,
+            "total_submitted": total_submitted,
+            "total_graded": total_graded,
+            "total_possible_submissions": total_possible_submissions,
+            "overall_submission_rate": overall_submission_rate,
+            "ontime_rate": ontime_rate,
+            "late_submissions_count": total_late,
+            "ontime_submissions_count": total_ontime,
+            "average_score": avg_score,
+            "highest_score": max_score,
+            "lowest_score": min_score,
+            "running_vms_count": running_vms_count,
+            "total_cloned_vms": total_cloned_vms
+        },
+        "grade_distribution": grade_distribution,
+        "lab_performance": lab_performance,
+        "student_progress": student_progress
+    }

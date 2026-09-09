@@ -5,7 +5,7 @@ import {
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
-  ChevronLeft, UserCheck
+  ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
@@ -224,10 +224,40 @@ export default function InstructorDashboard() {
   const [labGroupByClass, setLabGroupByClass] = useState(true) // Gom nhóm theo lớp mặc định
   const [collapsedClassGroups, setCollapsedClassGroups] = useState({}) // { [classId]: boolean }
 
+  // Class Analytics state
+  const [analyticsClassId, setAnalyticsClassId] = useState('')
+  const [analyticsData, setAnalyticsData] = useState(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [studentAnalyticsSearch, setStudentAnalyticsSearch] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+
+  // Fetch Class Analytics
+  const fetchClassAnalytics = async (classId) => {
+    if (!classId) return
+    setAnalyticsLoading(true)
+    setError('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${classId}/analytics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Unable to load class analytics')
+      }
+      const data = await res.json()
+      setAnalyticsData(data)
+    } catch (err) {
+      console.error('Error fetching class analytics:', err)
+      setError(err.message)
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }
 
   // Fetch initial data
   const fetchData = async () => {
@@ -246,7 +276,14 @@ export default function InstructorDashboard() {
       const cRes = await fetch('/api/classes/', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (cRes.ok) setClasses(await cRes.json())
+      if (cRes.ok) {
+        const clsData = await cRes.json()
+        setClasses(clsData)
+        if (clsData.length > 0 && !analyticsClassId) {
+          setAnalyticsClassId(clsData[0].id)
+          fetchClassAnalytics(clsData[0].id)
+        }
+      }
 
       // 3. Fetch All Students (for class management search/assign)
       const sRes = await fetch('/api/users/', {
@@ -1045,6 +1082,21 @@ export default function InstructorDashboard() {
             <School size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
             Classes & Students
           </button>
+          <button 
+            onClick={() => {
+              setViewState('analytics')
+              if (analyticsClassId) fetchClassAnalytics(analyticsClassId)
+              else if (classes.length > 0) {
+                setAnalyticsClassId(classes[0].id)
+                fetchClassAnalytics(classes[0].id)
+              }
+            }} 
+            className={`btn ${viewState === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+          >
+            <BarChart3 size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+            Class Analytics & Insights
+          </button>
           
           <button 
             onClick={fetchData} 
@@ -1631,6 +1683,395 @@ export default function InstructorDashboard() {
               </div>
             )}
           </div>
+
+        </div>
+      )}
+
+      {/* VIEW 4: CLASS ANALYTICS & INSIGHTS DASHBOARD */}
+      {viewState === 'analytics' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* Top Control Bar: Class Selector & Quick Refresh */}
+          <div className="cyber-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', padding: '16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: 'rgba(242, 112, 36, 0.1)', padding: '8px', borderRadius: '8px', color: 'var(--neon-cyan)' }}>
+                <BarChart3 size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', margin: 0, color: 'var(--text-primary)', fontWeight: '600' }}>Class Analytics & Academic Insights</h3>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: 0 }}>Monitor student submission rates, live VM workloads, and grade distributions.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Select Class:</label>
+              <select
+                className="form-select"
+                style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                value={analyticsClassId}
+                onChange={(e) => {
+                  const cId = parseInt(e.target.value)
+                  setAnalyticsClassId(cId)
+                  fetchClassAnalytics(cId)
+                }}
+              >
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => fetchClassAnalytics(analyticsClassId)}
+                className="btn btn-secondary"
+                disabled={analyticsLoading}
+                style={{ padding: '8px 12px' }}
+                title="Refresh Analytics"
+              >
+                <RefreshCw size={15} className={analyticsLoading ? 'spin-slow' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {analyticsLoading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <RefreshCw size={32} className="spin-slow" style={{ color: 'var(--neon-cyan)', marginBottom: '12px' }} />
+              <p style={{ fontSize: '14px' }}>Aggregating class metrics, submissions, and Proxmox VM resources...</p>
+            </div>
+          ) : !analyticsData ? (
+            <div className="cyber-card" style={{ textAlign: 'center', padding: '50px' }}>
+              <School size={48} style={{ opacity: 0.25, color: 'var(--neon-cyan)', marginBottom: '12px' }} />
+              <p style={{ color: 'var(--text-muted)' }}>No analytics data available for this class.</p>
+            </div>
+          ) : (
+            <>
+              {/* Row 1: KPI Summary Metric Cards */}
+              <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                
+                {/* Total Students */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(37, 99, 235, 0.08)', color: '#2563eb' }}>
+                    <Users size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: '#1e293b' }}>{analyticsData.summary.total_students}</div>
+                    <div className="stat-label">Enrolled Students</div>
+                  </div>
+                </div>
+
+                {/* Total Labs */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(242, 112, 36, 0.08)', color: 'var(--neon-cyan)' }}>
+                    <BookOpen size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: '#1e293b' }}>{analyticsData.summary.total_labs}</div>
+                    <div className="stat-label">Assigned Labs</div>
+                  </div>
+                </div>
+
+                {/* Active Running VMs */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#059669' }}>
+                    <Monitor size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: '#059669' }}>
+                      {analyticsData.summary.running_vms_count}
+                    </div>
+                    <div className="stat-label">
+                      Active Running VMs ({analyticsData.summary.total_cloned_vms} allocated)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overall Submission Rate */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(147, 51, 234, 0.08)', color: '#9333ea' }}>
+                    <TrendingUp size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: '#1e293b' }}>
+                      {analyticsData.summary.overall_submission_rate}%
+                    </div>
+                    <div className="stat-label">
+                      Submission Rate ({analyticsData.summary.total_submitted}/{analyticsData.summary.total_possible_submissions})
+                    </div>
+                  </div>
+                </div>
+
+                {/* Class GPA / Average Score */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(217, 119, 6, 0.08)', color: '#d97706' }}>
+                    <Award size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: analyticsData.summary.average_score >= 8 ? '#059669' : analyticsData.summary.average_score >= 5 ? '#d97706' : '#dc2626' }}>
+                      {analyticsData.summary.average_score !== null ? `${analyticsData.summary.average_score} / 10` : 'N/A'}
+                    </div>
+                    <div className="stat-label">
+                      Average Score ({analyticsData.summary.total_graded} graded)
+                    </div>
+                  </div>
+                </div>
+
+                {/* On-Time Rate */}
+                <div className="stat-card">
+                  <div className="stat-icon-wrap" style={{ background: 'rgba(13, 148, 136, 0.08)', color: '#0d9488' }}>
+                    <Clock size={22} />
+                  </div>
+                  <div>
+                    <div className="stat-number" style={{ color: '#1e293b' }}>
+                      {analyticsData.summary.ontime_rate}%
+                    </div>
+                    <div className="stat-label">
+                      On-Time Rate ({analyticsData.summary.late_submissions_count} late)
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Row 2: Charts - Grade Distribution & Lab Performance */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 35%) 1fr', gap: '20px' }}>
+                
+                {/* Chart 1: Grade Distribution Histogram */}
+                <div className="cyber-card">
+                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Award size={18} style={{ color: 'var(--neon-cyan)' }} />
+                    Grade Distribution
+                  </h4>
+
+                  {analyticsData.summary.total_graded === 0 ? (
+                    <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      No submissions have been graded yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingTop: '10px' }}>
+                      {[
+                        { label: 'Excellent (9.0 - 10.0)', count: analyticsData.grade_distribution.excellent, color: '#10b981' },
+                        { label: 'Good (8.0 - 8.9)', count: analyticsData.grade_distribution.good, color: '#2563eb' },
+                        { label: 'Fair (6.5 - 7.9)', count: analyticsData.grade_distribution.fair, color: '#f59e0b' },
+                        { label: 'Average (5.0 - 6.4)', count: analyticsData.grade_distribution.average, color: '#ea580c' },
+                        { label: 'Poor (< 5.0)', count: analyticsData.grade_distribution.poor, color: '#dc2626' },
+                      ].map((bar, idx) => {
+                        const total = analyticsData.summary.total_graded || 1
+                        const pct = Math.round((bar.count / total) * 100)
+                        return (
+                          <div key={idx}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{bar.label}</span>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>
+                                {bar.count} students ({pct}%)
+                              </span>
+                            </div>
+                            <div style={{ height: '10px', width: '100%', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                              <div 
+                                style={{ 
+                                  height: '100%', 
+                                  width: `${pct}%`, 
+                                  background: bar.color, 
+                                  borderRadius: '6px',
+                                  transition: 'width 0.5s ease' 
+                                }} 
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Chart 2: Lab-by-Lab Performance Matrix */}
+                <div className="cyber-card">
+                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Activity size={18} style={{ color: 'var(--neon-cyan)' }} />
+                    Lab-by-Lab Performance
+                  </h4>
+
+                  <div className="table-container" style={{ margin: 0, maxHeight: '280px', overflowY: 'auto' }}>
+                    <table className="cyber-table" style={{ fontSize: '12.5px' }}>
+                      <thead>
+                        <tr>
+                          <th>Lab Title</th>
+                          <th>Submission Progress</th>
+                          <th>On-time vs Late</th>
+                          <th>Avg Score</th>
+                          <th>VM Status</th>
+                          <th>Similarity Flags</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsData.lab_performance.map(lab => (
+                          <tr key={lab.lab_id}>
+                            <td style={{ fontWeight: '600', color: 'var(--text-primary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lab.title}
+                            </td>
+                            <td style={{ minWidth: '140px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, height: '7px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${lab.submission_rate}%`, background: 'var(--neon-cyan)', borderRadius: '4px' }} />
+                                </div>
+                                <span style={{ fontSize: '11.5px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                                  {lab.submitted_count}/{lab.total_students} ({lab.submission_rate}%)
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{ color: '#15803d', fontWeight: '600' }}>{lab.ontime_count} on-time</span>
+                              {lab.late_count > 0 && (
+                                <span style={{ color: '#dc2626', fontWeight: '600', marginLeft: '6px' }}>({lab.late_count} late)</span>
+                              )}
+                            </td>
+                            <td>
+                              {lab.average_score !== null ? (
+                                <span style={{ fontWeight: '700', color: lab.average_score >= 8 ? '#059669' : lab.average_score >= 5 ? '#d97706' : '#dc2626' }}>
+                                  {lab.average_score} / 10
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>Not graded</span>
+                              )}
+                            </td>
+                            <td>
+                              {lab.enable_vm ? (
+                                <span className="badge badge-submitted" style={{ fontSize: '11px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669' }}>
+                                  VM Enabled
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>No VM</span>
+                              )}
+                            </td>
+                            <td>
+                              {lab.plagiarism_flags > 0 ? (
+                                <span className="badge badge-resubmit" style={{ fontSize: '11px' }}>
+                                  {lab.plagiarism_flags} alerts
+                                </span>
+                              ) : (
+                                <span style={{ color: '#10b981', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <CheckCircle2 size={12} /> Clean
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Row 3: Student Progress & Completion Tracker */}
+              <div className="cyber-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={18} style={{ color: 'var(--neon-cyan)' }} />
+                      Individual Student Completion & Grade Tracker
+                    </h4>
+                    <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                      Overview of each student's finished assignments, punctuality, and current sandbox VM status.
+                    </p>
+                  </div>
+
+                  <div style={{ position: 'relative', width: '250px' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ paddingLeft: '32px', margin: 0, padding: '6px 10px 6px 32px', fontSize: '12.5px' }}
+                      placeholder="Filter by name or username..."
+                      value={studentAnalyticsSearch}
+                      onChange={(e) => setStudentAnalyticsSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="table-container" style={{ margin: 0 }}>
+                  <table className="cyber-table" style={{ fontSize: '13px' }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Username (MSSV)</th>
+                        <th>Completion Progress</th>
+                        <th>Punctuality</th>
+                        <th>Average Score</th>
+                        <th>Sandbox VM Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsData.student_progress
+                        .filter(st => {
+                          if (!studentAnalyticsSearch) return true
+                          const q = studentAnalyticsSearch.toLowerCase()
+                          return st.full_name.toLowerCase().includes(q) || st.username.toLowerCase().includes(q)
+                        })
+                        .map((st, sIdx) => (
+                          <tr key={st.student_id}>
+                            <td style={{ color: 'var(--text-muted)' }}>{sIdx + 1}</td>
+                            <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{st.full_name}</td>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{st.username}</td>
+                            <td style={{ minWidth: '160px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                                  <div 
+                                    style={{ 
+                                      height: '100%', 
+                                      width: `${st.completion_percentage}%`, 
+                                      background: st.completion_percentage === 100 ? '#10b981' : st.completion_percentage >= 50 ? '#F27024' : '#dc2626',
+                                      borderRadius: '4px' 
+                                    }} 
+                                  />
+                                </div>
+                                <span style={{ fontSize: '12px', fontWeight: '600' }}>
+                                  {st.completed_labs}/{st.total_labs} ({st.completion_percentage}%)
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{ color: '#15803d', fontWeight: '600' }}>{st.ontime_submissions} on-time</span>
+                              {st.late_submissions > 0 && (
+                                <span style={{ color: '#dc2626', fontWeight: '600', marginLeft: '6px' }}>({st.late_submissions} late)</span>
+                              )}
+                            </td>
+                            <td>
+                              {st.average_score !== null ? (
+                                <span style={{ 
+                                  fontWeight: '700', 
+                                  fontSize: '13.5px',
+                                  color: st.average_score >= 8 ? '#059669' : st.average_score >= 5 ? '#d97706' : '#dc2626' 
+                                }}>
+                                  {st.average_score}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>—</span>
+                              )}
+                            </td>
+                            <td>
+                              {st.vm_status === 'running' ? (
+                                <span className="badge badge-submitted" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669' }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                                  Running (VMID {st.vm_id})
+                                </span>
+                              ) : st.vm_status === 'stopped' ? (
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                                  Stopped (VMID {st.vm_id})
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                                  Offline / Not created
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
 
         </div>
       )}
