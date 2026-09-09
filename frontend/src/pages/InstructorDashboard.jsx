@@ -1201,7 +1201,14 @@ export default function InstructorDashboard() {
                             <tbody>
                               {group.labs.map(lab => (
                                 <tr key={lab.id}>
-                                  <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
+                                        ID #{lab.id}
+                                      </span>
+                                      <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                                    </div>
+                                  </td>
                                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
                                     {new Date(lab.deadline).toLocaleString('en-US')}
                                   </td>
@@ -1300,7 +1307,14 @@ export default function InstructorDashboard() {
                       const cls = classes.find(c => c.id === lab.class_id)
                       return (
                         <tr key={lab.id}>
-                          <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
+                                ID #{lab.id}
+                              </span>
+                              <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                            </div>
+                          </td>
                           <td style={{ color: 'var(--text-primary)' }}>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
                             {new Date(lab.deadline).toLocaleString('en-US')}
@@ -2417,6 +2431,9 @@ export default function InstructorDashboard() {
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Monitor size={18} style={{ color: 'var(--neon-cyan)' }} />
                 Student Virtual Machines — Lab: {selectedLabForVm.title}
+                <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', marginLeft: '4px' }}>
+                  Lab ID: {selectedLabForVm.id}
+                </span>
               </h3>
               <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>

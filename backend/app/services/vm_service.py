@@ -71,6 +71,52 @@ def _find_student_vm(resources, student_username: str, lab_id: int):
     return matches[0] if matches else None
 
 
+def _is_vm_owned_by_student(vm_name: str, student_username: str) -> bool:
+    """Check whether a VM name belongs to this student (e.g. lab-<id>-<username>)."""
+    if not vm_name:
+        return False
+    normalized = re.sub(r"[^A-Za-z0-9-]", "-", student_username).strip("-") or "student"
+    digest = hashlib.sha256(student_username.encode("utf-8")).hexdigest()[:8]
+    # Name pattern: lab-{lab_id}-{normalized} or lab-{lab_id}-{normalized_truncated}-{digest}
+    if re.match(rf"^lab-\d+-{re.escape(normalized)}$", vm_name):
+        return True
+    if re.match(rf"^lab-\d+-.*-{re.escape(digest)}$", vm_name):
+        return True
+    return False
+
+
+def _stop_other_running_student_vms(proxmox, node: str, resources, student_username: str, current_vmid: int):
+    """
+    Giới hạn tài nguyên: Mỗi sinh viên chỉ được phép có tối đa 1 máy ảo ở trạng thái RUNNING.
+    Tự động tắt các máy ảo ở bài lab khác của sinh viên này trước khi bật máy ảo mới.
+    """
+    for res in resources:
+        try:
+            vmid = int(res.get("vmid", -1))
+            status = res.get("status")
+            name = res.get("name", "")
+            # Chỉ xét trong dải VMID sinh viên và khác VM hiện tại
+            if (
+                settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX
+                and vmid != current_vmid
+                and status == "running"
+                and _is_vm_owned_by_student(name, student_username)
+            ):
+                logger.info(
+                    f"[RESOURCE_QUOTA] Auto-stopping other running VM {vmid} ({name}) "
+                    f"for student {student_username} to enforce 1-VM-per-student limit"
+                )
+                print(
+                    f"[+] [RESOURCE_QUOTA] Auto-stopping previous running VM {vmid} ({name}) "
+                    f"for student {student_username}...",
+                    flush=True
+                )
+                stop_upid = proxmox.nodes(node).qemu(vmid).status.stop.post()
+                _wait_for_pve_task(proxmox, node, stop_upid, f"auto-stopping VM {vmid}")
+        except Exception as exc:
+            logger.warning(f"Could not auto-stop previous VM {res.get('vmid')} for {student_username}: {exc}")
+
+
 def _allocate_student_vmid(resources, student_username: str, lab_id: int) -> int:
     """Resolve hash collisions by walking the configured student VMID range."""
     vmid_min = settings.STUDENT_VMID_MIN
@@ -280,6 +326,9 @@ def provision_student_vm(
                 net0=_net0_with_unique_mac(source_net0),
                 agent="enabled=1",
             )
+
+        # 1-VM-per-student limit: Tự động tắt bất kỳ VM nào khác đang chạy của sinh viên này
+        _stop_other_running_student_vms(proxmox, node, resources, student_username, new_vmid)
 
         status = proxmox.nodes(node).qemu(new_vmid).status.current.get()
         boot_start = time.perf_counter()
