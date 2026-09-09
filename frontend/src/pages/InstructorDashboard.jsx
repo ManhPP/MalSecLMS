@@ -1150,8 +1150,8 @@ export default function InstructorDashboard() {
                                   </td>
                                   <td>
                                     {lab.enable_vm !== false ? (
-                                      <span style={{ fontSize: '12px', fontWeight: '500', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
-                                        {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
+                                      <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
+                                        {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
                                       </span>
                                     ) : (
                                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
@@ -1250,8 +1250,8 @@ export default function InstructorDashboard() {
                           </td>
                           <td>
                             {lab.enable_vm !== false ? (
-                              <span style={{ fontSize: '12px', fontWeight: '500', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
-                                {lab.is_linked_clone ? '⚡ Linked (2s)' : '📦 Full (90s)'}
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
+                                {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
                               </span>
                             ) : (
                               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
@@ -2006,7 +2006,7 @@ export default function InstructorDashboard() {
                             onChange={() => setIsLinkedClone(true)}
                             style={{ accentColor: 'var(--neon-cyan)' }}
                           />
-                          <span><b>Linked Clone</b> (Khuyên dùng: Siêu nhanh ~2s, tiết kiệm đĩa)</span>
+                          <span><b>Linked Clone</b> (Khuyên dùng: Khởi tạo nhanh, tiết kiệm đĩa)</span>
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: !isLinkedClone ? 'var(--neon-cyan)' : 'var(--text-secondary)', fontSize: '13.5px', fontWeight: !isLinkedClone ? '600' : 'normal' }}>
                           <input
@@ -2016,7 +2016,7 @@ export default function InstructorDashboard() {
                             onChange={() => setIsLinkedClone(false)}
                             style={{ accentColor: 'var(--neon-cyan)' }}
                           />
-                          <span><b>Full Clone</b> (Độc lập hoàn toàn, sao chép chậm ~90s)</span>
+                          <span><b>Full Clone</b> (Độc lập hoàn toàn)</span>
                         </label>
                       </div>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px', marginBottom: 0, lineHeight: '1.4' }}>
@@ -2487,7 +2487,7 @@ export default function InstructorDashboard() {
                   <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '15px' }}>{cloneSourceLab.title}</div>
                   <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px', fontWeight: '500' }}>
                     {cloneSourceLab.enable_vm ? (
-                      `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone ~2s' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
+                      `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
                     ) : 'Không sử dụng máy ảo'}
                   </div>
                 </div>
