@@ -16,7 +16,13 @@ Tệp này là tài liệu bàn giao nhanh cho agent hoặc kỹ sư tiếp qu�
 - pfSense chạy ở VM 100 và làm gateway/DHCP cho VLAN sandbox.
 - VM sinh viên được full-clone từ base VM, có MAC riêng, IP DHCP riêng và được tìm lại bằng stable name `lab-{lab_id}-{username}`.
 - **Tối ưu hóa VDI Latency (09/2026):** Mở VM ngay tức thì (< 1 giây) khi VM đã running, bỏ hoàn toàn thời gian chờ 15 giây không cần thiết.
-- **Tính năng LMS mới:** Xem trước file Word (.docx) chuẩn khổ giấy A4 nền trắng; kiểm tra an toàn đa tầng cho file tải lên; cho phép sinh viên chỉnh sửa bài nộp khi chưa hết hạn; phân nhóm bài lab theo lớp học; Speed Grader với bộ chọn chuyển sinh viên nhanh; chuyển đổi giao diện sang chuẩn tiếng Anh đồng bộ.
+- **Tính năng LMS mới (09/2026):**
+  - Xem trước file Word (.docx) chuẩn khổ giấy A4 nền trắng; kiểm tra an toàn đa tầng cho file tải lên (magic bytes, DOCX macro/OLE scanning, ZIP anti-zipbomb/password).
+  - Cho phép sinh viên chỉnh sửa bài nộp khi chưa hết hạn; phân nhóm bài lab đa tầng theo Kì học & Lớp học; toggle ẩn kì cũ (`Active Sem Only`).
+  - Speed Grader với bộ chọn chuyển sinh viên nhanh (Fast Student Switcher).
+  - Tag đầu điểm cho bài lab (`grade_tag`, e.g. "Assignment 1", "Chuyên cần", "Giữa kỳ", "Default"), hiển thị badge cho sinh viên và giảng viên.
+  - Ma trận điểm số tổng hợp (Comprehensive Gradebook) xem chi tiết theo từng lab hoặc tính điểm trung bình gộp theo đầu điểm; hỗ trợ lọc đa tiêu chí sinh viên/lab và xuất ra file CSV.
+  - Quản lý Kì học tập trung (`Academic Semesters`): Admin tạo/quản lý kì học và gán kì hiện hành (`Active Term`); Admin và Giảng viên chọn kì học từ dropdown danh sách đã tạo; bộ lọc thống kê tự động đồng bộ theo kì hiện hành.
 - Tài liệu hiện trạng đầy đủ nhất là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.md` (phiên bản 1.2).
 - Bản Word tương ứng là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.docx`.
 

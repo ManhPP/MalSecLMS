@@ -57,9 +57,9 @@ qm guest cmd <vmid> network-get-interfaces
 
 | Layer | Technology | Details |
 |---|---|---|
-| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, instant VDI canvas (<1s for running VMs), in-browser Word docx / PDF viewer with realistic paper theme, Fast Student Switcher Speed Grader, dynamic form builder, class grouping |
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine, multi-layer file security validation (Magic bytes, DOCX macro/OLE scanning, ZIP infection detection), resubmission before deadline |
-| **Database** | PostgreSQL 16 | Relational store for Users, Classes, Labs, Submissions, Audit Logs |
+| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, instant VDI canvas (<1s for running VMs), in-browser Word docx / PDF viewer with realistic paper theme, Fast Student Switcher Speed Grader, dynamic form builder, class grouping, centralized academic semester management & filters, comprehensive gradebook matrix & CSV export by grade category tags |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine, multi-layer file security validation (Magic bytes, DOCX macro/OLE scanning, ZIP infection detection), resubmission before deadline, academic semester management |
+| **Database** | PostgreSQL 16 | Relational store for Users, Classes, Labs, Submissions, Audit Logs, Semesters |
 | **VDI Proxy** | Apache Guacamole 1.6.0 (LXC 103) | `guacamole-auth-json` plugin, guacd daemon, RDP (3389) protocol translation |
 | **Hypervisor** | Proxmox VE (pve01) | Full-clone orchestration, MAC sync, isolated VLAN 30 network |
 
@@ -86,19 +86,18 @@ qm guest cmd <vmid> network-get-interfaces
 ```text
 MalSec/
 ├── AGENTS.md                   # Unified AI Agent Guide & Rules (Single Source of Truth)
-├── DEVELOPMENT_GUIDE.md        # Comprehensive Dev & Ops Guide
 ├── agent.md                    # Detailed handoff & inventory reference
 ├── docker-compose.yml          # Container orchestration (Backend, Frontend, PostgreSQL)
 ├── backend/
 │   ├── app/
-│   │   ├── main.py             # FastAPI entrypoint & middleware
+│   │   ├── main.py             # FastAPI entrypoint, middleware & auto-migrations
 │   │   ├── config.py           # Environment settings & VMID ranges
 │   │   ├── database.py         # SQLAlchemy DB session engine
-│   │   ├── models.py           # Database models (User, Class, Lab, Submission, AuditLog)
+│   │   ├── models.py           # Database models (User, Class, Lab, Submission, AuditLog, Semester)
 │   │   ├── schemas.py          # Pydantic schemas for request/response validation
 │   │   ├── security.py         # Password hashing & JWT token creation
 │   │   ├── request_utils.py    # IP helper utilities
-│   │   ├── routers/            # API Endpoints (auth, users, classes, labs, submissions, admin)
+│   │   ├── routers/            # API Endpoints (auth, users, classes, labs, submissions, admin, semesters, configuration)
 │   │   └── services/
 │   │       ├── vm_service.py   # Proxmox API orchestration & Guacamole Encrypted JSON generator
 │   │       └── file_service.py # Uploads & ZIP packaging
@@ -110,11 +109,11 @@ MalSec/
     │   ├── main.jsx            # React mount point
     │   ├── index.css           # Cyberpunk design system tokens & CSS variables
     │   └── pages/
-    │       ├── StudentDashboard.jsx     # Student portal, Markdown Lab guide, VDI iFrame
-    │       ├── InstructorDashboard.jsx  # Instructor portal, Speed Grader, VM Manager
-    │       ├── AdminDashboard.jsx       # Admin portal, User management, Class management
+    │       ├── StudentDashboard.jsx     # Student portal, Markdown Lab guide, VDI iFrame, Semester grouping
+    │       ├── InstructorDashboard.jsx  # Instructor portal, Speed Grader, Gradebook & Export, Class Manager
+    │       ├── AdminDashboard.jsx       # Admin portal, User management, Class & Academic Semester management
     │       └── Login.jsx                # Login page
-    ├── nginx.conf              # Production Nginx reverse proxy configuration
+    ├── nginx.conf.template     # Production Nginx reverse proxy configuration
     ├── Dockerfile
     └── package.json
 ```
