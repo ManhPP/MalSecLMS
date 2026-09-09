@@ -1233,8 +1233,13 @@ export default function StudentDashboard() {
                       return (
                         <tr key={lab.id}>
                           <td style={{ fontWeight: '600', color: 'var(--neon-cyan)', maxWidth: '320px' }}>
-                            <div style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '4px' }}>
-                              {lab.title}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '15px', color: 'var(--neon-cyan)' }}>
+                                {lab.title}
+                              </span>
+                              <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
+                                🏷️ {lab.grade_tag || 'Default'}
+                              </span>
                             </div>
                             {lab.description && (
                               <div style={{ 
@@ -1334,7 +1339,12 @@ export default function StudentDashboard() {
                     return (
                       <tr key={lab.id}>
                         <td style={{ fontWeight: '500' }}>
-                          {lab.title}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{lab.title}</span>
+                            <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '10.5px', fontWeight: '600', padding: '1px 6px' }}>
+                              🏷️ {lab.grade_tag || 'Default'}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           <div>
@@ -1389,13 +1399,16 @@ export default function StudentDashboard() {
               &larr; Back to Dashboard
             </button>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', margin: 0 }}>{selectedLab.title}</h3>
                 {classes.find(c => c.id === selectedLab.class_id) && (
                   <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
                     {classes.find(c => c.id === selectedLab.class_id)?.name}
                   </span>
                 )}
+                <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
+                  🏷️ {selectedLab.grade_tag || 'Default'}
+                </span>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
             </div>
