@@ -64,6 +64,11 @@ class ClassBase(BaseModel):
 class ClassCreate(ClassBase):
     pass
 
+class ClassUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    semester: Optional[str] = None
+
 class ClassOut(ClassBase):
     id: int
     created_at: datetime

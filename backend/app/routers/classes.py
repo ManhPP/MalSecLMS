@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 from app.database import get_db
 from app.models import Class, User, AuditLog
-from app.schemas import ClassOut, ClassCreate, ClassWithStudents
+from app.schemas import ClassOut, ClassCreate, ClassUpdate, ClassWithStudents
 from app.security import require_lecturer, require_admin, require_any_user
 from app.request_utils import get_client_ip
 
@@ -70,20 +70,44 @@ def create_class(
 @router.put("/{class_id}", response_model=ClassOut)
 def update_class(
     class_id: int, 
-    class_data: ClassCreate, 
+    class_data: ClassUpdate, 
+    request: Request,
     db: Session = Depends(get_db), 
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_lecturer)
 ):
-    """Update class details (Admin only)"""
+    """Update class details (Admin can update all fields; Lecturers can update semester and description of their assigned classes)"""
     class_ = db.query(Class).filter(Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Class not found")
         
-    class_.name = class_data.name
-    class_.description = class_data.description
-    class_.semester = (class_data.semester or "").strip() or "unknown"
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="You do not manage this class")
+
+    # Admin can change class name
+    if current_user.role == "admin" and class_data.name:
+        existing = db.query(Class).filter(Class.name == class_data.name, Class.id != class_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Class name already exists")
+        class_.name = class_data.name
+
+    if class_data.description is not None:
+        class_.description = class_data.description
+
+    if class_data.semester is not None:
+        class_.semester = class_data.semester.strip() or "unknown"
+
     db.commit()
     db.refresh(class_)
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="update_class",
+        target=f"Updated class: {class_.name} (Semester: {class_.semester})",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
     return class_
 
 @router.delete("/{class_id}", status_code=status.HTTP_200_OK)

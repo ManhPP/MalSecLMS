@@ -715,7 +715,7 @@ export default function AdminDashboard() {
                               handleOpenClassModal(c)
                             }} 
                             className="btn btn-secondary" 
-                            style={{ padding: '4px 8px', fontSize: '11px', background: '#334155', border: 'none' }}
+                            style={{ padding: '4px 8px', fontSize: '11px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
                             title="Edit Class"
                           >
                             <Edit2 size={12} style={{ marginRight: '3px' }} /> Edit

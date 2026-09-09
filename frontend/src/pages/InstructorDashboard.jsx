@@ -207,6 +207,9 @@ export default function InstructorDashboard() {
 
   // Instructor Classes/Students management states
   const [selectedClass, setSelectedClass] = useState(null)
+  const [editClassModal, setEditClassModal] = useState(false)
+  const [editClassSemester, setEditClassSemester] = useState('unknown')
+  const [editClassDesc, setEditClassDesc] = useState('')
   const [studentIdsInput, setStudentIdsInput] = useState('')
   const [allStudents, setAllStudents] = useState([])
   const [showStudentModal, setShowStudentModal] = useState(false)
@@ -983,6 +986,48 @@ export default function InstructorDashboard() {
       }
     } catch (err) {
       setError('Error loading class details')
+    }
+  }
+
+  const openEditClassModal = (cls) => {
+    if (!cls) return
+    setEditClassSemester(cls.semester || 'unknown')
+    setEditClassDesc(cls.description || '')
+    setEditClassModal(true)
+  }
+
+  const handleSaveClassSettings = async (e) => {
+    e.preventDefault()
+    if (!selectedClass) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          semester: editClassSemester.trim() || 'unknown',
+          description: editClassDesc
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to update class')
+
+      setSuccess('Class semester & settings updated successfully!')
+      setEditClassModal(false)
+      fetchClassDetails(selectedClass.id)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -1835,13 +1880,31 @@ export default function InstructorDashboard() {
           <div className="cyber-card">
             {selectedClass ? (
               <div>
-                <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    Class: {selectedClass.name}
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px' }}>
-                    {selectedClass.description}
-                  </p>
+                <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', margin: 0 }}>
+                        Class: {selectedClass.name}
+                      </h3>
+                      <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', fontWeight: 'bold' }}>
+                        📅 Semester: {selectedClass.semester || 'unknown'}
+                      </span>
+                    </div>
+                    {selectedClass.description && (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', marginTop: '6px', marginBottom: 0 }}>
+                        {selectedClass.description}
+                      </p>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => openEditClassModal(selectedClass)}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    title="Edit class semester & description"
+                  >
+                    <Edit2 size={13} />
+                    Edit Class Semester
+                  </button>
                 </div>
 
                 {/* Grid for student assignment */}
@@ -4147,6 +4210,66 @@ export default function InstructorDashboard() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT CLASS SEMESTER & SETTINGS (FOR INSTRUCTORS) */}
+      {editClassModal && selectedClass && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={18} style={{ color: 'var(--neon-cyan)' }} />
+                Update Class Semester & Settings
+              </h3>
+              <button onClick={() => setEditClassModal(false)} className="close-btn">&times;</button>
+            </div>
+            
+            <form onSubmit={handleSaveClassSettings}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Managing Class:</span>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--neon-cyan)' }}>{selectedClass.name}</div>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Academic Semester (Kỳ học)</span>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Default: "unknown"</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    required
+                    placeholder="e.g. SP26, FA25, SU26, unknown..."
+                    value={editClassSemester}
+                    onChange={(e) => setEditClassSemester(e.target.value)}
+                  />
+                  <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                    💡 Updating the semester will automatically re-group the labs and classes under this academic term for both you and your enrolled students.
+                  </p>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Description (Optional)</label>
+                  <textarea 
+                    className="form-input" 
+                    rows={3}
+                    placeholder="Class objectives, timetable or notes..."
+                    value={editClassDesc}
+                    onChange={(e) => setEditClassDesc(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setEditClassModal(false)} className="btn btn-secondary">CANCEL</button>
+                <button type="submit" className="btn btn-primary" disabled={actionLoading}>
+                  {actionLoading ? 'SAVING...' : 'SAVE CHANGES'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
