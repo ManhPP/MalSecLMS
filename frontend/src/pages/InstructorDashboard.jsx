@@ -233,6 +233,7 @@ export default function InstructorDashboard() {
 
   // Class Analytics state
   const [analyticsClassId, setAnalyticsClassId] = useState('')
+  const [analyticsSemesterFilter, setAnalyticsSemesterFilter] = useState('all') // 'all' or specific semester
   const [analyticsLabFilter, setAnalyticsLabFilter] = useState('')
   const [analyticsData, setAnalyticsData] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
@@ -240,6 +241,7 @@ export default function InstructorDashboard() {
 
   // Gradebook Matrix state
   const [gradebookClassId, setGradebookClassId] = useState('')
+  const [gradebookSemesterFilter, setGradebookSemesterFilter] = useState('all') // 'all' or specific semester
   const [gradebookData, setGradebookData] = useState(null)
   const [gradebookLoading, setGradebookLoading] = useState(false)
   const [gradebookViewMode, setGradebookViewMode] = useState('labs') // 'labs' (chi tiết từng lab) | 'tags' (xem theo đầu điểm)
@@ -2098,11 +2100,38 @@ export default function InstructorDashboard() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {/* Semester Filter */}
+              {availableSemesters.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Semester:</label>
+                  <select
+                    className="form-select"
+                    style={{ width: '160px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                    value={analyticsSemesterFilter}
+                    onChange={(e) => {
+                      const sem = e.target.value
+                      setAnalyticsSemesterFilter(sem)
+                      const matchingClasses = classes.filter(c => sem === 'all' || (c.semester || 'unknown') === sem)
+                      if (matchingClasses.length > 0 && !matchingClasses.some(c => c.id === analyticsClassId)) {
+                        setAnalyticsClassId(matchingClasses[0].id)
+                        setAnalyticsLabFilter('')
+                        fetchClassAnalytics(matchingClasses[0].id, '')
+                      }
+                    }}
+                  >
+                    <option value="all">All Semesters</option>
+                    {availableSemesters.map(sem => (
+                      <option key={sem} value={sem}>{sem === 'unknown' ? 'Unknown Semester' : `Semester ${sem}`}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Class:</label>
                 <select
                   className="form-select"
-                  style={{ width: '200px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                  style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
                   value={analyticsClassId}
                   onChange={(e) => {
                     const cId = parseInt(e.target.value)
@@ -2111,9 +2140,13 @@ export default function InstructorDashboard() {
                     fetchClassAnalytics(cId, '')
                   }}
                 >
-                  {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {classes
+                    .filter(c => analyticsSemesterFilter === 'all' || (c.semester || 'unknown') === analyticsSemesterFilter)
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.semester && c.semester !== 'unknown' ? `(${c.semester})` : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -2526,24 +2559,61 @@ export default function InstructorDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Class:</label>
-                <select
-                  className="form-select"
-                  style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
-                  value={gradebookClassId}
-                  onChange={(e) => {
-                    const cId = parseInt(e.target.value)
-                    setGradebookClassId(cId)
-                    setSelectedStudentFilter([])
-                    setSelectedLabFilter([])
-                    fetchClassGradebook(cId)
-                  }}
-                >
-                  {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* Semester Filter */}
+                {availableSemesters.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Semester:</label>
+                    <select
+                      className="form-select"
+                      style={{ width: '160px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                      value={gradebookSemesterFilter}
+                      onChange={(e) => {
+                        const sem = e.target.value
+                        setGradebookSemesterFilter(sem)
+                        const matchingClasses = classes.filter(c => sem === 'all' || (c.semester || 'unknown') === sem)
+                        if (matchingClasses.length > 0 && !matchingClasses.some(c => c.id === gradebookClassId)) {
+                          const newCId = matchingClasses[0].id
+                          setGradebookClassId(newCId)
+                          setSelectedStudentFilter([])
+                          setSelectedLabFilter([])
+                          setSelectedTagFilter([])
+                          fetchClassGradebook(newCId)
+                        }
+                      }}
+                    >
+                      <option value="all">All Semesters</option>
+                      {availableSemesters.map(sem => (
+                        <option key={sem} value={sem}>{sem === 'unknown' ? 'Unknown Semester' : `Semester ${sem}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Class:</label>
+                  <select
+                    className="form-select"
+                    style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                    value={gradebookClassId}
+                    onChange={(e) => {
+                      const cId = parseInt(e.target.value)
+                      setGradebookClassId(cId)
+                      setSelectedStudentFilter([])
+                      setSelectedLabFilter([])
+                      setSelectedTagFilter([])
+                      fetchClassGradebook(cId)
+                    }}
+                  >
+                    {classes
+                      .filter(c => gradebookSemesterFilter === 'all' || (c.semester || 'unknown') === gradebookSemesterFilter)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.semester && c.semester !== 'unknown' ? `(${c.semester})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
 
                 <button
                   onClick={() => fetchClassGradebook(gradebookClassId)}
