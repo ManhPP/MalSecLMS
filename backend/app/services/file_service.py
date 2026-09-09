@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import zipfile
 import hashlib
@@ -118,6 +119,98 @@ class FileService:
         return scan_results
 
     @staticmethod
+    def process_and_scan_pdf(filepath: str) -> dict:
+        """
+        Quét cấu trúc tĩnh của tệp PDF:
+        Phát hiện các phần tử rủi ro mã độc cao:
+        - /JavaScript hoặc /JS (mã script tự kích hoạt)
+        - /Launch (thực thi ứng dụng bên ngoài)
+        - /EmbeddedFiles (nhúng payload thực thi bên trong)
+        - /OpenAction hoặc /AA (tự động chạy lệnh khi mở tài liệu)
+        """
+        scan_results = {
+            "status": "clean",
+            "threats_found": [],
+            "scanned": True
+        }
+
+        try:
+            with open(filepath, "rb") as f:
+                content = f.read()
+
+            # Kiểm tra định dạng header PDF
+            if not content.startswith(b"%PDF-"):
+                scan_results["status"] = "infected"
+                scan_results["threats_found"].append("Tệp tin PDF không đúng định dạng chuẩn (%PDF- header missing)")
+                return scan_results
+
+            # Các thẻ nguy cơ cao trong PDF thường bị khai thác để nhúng mã độc
+            suspicious_patterns = [
+                (re.compile(rb"/JavaScript\b", re.IGNORECASE), "Mã JavaScript nhúng (/JavaScript)"),
+                (re.compile(rb"/JS\b", re.IGNORECASE), "Mã JavaScript nhúng (/JS)"),
+                (re.compile(rb"/Launch\b", re.IGNORECASE), "Lệnh kích hoạt thực thi chương trình ngoài (/Launch)"),
+                (re.compile(rb"/EmbeddedFiles\b", re.IGNORECASE), "Tệp tin nhúng ẩn bên trong PDF (/EmbeddedFiles)"),
+                (re.compile(rb"/OpenAction\b", re.IGNORECASE), "Hành vi tự động kích hoạt khi mở tài liệu (/OpenAction)"),
+                (re.compile(rb"/AA\b", re.IGNORECASE), "Hành vi tự kích hoạt (/AA Additional Action)")
+            ]
+
+            for pattern, desc in suspicious_patterns:
+                if pattern.search(content):
+                    scan_results["status"] = "infected"
+                    scan_results["threats_found"].append(desc)
+
+        except Exception as e:
+            logger.error(f"Error scanning PDF structure: {str(e)}")
+            scan_results["status"] = "infected"
+            scan_results["threats_found"].append(f"Lỗi kiểm tra tính hợp lệ của tệp PDF: {str(e)}")
+
+        return scan_results
+
+    @staticmethod
+    def process_and_scan_docx(filepath: str) -> dict:
+        """
+        Quét cấu trúc tệp Word (.docx - bản chất là file nén OpenXML):
+        Phát hiện:
+        - Tệp chứa Macro độc hại (vbaProject.bin, macro/vba)
+        - Tệp nhúng file thực thi nhị phân (.exe, .bat, .dll, .vbs, .ps1)
+        """
+        scan_results = {
+            "status": "clean",
+            "threats_found": [],
+            "scanned": True
+        }
+
+        if not zipfile.is_zipfile(filepath):
+            scan_results["status"] = "infected"
+            scan_results["threats_found"].append("Tệp Word .docx không hợp lệ (hỏng cấu trúc OpenXML)")
+            return scan_results
+
+        try:
+            with zipfile.ZipFile(filepath, "r") as zf:
+                namelist = zf.namelist()
+
+                for fname in namelist:
+                    fname_lower = fname.lower()
+
+                    # Kiểm tra chứa VBA Macro (Docm trá hình hoặc VBA project)
+                    if "vbaproject.bin" in fname_lower or fname_lower.endswith(".vba") or "vba" in fname_lower.split('/'):
+                        scan_results["status"] = "infected"
+                        scan_results["threats_found"].append("Phát hiện mã Macro VBA nhúng trong tài liệu Word (vbaProject.bin)")
+
+                    # Kiểm tra tệp đính kèm / OLE nhúng bên trong
+                    file_ext = fname_lower.split('.')[-1] if '.' in fname_lower else ''
+                    if file_ext in {'exe', 'bat', 'cmd', 'ps1', 'vbs', 'js', 'scr', 'dll', 'msi', 'pif'}:
+                        scan_results["status"] = "infected"
+                        scan_results["threats_found"].append(f"Phát hiện file nhị phân độc hại nhúng bên trong Word: {fname}")
+
+        except Exception as e:
+            logger.error(f"Error scanning DOCX structure: {str(e)}")
+            scan_results["status"] = "infected"
+            scan_results["threats_found"].append(f"Lỗi phân tích tệp DOCX: {str(e)}")
+
+        return scan_results
+
+    @staticmethod
     def save_uploaded_file(upload_file: UploadFile, is_image: bool = False) -> dict:
         """Lưu trữ file tải lên vào đĩa sau khi đã được thẩm định an toàn"""
         ext = FileService.validate_file_extension(upload_file.filename)
@@ -149,21 +242,29 @@ class FileService:
         
         sha256_hash = hasher.hexdigest()
 
-        # Nếu là file zip, chạy quét bảo mật ảo
-        zip_scan = None
+        # Quét bảo mật tự động dựa trên loại tệp
+        scan_details = None
         if ext == 'zip':
-            zip_scan = FileService.process_and_scan_zip(filepath)
-            if zip_scan["status"] == "infected":
-                # Xóa file ngay lập tức nếu nhiễm độc để bảo vệ hệ thống!
-                try:
-                    os.remove(filepath)
-                except Exception:
-                    pass
-                logger.warning(f"[FILE_REJECTED] Filename: '{upload_file.filename}' | SHA256: {sha256_hash} | Reason: Malware detected: {', '.join(zip_scan['threats_found'])}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Từ chối tải lên! Phát hiện nguy cơ bảo mật: {', '.join(zip_scan['threats_found'])}"
-                )
+            scan_details = FileService.process_and_scan_zip(filepath)
+        elif ext == 'pdf':
+            scan_details = FileService.process_and_scan_pdf(filepath)
+        elif ext == 'docx':
+            scan_details = FileService.process_and_scan_docx(filepath)
+
+        if scan_details and scan_details.get("status") == "infected":
+            # Xóa file ngay lập tức nếu phát hiện nguy cơ độc hại
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+            logger.warning(
+                f"[FILE_REJECTED] Filename: '{upload_file.filename}' | SHA256: {sha256_hash} | "
+                f"Reason: Security threat detected: {', '.join(scan_details['threats_found'])}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Từ chối tải lên! Phát hiện nguy cơ bảo mật trong tệp tin: {', '.join(scan_details['threats_found'])}"
+            )
                 
         return {
             "original_filename": upload_file.filename,
@@ -172,5 +273,5 @@ class FileService:
             "ext": ext,
             "size_bytes": file_size,
             "sha256": sha256_hash,
-            "zip_scan_details": zip_scan
+            "scan_details": scan_details
         }

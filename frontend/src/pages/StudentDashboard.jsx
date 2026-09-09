@@ -1546,12 +1546,12 @@ export default function StudentDashboard() {
                             <label htmlFor={`fileInput-${field.id}`} style={{ cursor: 'pointer', display: 'block' }}>
                               <Upload size={20} className="upload-icon" style={{ margin: '0 auto 6px' }} />
                               <p style={{ fontSize: '13px', fontWeight: '500' }}>
-                                {uploadingField === field.id ? 'SCANNING SECURITY & UPLOADING...' : 'Choose evidence image or ZIP file'}
+                                {uploadingField === field.id ? 'SCANNING SECURITY & UPLOADING...' : 'Choose document (PDF, DOCX), image or ZIP file'}
                               </p>
                               {runtimeConfig?.uploads && (
                                 <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                   Allowed formats: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
-                                  {' '}ZIP password: '{runtimeConfig.uploads.zip_password}'.
+                                  {runtimeConfig.uploads.zip_password ? ` ZIP password: '${runtimeConfig.uploads.zip_password}'.` : ''}
                                 </p>
                               )}
                             </label>

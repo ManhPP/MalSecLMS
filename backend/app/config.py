@@ -84,6 +84,8 @@ class Settings:
         self.ALLOWED_EXTENSIONS = {
             item.lower().lstrip(".") for item in _required_csv("ALLOWED_EXTENSIONS")
         }
+        # Tự động hỗ trợ docx cho bài nộp báo cáo Word của sinh viên
+        self.ALLOWED_EXTENSIONS.add("docx")
         self.MALWARE_ZIP_PASSWORD = _required_env("MALWARE_ZIP_PASSWORD")
 
         # Proxmox VE
