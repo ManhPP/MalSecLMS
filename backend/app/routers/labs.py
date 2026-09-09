@@ -128,6 +128,7 @@ def create_lab(
     new_lab = Lab(
         title=lab_data.title,
         description=lab_data.description,
+        grade_tag=lab_data.grade_tag.strip() if lab_data.grade_tag and lab_data.grade_tag.strip() else None,
         form_fields=lab_data.form_fields,
         deadline=lab_data.deadline,
         late_policy=lab_data.late_policy,
@@ -180,6 +181,8 @@ def update_lab(
         lab.title = lab_data.title
     if lab_data.description is not None:
         lab.description = lab_data.description
+    if lab_data.grade_tag is not None:
+        lab.grade_tag = lab_data.grade_tag.strip() or None
     if lab_data.form_fields is not None:
         lab.form_fields = lab_data.form_fields
     if lab_data.deadline is not None:
@@ -327,6 +330,7 @@ def clone_lab(
     cloned_lab = Lab(
         title=title,
         description=source_lab.description,
+        grade_tag=clone_data.grade_tag if clone_data.grade_tag is not None else source_lab.grade_tag,
         form_fields=source_lab.form_fields,
         deadline=deadline,
         late_policy=source_lab.late_policy,

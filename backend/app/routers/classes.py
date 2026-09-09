@@ -540,15 +540,25 @@ def get_class_gradebook(
     for s in submissions:
         sub_map[(s.student_id, s.lab_id)] = s
 
-    # Xây dựng ma trận điểm cho từng sinh viên
+    # Xây dựng ma trận điểm cho từng sinh viên (cả theo từng Lab và theo Đầu điểm Tag)
+    # Lấy danh sách tất cả các tag đầu điểm duy nhất của lớp (nếu không điền thì gán "Default")
+    unique_tags = []
+    for l in labs:
+        tag = (l.grade_tag or "").strip() or "Default"
+        if tag not in unique_tags:
+            unique_tags.append(tag)
+
     gradebook_rows = []
     for st in students:
         lab_grades = {}
+        tag_scores_collector = {t: [] for t in unique_tags}
         valid_scores = []
         completed_count = 0
 
         for l in labs:
             sub = sub_map.get((st.id, l.id))
+            tag = (l.grade_tag or "").strip() or "Default"
+
             if sub:
                 status_str = sub.status
                 raw_score = sub.score
@@ -558,6 +568,8 @@ def get_class_gradebook(
                 if raw_score is not None:
                     final_score = round(max(0.0, raw_score * (1.0 - late_penalty / 100.0)), 2)
                     valid_scores.append(final_score)
+                    if tag in tag_scores_collector:
+                        tag_scores_collector[tag].append(final_score)
                 
                 if status_str in ['submitted', 'graded']:
                     completed_count += 1
@@ -568,6 +580,7 @@ def get_class_gradebook(
                     "raw_score": raw_score,
                     "late_penalty": late_penalty,
                     "final_score": final_score,
+                    "grade_tag": tag,
                     "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
                     "is_plagiarized": sub.is_plagiarized
                 }
@@ -578,8 +591,24 @@ def get_class_gradebook(
                     "raw_score": None,
                     "late_penalty": 0.0,
                     "final_score": None,
+                    "grade_tag": tag,
                     "submitted_at": None,
                     "is_plagiarized": False
+                }
+
+        # Tính trung bình điểm theo từng đầu điểm tag
+        tag_grades = {}
+        for t in unique_tags:
+            scores_for_tag = tag_scores_collector.get(t, [])
+            if scores_for_tag:
+                tag_grades[t] = {
+                    "average_score": round(sum(scores_for_tag) / len(scores_for_tag), 2),
+                    "completed_count": len(scores_for_tag)
+                }
+            else:
+                tag_grades[t] = {
+                    "average_score": None,
+                    "completed_count": 0
                 }
 
         avg_score = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else None
@@ -591,16 +620,19 @@ def get_class_gradebook(
             "email": st.email,
             "completed_labs": completed_count,
             "average_score": avg_score,
-            "grades": lab_grades
+            "grades": lab_grades,
+            "tag_grades": tag_grades
         })
 
     return {
         "class_id": class_.id,
         "class_name": class_.name,
+        "tags": unique_tags,
         "labs": [
             {
                 "id": l.id,
                 "title": l.title,
+                "grade_tag": (l.grade_tag or "").strip() or "Default",
                 "deadline": l.deadline.isoformat() if l.deadline else None,
                 "is_active": l.is_active
             }

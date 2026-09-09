@@ -127,6 +127,7 @@ export default function InstructorDashboard() {
   const [labTitle, setLabTitle] = useState('')
 
   const [labDesc, setLabDesc] = useState('')
+  const [gradeTag, setGradeTag] = useState('') // Tag đầu điểm (ví dụ: Đầu điểm 1, Chuyên cần, Thực hành 1, Giữa kỳ)
   const [classId, setClassId] = useState('')
   const [deadline, setDeadline] = useState('')
   const [allowLate, setAllowLate] = useState(true)
@@ -235,8 +236,10 @@ export default function InstructorDashboard() {
   const [gradebookClassId, setGradebookClassId] = useState('')
   const [gradebookData, setGradebookData] = useState(null)
   const [gradebookLoading, setGradebookLoading] = useState(false)
+  const [gradebookViewMode, setGradebookViewMode] = useState('labs') // 'labs' (chi tiết từng lab) | 'tags' (xem theo đầu điểm)
   const [selectedStudentFilter, setSelectedStudentFilter] = useState([]) // Array of student usernames, empty = all
   const [selectedLabFilter, setSelectedLabFilter] = useState([]) // Array of lab IDs (numbers), empty = all
+  const [selectedTagFilter, setSelectedTagFilter] = useState([]) // Array of tag names (strings), empty = all
   const [gradebookStudentSearch, setGradebookStudentSearch] = useState('')
 
   const [loading, setLoading] = useState(false)
@@ -295,43 +298,84 @@ export default function InstructorDashboard() {
     }
   }
 
-  // Export Gradebook to CSV
-  const exportGradebookToCSV = (filteredRows, visibleLabs) => {
-    if (!filteredRows || filteredRows.length === 0 || !visibleLabs || visibleLabs.length === 0) {
-      alert('No data available to export.')
+  // Export Gradebook to CSV (supports full labs or aggregated grade_tag mode)
+  const exportGradebookToCSV = (filteredRows, visibleLabs, visibleTags, mode = 'labs') => {
+    if (!filteredRows || filteredRows.length === 0) {
+      alert('No student data available to export.')
       return
     }
 
-    // Build CSV Headers
-    const headers = [
-      'STT',
-      'MSSV',
-      'Ho va Ten',
-      'Email',
-      'So lab da nop',
-      ...visibleLabs.map(l => `"${l.title.replace(/"/g, '""')}"`),
-      'Diem trung binh'
-    ]
+    let headers = []
+    let csvLines = []
 
-    // Build CSV Rows
-    const csvLines = [headers.join(',')]
-
-    filteredRows.forEach((row, idx) => {
-      const line = [
-        idx + 1,
-        `"${row.username}"`,
-        `"${row.full_name.replace(/"/g, '""')}"`,
-        `"${row.email || ''}"`,
-        row.completed_labs,
-        ...visibleLabs.map(l => {
-          const g = row.grades[String(l.id)]
-          if (!g || g.final_score === null) return '""'
-          return g.final_score
-        }),
-        row.average_score !== null ? row.average_score : '""'
+    if (mode === 'tags') {
+      if (!visibleTags || visibleTags.length === 0) {
+        alert('No grade tags defined in this class to export.')
+        return
+      }
+      headers = [
+        'STT',
+        'MSSV',
+        'Ho va Ten',
+        'Email',
+        'Tong so lab da nop',
+        ...visibleTags.map(t => `"${t.replace(/"/g, '""')}"`),
+        'Diem trung binh (GPA)'
       ]
-      csvLines.push(line.join(','))
-    })
+      csvLines.push(headers.join(','))
+
+      filteredRows.forEach((row, idx) => {
+        const line = [
+          idx + 1,
+          `"${row.username}"`,
+          `"${row.full_name.replace(/"/g, '""')}"`,
+          `"${row.email || ''}"`,
+          row.completed_labs,
+          ...visibleTags.map(t => {
+            const tg = row.tag_grades?.[t]
+            if (!tg || tg.average_score === null) return '""'
+            return tg.average_score
+          }),
+          row.average_score !== null ? row.average_score : '""'
+        ]
+        csvLines.push(line.join(','))
+      })
+    } else {
+      if (!visibleLabs || visibleLabs.length === 0) {
+        alert('No labs available to export.')
+        return
+      }
+      headers = [
+        'STT',
+        'MSSV',
+        'Ho va Ten',
+        'Email',
+        'So lab da nop',
+        ...visibleLabs.map(l => {
+          const tagInfo = l.grade_tag ? ` [${l.grade_tag}]` : ''
+          return `"${(l.title + tagInfo).replace(/"/g, '""')}"`
+        }),
+        'Diem trung binh (GPA)'
+      ]
+      csvLines.push(headers.join(','))
+
+      filteredRows.forEach((row, idx) => {
+        const line = [
+          idx + 1,
+          `"${row.username}"`,
+          `"${row.full_name.replace(/"/g, '""')}"`,
+          `"${row.email || ''}"`,
+          row.completed_labs,
+          ...visibleLabs.map(l => {
+            const g = row.grades[String(l.id)]
+            if (!g || g.final_score === null) return '""'
+            return g.final_score
+          }),
+          row.average_score !== null ? row.average_score : '""'
+        ]
+        csvLines.push(line.join(','))
+      })
+    }
 
     // Create BOM and Blob for UTF-8 CSV
     const csvContent = '\uFEFF' + csvLines.join('\n')
@@ -339,8 +383,9 @@ export default function InstructorDashboard() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     const classNameClean = (gradebookData?.class_name || 'Class').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const modeSuffix = mode === 'tags' ? 'By_Grade_Tags' : 'All_Labs'
     link.setAttribute('href', url)
-    link.setAttribute('download', `Gradebook_${classNameClean}_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `Gradebook_${classNameClean}_${modeSuffix}_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -653,6 +698,7 @@ export default function InstructorDashboard() {
       const payload = {
         title: labTitle,
         description: labDesc,
+        grade_tag: gradeTag.trim() || 'Default',
         form_fields: formFields,
         deadline: new Date(deadline).toISOString(),
         late_policy: {
@@ -703,6 +749,7 @@ export default function InstructorDashboard() {
     setEditingLab(null)
     setLabTitle('')
     setLabDesc('')
+    setGradeTag('')
     setClassId(classes[0]?.id || '')
     setDeadline('')
     setAllowLate(true)
@@ -729,6 +776,7 @@ export default function InstructorDashboard() {
     setEditingLab(lab)
     setLabTitle(lab.title || '')
     setLabDesc(lab.description || '')
+    setGradeTag(lab.grade_tag || '')
     setClassId(lab.class_id || (classes[0]?.id || ''))
     
     if (lab.deadline) {
@@ -1366,11 +1414,14 @@ export default function InstructorDashboard() {
                               {group.labs.map(lab => (
                                 <tr key={lab.id}>
                                   <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                       <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
                                         ID #{lab.id}
                                       </span>
                                       <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                                      <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
+                                        🏷️ {lab.grade_tag || 'Default'}
+                                      </span>
                                     </div>
                                   </td>
                                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
@@ -2267,101 +2318,216 @@ export default function InstructorDashboard() {
               </div>
             </div>
 
-            {/* Filter Section: Multi-Select Students & Multi-Select Labs */}
+            {/* Filter Section: Multi-Select Students & Multi-Select Labs / Tags */}
             {gradebookData && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-                {/* Lab Multi-filter */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Filter size={14} style={{ color: 'var(--neon-cyan)' }} />
-                      Filter Labs ({selectedLabFilter.length > 0 ? `${selectedLabFilter.length}/${gradebookData.labs.length} selected` : 'All Labs'})
-                    </label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setSelectedLabFilter([])}
-                        style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                
+                {/* Mode Selector Toggle: View by Labs vs View by Grade Category Tags */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>View Mode:</span>
+                    <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '6px', padding: '2px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setGradebookViewMode('labs')}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '5px',
+                          border: 'none',
+                          fontSize: '12.5px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          background: gradebookViewMode === 'labs' ? '#ffffff' : 'transparent',
+                          color: gradebookViewMode === 'labs' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+                          boxShadow: gradebookViewMode === 'labs' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
                       >
-                        Select All
+                        📄 Detailed by Labs ({gradebookData.labs.length})
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setSelectedLabFilter(gradebookData.labs.map(l => l.id))}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '11.5px', cursor: 'pointer' }}
+                      <button
+                        type="button"
+                        onClick={() => setGradebookViewMode('tags')}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '5px',
+                          border: 'none',
+                          fontSize: '12.5px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          background: gradebookViewMode === 'tags' ? '#ffffff' : 'transparent',
+                          color: gradebookViewMode === 'tags' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+                          boxShadow: gradebookViewMode === 'tags' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
                       >
-                        Reset
+                        🏷️ Aggregated by Grade Category Tags ({gradebookData.tags?.length || 0})
                       </button>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '80px', overflowY: 'auto', padding: '4px 0' }}>
-                    {gradebookData.labs.map(l => {
-                      const isSelected = selectedLabFilter.length === 0 || selectedLabFilter.includes(l.id)
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => {
-                            if (selectedLabFilter.length === 0) {
-                              // If previously was "All", switch to selecting just this one
-                              setSelectedLabFilter([l.id])
-                            } else if (selectedLabFilter.includes(l.id)) {
-                              const next = selectedLabFilter.filter(id => id !== l.id)
-                              setSelectedLabFilter(next.length === 0 ? [] : next)
-                            } else {
-                              setSelectedLabFilter([...selectedLabFilter, l.id])
-                            }
-                          }}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: '16px',
-                            fontSize: '11.5px',
-                            cursor: 'pointer',
-                            border: isSelected ? '1px solid var(--neon-cyan)' : '1px solid #cbd5e1',
-                            background: isSelected ? 'rgba(242, 112, 36, 0.1)' : '#f8fafc',
-                            color: isSelected ? 'var(--neon-cyan)' : 'var(--text-secondary)',
-                            fontWeight: isSelected ? '600' : 'normal',
-                            transition: 'all 0.15s ease'
-                          }}
+
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {gradebookViewMode === 'tags' 
+                      ? '⚡ Averaging scores of all labs assigned under the same category tag (e.g. "Đầu điểm 1", "Chuyên cần", "Default").' 
+                      : '⚡ Showing raw individual scores and late penalty deductions for every single lab.'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                  {/* Mode-specific Multi-Filter: Labs vs Tags */}
+                  {gradebookViewMode === 'labs' ? (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Filter size={14} style={{ color: 'var(--neon-cyan)' }} />
+                          Filter Labs ({selectedLabFilter.length > 0 ? `${selectedLabFilter.length}/${gradebookData.labs.length} selected` : 'All Labs'})
+                        </label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedLabFilter([])}
+                            style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            Select All
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedLabFilter(gradebookData.labs.map(l => l.id))}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '11.5px', cursor: 'pointer' }}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '85px', overflowY: 'auto', padding: '4px 0' }}>
+                        {gradebookData.labs.map(l => {
+                          const isSelected = selectedLabFilter.length === 0 || selectedLabFilter.includes(l.id)
+                          return (
+                            <button
+                              key={l.id}
+                              type="button"
+                              onClick={() => {
+                                if (selectedLabFilter.length === 0) {
+                                  setSelectedLabFilter([l.id])
+                                } else if (selectedLabFilter.includes(l.id)) {
+                                  const next = selectedLabFilter.filter(id => id !== l.id)
+                                  setSelectedLabFilter(next.length === 0 ? [] : next)
+                                } else {
+                                  setSelectedLabFilter([...selectedLabFilter, l.id])
+                                }
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '16px',
+                                fontSize: '11.5px',
+                                cursor: 'pointer',
+                                border: isSelected ? '1px solid var(--neon-cyan)' : '1px solid #cbd5e1',
+                                background: isSelected ? 'rgba(242, 112, 36, 0.1)' : '#f8fafc',
+                                color: isSelected ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+                                fontWeight: isSelected ? '600' : 'normal',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {l.title} {l.grade_tag && <span style={{ opacity: 0.75 }}>({l.grade_tag})</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Award size={14} style={{ color: '#059669' }} />
+                          Filter Grade Category Tags ({selectedTagFilter.length > 0 ? `${selectedTagFilter.length}/${(gradebookData.tags || []).length} selected` : 'All Categories'})
+                        </label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedTagFilter([])}
+                            style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            Select All
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedTagFilter(gradebookData.tags || [])}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '11.5px', cursor: 'pointer' }}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '85px', overflowY: 'auto', padding: '4px 0' }}>
+                        {(gradebookData.tags || []).map(tag => {
+                          const isSelected = selectedTagFilter.length === 0 || selectedTagFilter.includes(tag)
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                if (selectedTagFilter.length === 0) {
+                                  setSelectedTagFilter([tag])
+                                } else if (selectedTagFilter.includes(tag)) {
+                                  const next = selectedTagFilter.filter(t => t !== tag)
+                                  setSelectedTagFilter(next.length === 0 ? [] : next)
+                                } else {
+                                  setSelectedTagFilter([...selectedTagFilter, tag])
+                                }
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '16px',
+                                fontSize: '11.5px',
+                                cursor: 'pointer',
+                                border: isSelected ? '1px solid #059669' : '1px solid #cbd5e1',
+                                background: isSelected ? 'rgba(16, 185, 129, 0.1)' : '#f8fafc',
+                                color: isSelected ? '#059669' : 'var(--text-secondary)',
+                                fontWeight: isSelected ? '600' : 'normal',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              🏷️ {tag}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Student Multi-filter & Search */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Users size={14} style={{ color: '#2563eb' }} />
+                        Filter Students ({selectedStudentFilter.length > 0 ? `${selectedStudentFilter.length}/${gradebookData.students.length} selected` : 'All Students'})
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => setSelectedStudentFilter([])}
+                          style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
                         >
-                          {l.title}
+                          Select All
                         </button>
-                      )
-                    })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ paddingLeft: '30px', margin: 0, padding: '5px 8px 5px 30px', fontSize: '12px', height: '32px' }}
+                          placeholder="Filter student list by name or MSSV..."
+                          value={gradebookStudentSearch}
+                          onChange={(e) => setGradebookStudentSearch(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Student Multi-filter & Search */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Users size={14} style={{ color: '#2563eb' }} />
-                      Filter Students ({selectedStudentFilter.length > 0 ? `${selectedStudentFilter.length}/${gradebookData.students.length} selected` : 'All Students'})
-                    </label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setSelectedStudentFilter([])}
-                        style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
-                      >
-                        Select All
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      <input
-                        type="text"
-                        className="form-input"
-                        style={{ paddingLeft: '30px', margin: 0, padding: '5px 8px 5px 30px', fontSize: '12px', height: '32px' }}
-                        placeholder="Filter student list by name or MSSV..."
-                        value={gradebookStudentSearch}
-                        onChange={(e) => setGradebookStudentSearch(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -2383,13 +2549,16 @@ export default function InstructorDashboard() {
               selectedLabFilter.length === 0 || selectedLabFilter.includes(l.id)
             )
 
+            // Determine visible tags
+            const visibleTags = (gradebookData.tags || []).filter(t => 
+              selectedTagFilter.length === 0 || selectedTagFilter.includes(t)
+            )
+
             // Determine visible student rows
             const filteredRows = gradebookData.rows.filter(st => {
-              // Student multi-select filter
               if (selectedStudentFilter.length > 0 && !selectedStudentFilter.includes(st.username)) {
                 return false
               }
-              // Student text search filter
               if (gradebookStudentSearch) {
                 const q = gradebookStudentSearch.toLowerCase()
                 return st.full_name.toLowerCase().includes(q) || st.username.toLowerCase().includes(q)
@@ -2403,24 +2572,28 @@ export default function InstructorDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                      Showing {filteredRows.length} students across {visibleLabs.length} labs
+                      {gradebookViewMode === 'tags' 
+                        ? `Showing ${filteredRows.length} students across ${visibleTags.length} grade categories` 
+                        : `Showing ${filteredRows.length} students across ${visibleLabs.length} labs`}
                     </span>
-                    {(selectedLabFilter.length > 0 || selectedStudentFilter.length > 0 || gradebookStudentSearch) && (
+                    {(selectedLabFilter.length > 0 || selectedTagFilter.length > 0 || selectedStudentFilter.length > 0 || gradebookStudentSearch) && (
                       <span className="badge badge-submitted" style={{ fontSize: '11px', background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>
                         Filters active
                       </span>
                     )}
                   </div>
 
-                  <button
-                    onClick={() => exportGradebookToCSV(filteredRows, visibleLabs)}
-                    className="btn btn-primary"
-                    style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}
-                    title="Export currently filtered gradebook table to CSV file"
-                  >
-                    <Download size={15} />
-                    EXPORT GRADEBOOK TO CSV (.csv)
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={() => exportGradebookToCSV(filteredRows, visibleLabs, visibleTags, gradebookViewMode)}
+                      className="btn btn-primary"
+                      style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}
+                      title={`Export currently viewed ${gradebookViewMode === 'tags' ? 'grade categories' : 'labs'} table to CSV file`}
+                    >
+                      <Download size={15} />
+                      {gradebookViewMode === 'tags' ? 'EXPORT BY GRADE TAGS (.csv)' : 'EXPORT FULL LABS (.csv)'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Grade Matrix Table */}
@@ -2435,14 +2608,30 @@ export default function InstructorDashboard() {
                         <th style={{ minWidth: '110px' }}>MSSV</th>
                         <th style={{ textAlign: 'center', minWidth: '70px' }}>Labs Done</th>
                         
-                        {/* Dynamic Lab Column Headers */}
-                        {visibleLabs.map(lab => (
-                          <th key={lab.id} style={{ minWidth: '110px', textAlign: 'center' }} title={lab.title}>
-                            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px', margin: '0 auto' }}>
-                              {lab.title}
-                            </div>
-                          </th>
-                        ))}
+                        {/* Dynamic Column Headers depending on Mode */}
+                        {gradebookViewMode === 'labs' ? (
+                          visibleLabs.map(lab => (
+                            <th key={lab.id} style={{ minWidth: '110px', textAlign: 'center' }} title={`${lab.title} (Tag: ${lab.grade_tag})`}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px', margin: '0 auto' }}>
+                                {lab.title}
+                              </div>
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'normal', display: 'block' }}>
+                                [{lab.grade_tag}]
+                              </span>
+                            </th>
+                          ))
+                        ) : (
+                          visibleTags.map(tag => (
+                            <th key={tag} style={{ minWidth: '120px', textAlign: 'center' }} title={`Grade Category: ${tag}`}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px', margin: '0 auto', color: '#059669', fontWeight: '700' }}>
+                                🏷️ {tag}
+                              </div>
+                              <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 'normal', display: 'block' }}>
+                                Avg Score
+                              </span>
+                            </th>
+                          ))
+                        )}
 
                         <th style={{ minWidth: '100px', textAlign: 'center', fontWeight: '700', color: 'var(--neon-cyan)' }}>
                           GPA
@@ -2452,7 +2641,7 @@ export default function InstructorDashboard() {
                     <tbody>
                       {filteredRows.length === 0 ? (
                         <tr>
-                          <td colSpan={5 + visibleLabs.length} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                          <td colSpan={5 + (gradebookViewMode === 'labs' ? visibleLabs.length : visibleTags.length)} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                             No student matches the specified filter criteria.
                           </td>
                         </tr>
@@ -2465,57 +2654,85 @@ export default function InstructorDashboard() {
                             </td>
                             <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{row.username}</td>
                             <td style={{ textAlign: 'center' }}>
-                              <span style={{ fontWeight: '600', color: row.completed_labs === visibleLabs.length ? '#10b981' : 'var(--text-secondary)' }}>
-                                {row.completed_labs}/{visibleLabs.length}
+                              <span style={{ fontWeight: '600', color: row.completed_labs === (gradebookData.labs?.length || 0) ? '#10b981' : 'var(--text-secondary)' }}>
+                                {row.completed_labs}/{gradebookData.labs?.length || 0}
                               </span>
                             </td>
 
-                            {/* Lab Grades */}
-                            {visibleLabs.map(lab => {
-                              const grade = row.grades[String(lab.id)]
-                              if (!grade || grade.status === 'not_submitted') {
+                            {/* Columns depending on Mode: Individual Labs vs Category Tags */}
+                            {gradebookViewMode === 'labs' ? (
+                              visibleLabs.map(lab => {
+                                const grade = row.grades[String(lab.id)]
+                                if (!grade || grade.status === 'not_submitted') {
+                                  return (
+                                    <td key={lab.id} style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '11.5px' }}>
+                                      <span style={{ opacity: 0.5 }}>—</span>
+                                    </td>
+                                  )
+                                }
+                                if (grade.status === 'submitted') {
+                                  return (
+                                    <td key={lab.id} style={{ textAlign: 'center' }}>
+                                      <span className="badge badge-submitted" style={{ fontSize: '10.5px' }}>
+                                        Submitted
+                                      </span>
+                                    </td>
+                                  )
+                                }
+                                if (grade.status === 'graded') {
+                                  const sc = grade.final_score
+                                  return (
+                                    <td key={lab.id} style={{ textAlign: 'center' }}>
+                                      <span style={{ 
+                                        fontWeight: '700', 
+                                        fontSize: '13px',
+                                        color: sc >= 8 ? '#059669' : sc >= 5 ? '#d97706' : '#dc2626' 
+                                      }}>
+                                        {sc}
+                                      </span>
+                                      {grade.late_penalty > 0 && (
+                                        <span style={{ fontSize: '10px', color: '#dc2626', display: 'block' }}>
+                                          (-{grade.late_penalty}%)
+                                        </span>
+                                      )}
+                                    </td>
+                                  )
+                                }
                                 return (
-                                  <td key={lab.id} style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '11.5px' }}>
-                                    <span style={{ opacity: 0.5 }}>—</span>
-                                  </td>
-                                )
-                              }
-                              if (grade.status === 'submitted') {
-                                return (
-                                  <td key={lab.id} style={{ textAlign: 'center' }}>
-                                    <span className="badge badge-submitted" style={{ fontSize: '10.5px' }}>
-                                      Submitted
+                                  <td key={lab.id} style={{ textAlign: 'center', fontSize: '11.5px' }}>
+                                    <span className="badge badge-draft" style={{ fontSize: '10.5px' }}>
+                                      {grade.status}
                                     </span>
                                   </td>
                                 )
-                              }
-                              if (grade.status === 'graded') {
-                                const sc = grade.final_score
+                              })
+                            ) : (
+                              visibleTags.map(tag => {
+                                const tagInfo = row.tag_grades?.[tag]
+                                if (!tagInfo || tagInfo.average_score === null) {
+                                  return (
+                                    <td key={tag} style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '11.5px' }}>
+                                      <span style={{ opacity: 0.5 }}>—</span>
+                                    </td>
+                                  )
+                                }
+                                const sc = tagInfo.average_score
                                 return (
-                                  <td key={lab.id} style={{ textAlign: 'center' }}>
+                                  <td key={tag} style={{ textAlign: 'center' }}>
                                     <span style={{ 
                                       fontWeight: '700', 
-                                      fontSize: '13px',
+                                      fontSize: '13.5px',
                                       color: sc >= 8 ? '#059669' : sc >= 5 ? '#d97706' : '#dc2626' 
                                     }}>
                                       {sc}
                                     </span>
-                                    {grade.late_penalty > 0 && (
-                                      <span style={{ fontSize: '10px', color: '#dc2626', display: 'block' }}>
-                                        (-{grade.late_penalty}%)
-                                      </span>
-                                    )}
+                                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>
+                                      ({tagInfo.completed_count} labs)
+                                    </span>
                                   </td>
                                 )
-                              }
-                              return (
-                                <td key={lab.id} style={{ textAlign: 'center', fontSize: '11.5px' }}>
-                                  <span className="badge badge-draft" style={{ fontSize: '10.5px' }}>
-                                    {grade.status}
-                                  </span>
-                                </td>
-                              )
-                            })}
+                              })
+                            )}
 
                             {/* Class GPA */}
                             <td style={{ textAlign: 'center' }}>
@@ -3010,6 +3227,23 @@ export default function InstructorDashboard() {
                     value={labDesc}
                     onChange={(e) => setLabDesc(e.target.value)}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Grade Category Tag (Đầu điểm đánh giá)</span>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Optional (Default: "Default")</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. Đầu điểm 1, Chuyên cần, Giữa kỳ, Thực hành..."
+                    value={gradeTag}
+                    onChange={(e) => setGradeTag(e.target.value)}
+                  />
+                  <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                    💡 Multiple labs sharing the same tag will be grouped together and averaged when viewing the Gradebook by category.
+                  </p>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

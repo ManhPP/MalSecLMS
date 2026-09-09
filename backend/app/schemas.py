@@ -80,6 +80,7 @@ class ClassWithStudents(ClassOut):
 class LabBase(BaseModel):
     title: str
     description: Optional[str] = None
+    grade_tag: Optional[str] = None
     form_fields: List[Dict[str, Any]] = []
     deadline: datetime
     late_policy: Dict[str, Any] = {
@@ -103,6 +104,7 @@ class LabCreate(LabBase):
 class LabUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    grade_tag: Optional[str] = None
     form_fields: Optional[List[Dict[str, Any]]] = None
     deadline: Optional[datetime] = None
     late_policy: Optional[Dict[str, Any]] = None
@@ -121,6 +123,7 @@ class LabClone(BaseModel):
     target_class_id: int
     new_title: Optional[str] = None
     new_deadline: Optional[datetime] = None
+    grade_tag: Optional[str] = None
 
 
 class LabOut(LabBase):

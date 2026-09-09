@@ -20,9 +20,14 @@ setup_logging()
 for i in range(5):
     try:
         Base.metadata.create_all(bind=engine)
+        # Migration an toàn: Tự động bổ sung cột grade_tag vào bảng labs nếu chưa có
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS grade_tag VARCHAR;"))
+            conn.commit()
         break
     except Exception as e:
-        logger.warning(f"Database connection failed, retrying {i+1}/5... Error: {e}")
+        logger.warning(f"Database connection or migration failed, retrying {i+1}/5... Error: {e}")
         time.sleep(3)
 
 app = FastAPI(

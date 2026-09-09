@@ -49,6 +49,7 @@ class Lab(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    grade_tag = Column(String, nullable=True, index=True) # Tag đầu điểm: ví dụ "Đầu điểm 1", "Chuyên cần", "Giữa kỳ", v.v.
     
     # form_fields lưu mảng cấu hình câu hỏi động dạng JSONB
     # [{id: "q1", type: "text"|"textarea"|"select"|"file", label: "...", options: ["...", "..."], required: true}]
