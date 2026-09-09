@@ -1381,18 +1381,18 @@ export default function InstructorDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                   
                   {/* Option 1: Search & Assign Student */}
-                  <div style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
-                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Search size={14} />
+                  <div style={{ padding: '18px', background: '#f8fafc', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '300px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                      <Search size={15} />
                       Find & Add Student to Class
                     </h4>
                     
-                    <div style={{ position: 'relative', marginBottom: '10px' }}>
-                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <div style={{ position: 'relative', marginBottom: '12px' }}>
+                      <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input 
                         type="text" 
                         className="form-input" 
-                        style={{ paddingLeft: '32px', margin: 0, fontSize: '12.5px' }}
+                        style={{ paddingLeft: '34px', margin: 0, fontSize: '13px', background: '#ffffff' }}
                         placeholder="Type name or Student ID to search..."
                         value={studentSearchQuery}
                         onChange={(e) => setStudentSearchQuery(e.target.value)}
@@ -1400,7 +1400,7 @@ export default function InstructorDashboard() {
                     </div>
                     
                     {/* Search Results list */}
-                    <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', padding: '6px' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', borderRadius: '6px', border: '1px solid var(--border-color)', padding: '8px' }}>
                       {(() => {
                         const existingStudentIds = new Set((selectedClass.users || []).map(u => u.id))
                         const filteredDbStudents = allStudents.filter(s => {
@@ -1411,27 +1411,27 @@ export default function InstructorDashboard() {
                         })
 
                         if (studentSearchQuery.length < 1) {
-                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>Type to search for students...</div>
+                          return <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12.5px', padding: '24px 10px' }}>Type to search for students...</div>
                         }
 
                         if (filteredDbStudents.length === 0) {
-                          return <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '20px' }}>No students found or all matched students are already enrolled.</div>
+                          return <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12.5px', padding: '24px 10px' }}>No students found or all matched students are already enrolled.</div>
                         }
 
                         return filteredDbStudents.map(student => (
                           <div 
                             key={student.id} 
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: '13px' }}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}
                           >
                             <div>
                               <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{student.full_name}</span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: '6px', fontFamily: 'var(--font-mono)' }}>({student.username})</span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '11.5px', marginLeft: '6px', fontFamily: 'var(--font-mono)' }}>({student.username})</span>
                             </div>
                             <button 
                               type="button" 
                               onClick={() => handleAssignSingleStudent(student.id)} 
                               className="btn btn-primary" 
-                              style={{ padding: '2px 8px', fontSize: '11px' }}
+                              style={{ padding: '3px 10px', fontSize: '11.5px' }}
                             >
                               Add
                             </button>
@@ -1442,23 +1442,23 @@ export default function InstructorDashboard() {
                   </div>
 
                   {/* Option 2: Bulk Assign by ID */}
-                  <form onSubmit={handleAssignStudentsBulk} style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '280px' }}>
-                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Users size={14} />
+                  <form onSubmit={handleAssignStudentsBulk} style={{ padding: '18px', background: '#f8fafc', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '300px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                    <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                      <Users size={15} />
                       Bulk Assign by Student IDs
                     </h4>
                     <div className="form-group" style={{ flex: 1, marginBottom: '12px' }}>
-                      <label className="form-label" style={{ fontSize: '12px' }}>Enter Student IDs (comma or whitespace separated)</label>
+                      <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Enter Student IDs (comma or whitespace separated)</label>
                       <input 
                         type="text" 
                         className="form-input" 
-                        style={{ fontSize: '12.5px' }}
+                        style={{ fontSize: '13px', background: '#ffffff' }}
                         placeholder="e.g. 3, 14, 25"
                         value={studentIdsInput}
                         onChange={(e) => setStudentIdsInput(e.target.value)}
                       />
                     </div>
-                    <button type="submit" className="btn btn-success" style={{ width: '100%', padding: '8px 16px', fontSize: '13px' }} disabled={actionLoading}>
+                    <button type="submit" className="btn btn-success" style={{ width: '100%', padding: '10px 16px', fontSize: '13.5px', fontWeight: 'bold' }} disabled={actionLoading}>
                       {actionLoading ? 'Assigning...' : 'CONFIRM ASSIGN STUDENTS'}
                     </button>
                   </form>
