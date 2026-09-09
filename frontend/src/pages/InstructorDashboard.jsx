@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   BookOpen, Plus, Calendar, FileSpreadsheet, Download, 
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
-  Copy, Layers, ChevronDown, ChevronRight
+  Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2
 } from 'lucide-react'
+import { renderAsync } from 'docx-preview'
 
 
 // --- CYBERPUNK MARKDOWN PARSER UTILITIES ---
@@ -196,6 +197,12 @@ export default function InstructorDashboard() {
   const [cloneNewTitle, setCloneNewTitle] = useState('')
   const [cloneNewDeadline, setCloneNewDeadline] = useState('')
 
+  // Document Preview Modal State (PDF / DOCX)
+  const [previewDoc, setPreviewDoc] = useState(null) // { filename: string, url: string, type: 'pdf' | 'docx' | 'image' | 'other' }
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const docxContainerRef = useRef(null)
+
   // Instructor Classes/Students management states
   const [selectedClass, setSelectedClass] = useState(null)
   const [studentIdsInput, setStudentIdsInput] = useState('')
@@ -288,6 +295,61 @@ export default function InstructorDashboard() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Document Preview Handler (PDF / DOCX)
+  const handleOpenDocPreview = async (attachment) => {
+    if (!attachment || !attachment.filepath) return
+    const token = localStorage.getItem('malsec_token')
+    const fileUrl = `/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${token}`
+    const filename = attachment.original_filename || 'document'
+    const ext = filename.split('.').pop().toLowerCase()
+
+    setPreviewError('')
+    setPreviewDoc({
+      filename,
+      filepath: attachment.filepath,
+      url: fileUrl,
+      type: ext === 'docx' ? 'docx' : ext === 'pdf' ? 'pdf' : ['png', 'jpg', 'jpeg'].includes(ext) ? 'image' : 'other'
+    })
+
+    // If DOCX, fetch arrayBuffer and render via docx-preview
+    if (ext === 'docx') {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(fileUrl)
+        if (!res.ok) throw new Error('Không thể tải tệp tin Word từ máy chủ')
+        const arrayBuffer = await res.arrayBuffer()
+        
+        // Wait small tick for modal DOM node to mount
+        setTimeout(async () => {
+          if (docxContainerRef.current) {
+            docxContainerRef.current.innerHTML = ''
+            await renderAsync(arrayBuffer, docxContainerRef.current, null, {
+              className: 'docx-preview-content',
+              inWrapper: true,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              breakPages: true
+            })
+          }
+          setPreviewLoading(false)
+        }, 150)
+      } catch (err) {
+        console.error('Error rendering DOCX:', err)
+        setPreviewError('Lỗi hiển thị tệp tin DOCX: ' + err.message)
+        setPreviewLoading(false)
+      }
+    }
+  }
+
+  const handleCloseDocPreview = () => {
+    setPreviewDoc(null)
+    setPreviewLoading(false)
+    setPreviewError('')
+    if (docxContainerRef.current) {
+      docxContainerRef.current.innerHTML = ''
     }
   }
 
@@ -1710,15 +1772,30 @@ export default function InstructorDashboard() {
                                     </ul>
                                   </div>
                                 ) : (
-                                  <a 
-                                    href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
-                                    className="btn btn-secondary" 
-                                    style={{ padding: '6px 12px', fontSize: '12.5px' }}
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                  >
-                                    Download Raw Attachment
-                                  </a>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    {/* PREVIEW BUTTON FOR PDF, DOCX, OR IMAGES */}
+                                    {['pdf', 'docx'].includes(attachment.original_filename.split('.').pop().toLowerCase()) && (
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleOpenDocPreview(attachment)} 
+                                        className="btn btn-primary" 
+                                        style={{ padding: '7px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
+                                      >
+                                        <Eye size={15} /> Xem trực tiếp ({attachment.original_filename.split('.').pop().toUpperCase()})
+                                      </button>
+                                    )}
+
+                                    {/* RAW DOWNLOAD BUTTON */}
+                                    <a 
+                                      href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '7px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                      target="_blank" 
+                                      rel="noreferrer"
+                                    >
+                                      <Download size={14} /> Tải file về máy
+                                    </a>
+                                  </div>
                                 )}
                               </div>
                             ) : (
@@ -2556,6 +2633,106 @@ export default function InstructorDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL DOCUMENT PREVIEW (PDF / DOCX) */}
+      {previewDoc && (
+        <div className="modal-overlay" style={{ zIndex: 1200, padding: '12px' }}>
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: '1100px', 
+              width: '95vw', 
+              height: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column',
+              background: '#ffffff',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div className="modal-header" style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="badge" style={{ background: previewDoc.type === 'pdf' ? '#ef4444' : '#2563eb', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
+                  {previewDoc.type.toUpperCase()}
+                </span>
+                <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, fontWeight: '600', maxWidth: '600px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={previewDoc.filename}>
+                  {previewDoc.filename}
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <a 
+                  href={`${previewDoc.url}&download=true`} 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                  target="_blank" 
+                  rel="noreferrer"
+                >
+                  <Download size={13} /> Tải file gốc
+                </a>
+                <button 
+                  type="button" 
+                  onClick={handleCloseDocPreview} 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 10px', fontSize: '13px', display: 'flex', alignItems: 'center' }}
+                  title="Đóng xem trước"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div style={{ flex: 1, position: 'relative', overflowY: 'auto', background: previewDoc.type === 'pdf' ? '#525659' : '#f1f5f9', display: 'flex', flexDirection: 'column' }}>
+              {previewLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '40px', color: 'var(--text-primary)' }}>
+                  <RefreshCw size={28} className="spin-slow" style={{ color: 'var(--neon-cyan)' }} />
+                  <p style={{ fontSize: '14px', margin: 0 }}>Đang tải và render tài liệu Word...</p>
+                </div>
+              )}
+
+              {previewError && (
+                <div style={{ margin: '24px auto', maxWidth: '600px', padding: '20px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
+                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Không thể hiển thị tài liệu trực tiếp</p>
+                  <p style={{ fontSize: '13px', marginBottom: '16px' }}>{previewError}</p>
+                  <a 
+                    href={`${previewDoc.url}&download=true`} 
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '13px' }}
+                    target="_blank" 
+                    rel="noreferrer"
+                  >
+                    <Download size={14} style={{ marginRight: '6px' }} /> Tải về máy để xem
+                  </a>
+                </div>
+              )}
+
+              {/* PDF Preview: Native Browser Viewer via iframe */}
+              {previewDoc.type === 'pdf' && !previewError && (
+                <iframe
+                  src={previewDoc.url}
+                  title={previewDoc.filename}
+                  style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
+                />
+              )}
+
+              {/* DOCX Preview: Rendered HTML Container via docx-preview */}
+              {previewDoc.type === 'docx' && (
+                <div 
+                  ref={docxContainerRef} 
+                  style={{ 
+                    display: previewLoading ? 'none' : 'block',
+                    padding: '24px', 
+                    margin: '0 auto', 
+                    maxWidth: '900px', 
+                    width: '100%' 
+                  }} 
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
