@@ -44,6 +44,16 @@ class Class(Base):
     labs = relationship('Lab', back_populates='class_', cascade='all, delete-orphan')
 
 
+class Semester(Base):
+    __tablename__ = 'semesters'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False) # e.g. "FA25", "SP26", "SU26"
+    is_active = Column(Boolean, default=False, nullable=False)     # True if marked as current active semester
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class Lab(Base):
     __tablename__ = 'labs'
 

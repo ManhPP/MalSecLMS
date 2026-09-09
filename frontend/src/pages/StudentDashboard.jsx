@@ -265,6 +265,7 @@ export default function StudentDashboard() {
 
   // Search & Filter state for Labs
   const [classes, setClasses] = useState([])
+  const [semestersList, setSemestersList] = useState([])
   const [labGroupByClass, setLabGroupByClass] = useState(true)
   const [collapsedClassGroups, setCollapsedClassGroups] = useState({})
   const [studentSemesterFilter, setStudentSemesterFilter] = useState('all')
@@ -387,6 +388,19 @@ export default function StudentDashboard() {
         }
       } catch (clsErr) {
         console.error('Failed to fetch student classes:', clsErr)
+      }
+
+      // Fetch semesters list for accurate current active term
+      try {
+        const semRes = await fetch('/api/semesters/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (semRes.ok) {
+          const semData = await semRes.json()
+          setSemestersList(semData)
+        }
+      } catch (semErr) {
+        console.error('Failed to fetch semesters:', semErr)
       }
 
       const res = await fetch('/api/labs/student/active', {
@@ -787,7 +801,12 @@ export default function StudentDashboard() {
     })
   }, [classes])
 
-  const studentCurrentSemester = studentAvailableSemesters.find(s => s !== 'unknown') || studentAvailableSemesters[0] || 'unknown'
+  // Current active semester configured by Admin
+  const studentCurrentSemester = React.useMemo(() => {
+    const activeSem = semestersList.find(s => s.is_active)
+    if (activeSem?.name) return activeSem.name
+    return studentAvailableSemesters.find(s => s !== 'unknown') || studentAvailableSemesters[0] || 'unknown'
+  }, [semestersList, studentAvailableSemesters])
 
   // Hierarchical Grouping for Students: Semester -> Class -> Labs
   const studentGroupedSemesters = React.useMemo(() => {

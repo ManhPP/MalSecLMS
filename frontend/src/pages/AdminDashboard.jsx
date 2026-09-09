@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Users, School, ShieldAlert, FileSpreadsheet, Plus, Edit2, 
-  Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play 
+  Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check 
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -9,8 +9,9 @@ export default function AdminDashboard() {
   const [classes, setClasses] = useState([])
   const [labs, setLabs] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
+  const [semesters, setSemesters] = useState([])
   
-  // UI Tabs: 'users' | 'classes' | 'vms' | 'logs'
+  // UI Tabs: 'users' | 'classes' | 'semesters' | 'vms' | 'logs'
   const [activeTab, setActiveTab] = useState('users')
   
   // Modals & Forms State
@@ -28,6 +29,13 @@ export default function AdminDashboard() {
   const [className, setClassName] = useState('')
   const [classDesc, setClassDesc] = useState('')
   const [classSemester, setClassSemester] = useState('unknown')
+
+  // Semester Management State
+  const [showSemesterModal, setShowSemesterModal] = useState(false)
+  const [editingSemester, setEditingSemester] = useState(null)
+  const [semesterName, setSemesterName] = useState('')
+  const [semesterDesc, setSemesterDesc] = useState('')
+  const [semesterIsActive, setSemesterIsActive] = useState(false)
 
   // VM Manager Modal State
   const [showVmManagerModal, setShowVmManagerModal] = useState(false)
@@ -78,7 +86,13 @@ export default function AdminDashboard() {
       })
       if (labRes.ok) setLabs(await labRes.json())
 
-      // 4. Fetch Audit Logs
+      // 4. Fetch Semesters
+      const semRes = await fetch('/api/semesters/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (semRes.ok) setSemesters(await semRes.json())
+
+      // 5. Fetch Audit Logs
       const lRes = await fetch('/api/admin/audit-logs', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -344,7 +358,118 @@ export default function AdminDashboard() {
     } finally {
       setActionLoading(false)
     }
+  }
 
+  // Semester CRUD & Activation handlers
+  const handleOpenSemesterModal = (sem = null) => {
+    setEditingSemester(sem)
+    if (sem) {
+      setSemesterName(sem.name)
+      setSemesterDesc(sem.description || '')
+      setSemesterIsActive(sem.is_active || false)
+    } else {
+      setSemesterName('')
+      setSemesterDesc('')
+      setSemesterIsActive(false)
+    }
+    setShowSemesterModal(true)
+  }
+
+  const handleSaveSemester = async (e) => {
+    e.preventDefault()
+    if (!semesterName.trim()) {
+      setError('Semester name is required')
+      return
+    }
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      let url = '/api/semesters/'
+      let method = 'POST'
+      let body = {
+        name: semesterName.trim(),
+        description: semesterDesc.trim() || null,
+        is_active: semesterIsActive
+      }
+
+      if (editingSemester) {
+        url = `/api/semesters/${editingSemester.id}`
+        method = 'PUT'
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to save semester')
+
+      setSuccess(editingSemester ? `Semester ${data.name} updated successfully!` : `Semester ${data.name} created successfully!`)
+      setShowSemesterModal(false)
+      setEditingSemester(null)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleSetActiveSemester = async (semId, semName) => {
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/semesters/${semId}/activate`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to activate semester')
+
+      setSuccess(`Academic Semester "${semName}" is now the active term across the entire platform!`)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteSemester = async (semId, semName) => {
+    if (!confirm(`Are you sure you want to delete semester "${semName}"?\nClasses in this semester will have their term reset to 'unknown'.`)) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/semesters/${semId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete semester')
+
+      setSuccess(data.message || `Semester "${semName}" deleted successfully!`)
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
 
@@ -571,6 +696,13 @@ export default function AdminDashboard() {
           style={{ padding: '8px 16px' }}
         >
           Class Management
+        </button>
+        <button 
+          onClick={() => setActiveTab('semesters')} 
+          className={`btn ${activeTab === 'semesters' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Calendar size={15} /> Academic Semesters
         </button>
         <button 
           onClick={() => setActiveTab('vms')} 
@@ -1040,6 +1172,121 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* TAB SEMESTERS CONTENT */}
+      {activeTab === 'semesters' && (
+        <div className="cyber-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={20} style={{ color: 'var(--neon-cyan)' }} />
+                Academic Semesters (Quản lý Kỳ học)
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                Create and manage academic semesters. The active semester is marked across the platform to group classes and filter submissions.
+              </p>
+            </div>
+            <button onClick={() => handleOpenSemesterModal(null)} className="btn btn-primary" style={{ padding: '8px 14px' }}>
+              <Plus size={16} /> Add New Semester
+            </button>
+          </div>
+
+          <div className="table-container" style={{ margin: 0 }}>
+            <table className="cyber-table">
+              <thead>
+                <tr>
+                  <th>Semester Name</th>
+                  <th>Status</th>
+                  <th>Description</th>
+                  <th>Classes Associated</th>
+                  <th>Created At</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semesters.map(sem => {
+                  const classCount = classes.filter(c => (c.semester || '').toLowerCase() === sem.name.toLowerCase()).length
+                  return (
+                    <tr key={sem.id} style={{ background: sem.is_active ? 'rgba(16, 185, 129, 0.05)' : '' }}>
+                      <td style={{ fontWeight: '700', fontSize: '15px', color: 'var(--neon-cyan)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>📅 {sem.name}</span>
+                          {sem.is_active && (
+                            <span className="badge" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontSize: '11px', fontWeight: 'bold' }}>
+                              🌟 Current Active Term
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {sem.is_active ? (
+                          <span className="badge badge-submitted" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Check size={12} /> Active
+                          </span>
+                        ) : (
+                          <span className="badge badge-draft">
+                            Archived / Past
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '300px' }}>
+                        {sem.description || '—'}
+                      </td>
+                      <td>
+                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11.5px', fontWeight: '600' }}>
+                          {classCount} {classCount === 1 ? 'Class' : 'Classes'}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px' }}>
+                        {new Date(sem.created_at).toLocaleDateString('en-US')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          {!sem.is_active && (
+                            <button
+                              onClick={() => handleSetActiveSemester(sem.id, sem.name)}
+                              className="btn btn-success"
+                              style={{ padding: '4px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Set as Current Active Term"
+                              disabled={actionLoading}
+                            >
+                              <Check size={12} /> Set as Active
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOpenSemesterModal(sem)}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '11px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
+                            title="Edit Semester"
+                          >
+                            <Edit2 size={12} /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSemester(sem.id, sem.name)}
+                            className="btn btn-danger"
+                            style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
+                            title="Delete Semester"
+                            disabled={sem.is_active}
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {semesters.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                      No academic semesters created yet. Click "Add New Semester" to define terms like FA25, SP26, SU26...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* TAB VMS CONTENT */}
       {activeTab === 'vms' && (
         <div className="cyber-card">
@@ -1260,18 +1507,24 @@ export default function AdminDashboard() {
 
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Semester</span>
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Optional (Default: "unknown")</span>
+                    <span>Academic Semester</span>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Default: "unknown"</span>
                   </label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. SP26, FA25, SU26, unknown..."
+                  <select 
+                    className="form-select"
                     value={classSemester}
                     onChange={(e) => setClassSemester(e.target.value)}
-                  />
+                    style={{ background: '#ffffff' }}
+                  >
+                    <option value="unknown">unknown (Unassigned / No term)</option>
+                    {semesters.map(s => (
+                      <option key={s.id} value={s.name}>
+                        {s.name} {s.is_active ? '🌟 (Current Active)' : ''}
+                      </option>
+                    ))}
+                  </select>
                   <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
-                    💡 Used for grouping classes and allowing instructors/students to hide older semesters.
+                    💡 Choose from the academic terms configured in "Academic Semesters".
                   </p>
                 </div>
                 
@@ -1292,6 +1545,69 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SEMESTER ADD/EDIT */}
+      {showSemesterModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} style={{ color: 'var(--neon-cyan)' }} />
+                {editingSemester ? 'Edit Academic Semester' : 'Create New Academic Semester'}
+              </h3>
+              <button onClick={() => setShowSemesterModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
+            </div>
+            <form onSubmit={handleSaveSemester}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Semester Code / Name</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    required 
+                    placeholder="e.g. FA25, SP26, SU26, 2025-2026..."
+                    value={semesterName}
+                    onChange={(e) => setSemesterName(e.target.value)}
+                  />
+                  <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                    Unique code identifying the academic term.
+                  </p>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Description (Optional)</label>
+                  <textarea 
+                    className="form-input" 
+                    rows={2}
+                    placeholder="e.g. Fall Semester 2026 - Regular Academic Term"
+                    value={semesterDesc}
+                    onChange={(e) => setSemesterDesc(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, padding: '10px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <input 
+                    type="checkbox" 
+                    id="semActiveCheck"
+                    checked={semesterIsActive}
+                    onChange={(e) => setSemesterIsActive(e.target.checked)}
+                  />
+                  <label htmlFor="semActiveCheck" style={{ fontSize: '13px', cursor: 'pointer', margin: 0 }}>
+                    🌟 <b>Set as Current Active Term</b> (Will make this the active term across the entire platform)
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowSemesterModal(false)} className="btn btn-secondary">CLOSE</button>
+                <button type="submit" className="btn btn-primary" disabled={actionLoading}>
+                  {actionLoading ? 'SAVING...' : editingSemester ? 'SAVE CHANGES' : 'CREATE SEMESTER'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

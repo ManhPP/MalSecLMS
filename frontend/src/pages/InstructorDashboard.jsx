@@ -207,6 +207,7 @@ export default function InstructorDashboard() {
 
   // Instructor Classes/Students management states
   const [selectedClass, setSelectedClass] = useState(null)
+  const [semestersList, setSemestersList] = useState([])
   const [editClassModal, setEditClassModal] = useState(false)
   const [editClassSemester, setEditClassSemester] = useState('unknown')
   const [editClassDesc, setEditClassDesc] = useState('')
@@ -431,6 +432,12 @@ export default function InstructorDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (sRes.ok) setAllStudents(await sRes.json())
+
+      // 4. Fetch Semesters list (configured by Admin)
+      const semRes = await fetch('/api/semesters/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (semRes.ok) setSemestersList(await semRes.json())
 
     } catch (err) {
       setError('Server connection error while fetching lab list')
@@ -1182,6 +1189,11 @@ export default function InstructorDashboard() {
   // List of unique semesters from classes
   const availableSemesters = React.useMemo(() => {
     const semSet = new Set()
+    // Include configured semesters from Admin
+    semestersList.forEach(s => {
+      if (s.name) semSet.add(s.name)
+    })
+    // Also include any semesters already on classes
     classes.forEach(c => {
       semSet.add(c.semester || 'unknown')
     })
@@ -1190,10 +1202,14 @@ export default function InstructorDashboard() {
       if (b === 'unknown') return -1
       return b.localeCompare(a) // newest first like SP26, FA25
     })
-  }, [classes])
+  }, [classes, semestersList])
 
-  // Current or newest recognized semester (for "hide past semesters")
-  const currentSemester = availableSemesters.find(s => s !== 'unknown') || availableSemesters[0] || 'unknown'
+  // Current active semester configured by Admin (fallback to newest recognized)
+  const currentSemester = React.useMemo(() => {
+    const activeSem = semestersList.find(s => s.is_active)
+    if (activeSem?.name) return activeSem.name
+    return availableSemesters.find(s => s !== 'unknown') || availableSemesters[0] || 'unknown'
+  }, [semestersList, availableSemesters])
 
   // Lab filtering and sorting logic
   const filteredLabs = labs.filter(lab => {
@@ -4308,16 +4324,21 @@ export default function InstructorDashboard() {
                     <span>Academic Semester (Kỳ học)</span>
                     <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Default: "unknown"</span>
                   </label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    required
-                    placeholder="e.g. SP26, FA25, SU26, unknown..."
+                  <select 
+                    className="form-select" 
                     value={editClassSemester}
                     onChange={(e) => setEditClassSemester(e.target.value)}
-                  />
+                    style={{ background: '#ffffff' }}
+                  >
+                    <option value="unknown">unknown (Unassigned / No term)</option>
+                    {semestersList.map(s => (
+                      <option key={s.id} value={s.name}>
+                        {s.name} {s.is_active ? '🌟 (Current Active)' : ''}
+                      </option>
+                    ))}
+                  </select>
                   <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
-                    💡 Updating the semester will automatically re-group the labs and classes under this academic term for both you and your enrolled students.
+                    💡 Choose from the academic terms configured by Admin. Updating will re-group the labs and classes for you and your enrolled students.
                   </p>
                 </div>
 

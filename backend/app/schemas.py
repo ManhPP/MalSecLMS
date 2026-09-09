@@ -82,6 +82,27 @@ class ClassWithStudents(ClassOut):
     class Config:
         from_attributes = True
 
+# --- SEMESTER SCHEMAS ---
+class SemesterBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_active: Optional[bool] = False
+
+class SemesterCreate(SemesterBase):
+    pass
+
+class SemesterUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class SemesterOut(SemesterBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # --- LAB SCHEMAS ---
 class LabBase(BaseModel):
     title: str

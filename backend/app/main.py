@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.models import User
 from app.security import get_password_hash
-from app.routers import auth, users, classes, labs, submissions, admin, configuration
+from app.routers import auth, users, classes, labs, submissions, admin, configuration, semesters
 from app.logging_config import setup_logging, logger
 from app.request_utils import get_client_ip, extract_user_from_request
 
@@ -26,6 +26,34 @@ for i in range(5):
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS grade_tag VARCHAR;"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS semester VARCHAR DEFAULT 'unknown';"))
             conn.execute(text("UPDATE classes SET semester = 'unknown' WHERE semester IS NULL;"))
+            # Auto-seed semesters table from classes table if empty
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS semesters (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR UNIQUE NOT NULL,
+                    is_active BOOLEAN DEFAULT FALSE NOT NULL,
+                    description VARCHAR,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            # Populate semesters from existing classes if semesters table is empty
+            sem_count = conn.execute(text("SELECT COUNT(*) FROM semesters;")).scalar()
+            if sem_count == 0:
+                conn.execute(text("""
+                    INSERT INTO semesters (name, is_active, description)
+                    SELECT DISTINCT semester, FALSE, 'Imported from existing classes'
+                    FROM classes 
+                    WHERE semester IS NOT NULL AND semester != 'unknown'
+                    ON CONFLICT (name) DO NOTHING;
+                """))
+                # Set first semester active if exists, else insert current term like FA26 or SP26
+                active_count = conn.execute(text("SELECT COUNT(*) FROM semesters WHERE is_active = TRUE;")).scalar()
+                if active_count == 0:
+                    first_id = conn.execute(text("SELECT id FROM semesters ORDER BY id ASC LIMIT 1;")).scalar()
+                    if first_id:
+                        conn.execute(text("UPDATE semesters SET is_active = TRUE WHERE id = :id;"), {"id": first_id})
+                    else:
+                        conn.execute(text("INSERT INTO semesters (name, is_active, description) VALUES ('FA26', TRUE, 'Default Semester');"))
             conn.commit()
         break
     except Exception as e:
@@ -141,6 +169,7 @@ app.include_router(labs.router, prefix="/api")
 app.include_router(submissions.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(configuration.router, prefix="/api")
+app.include_router(semesters.router, prefix="/api")
 
 @app.get("/")
 def read_root():
