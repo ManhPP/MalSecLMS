@@ -36,6 +36,7 @@ class Class(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     description = Column(String, nullable=True)
+    semester = Column(String, default="unknown", server_default="unknown", index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
     # Relationships

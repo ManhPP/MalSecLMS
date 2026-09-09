@@ -220,6 +220,9 @@ export default function InstructorDashboard() {
   // Lab list filter and search states
   const [labSearchQuery, setLabSearchQuery] = useState('')
   const [labClassFilter, setLabClassFilter] = useState('')
+  const [labSemesterFilter, setLabSemesterFilter] = useState('all') // 'all' or specific semester
+  const [hidePastSemesters, setHidePastSemesters] = useState(false)
+  const [collapsedSemesterGroups, setCollapsedSemesterGroups] = useState({}) // { [semester]: boolean }
   const [labStatusFilter, setLabStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
   const [labSortOrder, setLabSortOrder] = useState('newest') // 'newest' | 'deadline_asc' | 'deadline_desc' | 'title_asc'
   const [labGroupByClass, setLabGroupByClass] = useState(true) // Gom nhóm theo lớp mặc định
@@ -1129,10 +1132,41 @@ export default function InstructorDashboard() {
     }
   }
 
+  // List of unique semesters from classes
+  const availableSemesters = React.useMemo(() => {
+    const semSet = new Set()
+    classes.forEach(c => {
+      semSet.add(c.semester || 'unknown')
+    })
+    return Array.from(semSet).sort((a, b) => {
+      if (a === 'unknown') return 1
+      if (b === 'unknown') return -1
+      return b.localeCompare(a) // newest first like SP26, FA25
+    })
+  }, [classes])
+
+  // Current or newest recognized semester (for "hide past semesters")
+  const currentSemester = availableSemesters.find(s => s !== 'unknown') || availableSemesters[0] || 'unknown'
+
   // Lab filtering and sorting logic
   const filteredLabs = labs.filter(lab => {
     const matchesSearch = lab.title.toLowerCase().includes(labSearchQuery.toLowerCase()) || 
                           (lab.description && lab.description.toLowerCase().includes(labSearchQuery.toLowerCase()))
+    
+    const labClass = classes.find(c => c.id === lab.class_id)
+    const labSemester = labClass ? (labClass.semester || 'unknown') : 'unknown'
+
+    // Semester filter
+    if (labSemesterFilter !== 'all' && labSemester !== labSemesterFilter) {
+      return false
+    }
+
+    // Hide past semesters toggle: only keep current semester and unknown
+    if (hidePastSemesters && availableSemesters.length > 1) {
+      if (labSemester !== currentSemester && labSemester !== 'unknown') {
+        return false
+      }
+    }
     
     const matchesClass = labClassFilter === '' ? true : lab.class_id === parseInt(labClassFilter)
     
@@ -1156,7 +1190,45 @@ export default function InstructorDashboard() {
     return 0
   })
 
-  // Group filtered labs by class
+  // Hierarchical Grouping: Semester -> Class -> Labs
+  const groupedSemesters = React.useMemo(() => {
+    const semMap = {}
+    filteredLabs.forEach(lab => {
+      const cid = lab.class_id || 0
+      const cls = classes.find(c => c.id === cid)
+      const semester = cls?.semester || 'unknown'
+      
+      if (!semMap[semester]) {
+        semMap[semester] = {
+          semester,
+          classes: {}
+        }
+      }
+      if (!semMap[semester].classes[cid]) {
+        semMap[semester].classes[cid] = {
+          classId: cid,
+          className: cls ? cls.name : `Class ID ${cid}`,
+          classDesc: cls?.description || '',
+          semester,
+          labs: []
+        }
+      }
+      semMap[semester].classes[cid].labs.push(lab)
+    })
+
+    // Convert to sorted array of semesters
+    return Object.values(semMap).map(s => ({
+      semester: s.semester,
+      totalLabs: Object.values(s.classes).reduce((acc, c) => acc + c.labs.length, 0),
+      classes: Object.values(s.classes)
+    })).sort((a, b) => {
+      if (a.semester === 'unknown') return 1
+      if (b.semester === 'unknown') return -1
+      return b.semester.localeCompare(a.semester)
+    })
+  }, [filteredLabs, classes])
+
+  // Backward compatibility alias for single group
   const groupedLabs = React.useMemo(() => {
     const groups = {}
     filteredLabs.forEach(lab => {
@@ -1167,6 +1239,7 @@ export default function InstructorDashboard() {
           classId: cid,
           className: cls ? cls.name : `Class ID ${cid}`,
           classDesc: cls?.description || '',
+          semester: cls?.semester || 'unknown',
           labs: []
         }
       }
@@ -1179,6 +1252,13 @@ export default function InstructorDashboard() {
     setCollapsedClassGroups(prev => ({
       ...prev,
       [classId]: !prev[classId]
+    }))
+  }
+
+  const toggleSemesterGroup = (sem) => {
+    setCollapsedSemesterGroups(prev => ({
+      ...prev,
+      [sem]: !prev[sem]
     }))
   }
 
@@ -1294,24 +1374,58 @@ export default function InstructorDashboard() {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Semester Filter */}
+                {availableSemesters.length > 0 && (
+                  <select 
+                    className="form-select" 
+                    style={{ width: '150px', margin: 0 }}
+                    value={labSemesterFilter}
+                    onChange={(e) => setLabSemesterFilter(e.target.value)}
+                    title="Filter by academic semester"
+                  >
+                    <option value="all">All Semesters</option>
+                    {availableSemesters.map(sem => (
+                      <option key={sem} value={sem}>{sem === 'unknown' ? 'Unknown Semester' : `Semester ${sem}`}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Hide Past Semesters Toggle */}
+                {availableSemesters.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setHidePastSemesters(!hidePastSemesters)}
+                    className={`btn ${hidePastSemesters ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    title="Hide classes & labs from older semesters"
+                  >
+                    <Calendar size={13} />
+                    {hidePastSemesters ? 'Active Sem Only' : 'Show All Sems'}
+                  </button>
+                )}
+
                 {/* Class Filter */}
                 <select 
                   className="form-select" 
-                  style={{ width: '180px', margin: 0 }}
+                  style={{ width: '160px', margin: 0 }}
                   value={labClassFilter}
                   onChange={(e) => setLabClassFilter(e.target.value)}
                 >
                   <option value="">All Classes</option>
-                  {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {classes
+                    .filter(c => !hidePastSemesters || (c.semester || 'unknown') === currentSemester || (c.semester || 'unknown') === 'unknown')
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.semester && c.semester !== 'unknown' ? `(${c.semester})` : ''}
+                      </option>
+                    ))}
                 </select>
 
                 {/* Status Filter */}
                 <select 
                   className="form-select" 
-                  style={{ width: '160px', margin: 0 }}
+                  style={{ width: '140px', margin: 0 }}
                   value={labStatusFilter}
                   onChange={(e) => setLabStatusFilter(e.target.value)}
                 >
@@ -1323,7 +1437,7 @@ export default function InstructorDashboard() {
                 {/* Sort Order */}
                 <select 
                   className="form-select" 
-                  style={{ width: '180px', margin: 0 }}
+                  style={{ width: '170px', margin: 0 }}
                   value={labSortOrder}
                   onChange={(e) => setLabSortOrder(e.target.value)}
                 >
@@ -1339,165 +1453,222 @@ export default function InstructorDashboard() {
                   onClick={() => setLabGroupByClass(!labGroupByClass)}
                   className={`btn ${labGroupByClass ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  title="Toggle grouping labs by class"
+                  title="Toggle grouping labs by semester and class"
                 >
                   <Layers size={14} />
-                  {labGroupByClass ? 'Group: By Class' : 'Group: Off'}
+                  {labGroupByClass ? 'Hierarchical Grouping' : 'Flat List'}
                 </button>
               </div>
             </div>
             
-            {/* RENDER LABS: GROUPED BY CLASS OR FLAT LIST */}
+            {/* RENDER LABS: HIERARCHICALLY GROUPED (SEMESTER -> CLASS -> LABS) OR FLAT LIST */}
             {labGroupByClass ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {groupedLabs.map(group => {
-                  const isCollapsed = !!collapsedClassGroups[group.classId]
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {groupedSemesters.map(semGroup => {
+                  const isSemCollapsed = !!collapsedSemesterGroups[semGroup.semester]
                   return (
                     <div 
-                      key={group.classId} 
+                      key={semGroup.semester}
                       style={{ 
-                        border: '1px solid var(--border-color)', 
-                        borderRadius: '10px', 
+                        border: '1px solid #cbd5e1', 
+                        borderRadius: '12px', 
                         overflow: 'hidden', 
                         background: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
                       }}
                     >
-                      {/* Group Header */}
+                      {/* Tier 1: Semester Header */}
                       <div 
-                        onClick={() => toggleClassGroup(group.classId)}
+                        onClick={() => toggleSemesterGroup(semGroup.semester)}
                         style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           alignItems: 'center', 
-                          padding: '14px 18px', 
-                          background: '#f8fafc', 
+                          padding: '12px 18px', 
+                          background: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%)', 
                           cursor: 'pointer',
-                          borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)',
+                          borderBottom: isSemCollapsed ? 'none' : '1px solid #cbd5e1',
                           userSelect: 'none'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {isCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
-                          <School size={18} style={{ color: 'var(--neon-cyan)' }} />
-                          <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                            {group.className}
+                          {isSemCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
+                          <Calendar size={18} style={{ color: 'var(--neon-cyan)' }} />
+                          <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)', letterSpacing: '0.3px' }}>
+                            {semGroup.semester === 'unknown' ? 'Unknown Academic Semester' : `Semester: ${semGroup.semester}`}
                           </span>
-                          {group.classDesc && (
-                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                              — {group.classDesc}
+                          {semGroup.semester === currentSemester && (
+                            <span className="badge badge-submitted" style={{ fontSize: '10.5px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                              Current Active Term
                             </span>
                           )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-submitted" style={{ fontSize: '12px', fontWeight: '600' }}>
-                            {group.labs.length} {group.labs.length === 1 ? 'lab' : 'labs'}
+                          <span className="badge badge-draft" style={{ fontSize: '11.5px', fontWeight: '600' }}>
+                            {semGroup.classes.length} {semGroup.classes.length === 1 ? 'class' : 'classes'}
+                          </span>
+                          <span className="badge badge-submitted" style={{ fontSize: '11.5px', fontWeight: '600' }}>
+                            {semGroup.totalLabs} {semGroup.totalLabs === 1 ? 'lab' : 'labs'}
                           </span>
                         </div>
                       </div>
 
-                      {/* Group Labs Table */}
-                      {!isCollapsed && (
-                        <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
-                          <table className="cyber-table">
-                            <thead>
-                              <tr>
-                                <th>Lab Assignment</th>
-                                <th>Deadline</th>
-                                <th>Late Penalty Policy</th>
-                                <th>VM Provision</th>
-                                <th>Status</th>
-                                <th style={{ textAlign: 'right' }}>Actions & Grading</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {group.labs.map(lab => (
-                                <tr key={lab.id}>
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                      <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
-                                        ID #{lab.id}
-                                      </span>
-                                      <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
-                                      <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
-                                        🏷️ {lab.grade_tag || 'Default'}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                    {new Date(lab.deadline).toLocaleString('en-US')}
-                                  </td>
-                                  <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                    {lab.late_policy?.allow_late 
-                                      ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
-                                      : 'No late submissions allowed'}
-                                  </td>
-                                  <td>
-                                    {lab.enable_vm !== false ? (
-                                      <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
-                                        {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
-                                      </span>
-                                    ) : (
-                                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
-                                    )}
-                                  </td>
-                                  <td>
-                                    <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
-                                      {lab.is_active ? 'Active' : 'Inactive'}
+                      {/* Tier 2: Classes within Semester */}
+                      {!isSemCollapsed && (
+                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#f8fafc' }}>
+                          {semGroup.classes.map(clsGroup => {
+                            const isClassCollapsed = !!collapsedClassGroups[clsGroup.classId]
+                            return (
+                              <div 
+                                key={clsGroup.classId}
+                                style={{ 
+                                  border: '1px solid var(--border-color)', 
+                                  borderRadius: '8px', 
+                                  overflow: 'hidden', 
+                                  background: '#ffffff',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                                }}
+                              >
+                                {/* Class Header */}
+                                <div 
+                                  onClick={() => toggleClassGroup(clsGroup.classId)}
+                                  style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    alignItems: 'center', 
+                                    padding: '12px 16px', 
+                                    background: '#ffffff', 
+                                    cursor: 'pointer',
+                                    borderBottom: isClassCollapsed ? 'none' : '1px solid var(--border-color)',
+                                    userSelect: 'none'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {isClassCollapsed ? <ChevronRight size={16} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={16} style={{ color: 'var(--text-secondary)' }} />}
+                                    <School size={16} style={{ color: 'var(--neon-cyan)' }} />
+                                    <span style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                      {clsGroup.className}
                                     </span>
-                                  </td>
-                                  <td style={{ textAlign: 'right' }}>
-                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                      {lab.enable_vm !== false && (
-                                        <button 
-                                          onClick={() => openVmManagerModal(lab)} 
-                                          className="btn btn-secondary" 
-                                          style={{ padding: '5px 10px', fontSize: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
-                                          title="Manage & Purge Student VMs"
-                                        >
-                                          <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
-                                        </button>
-                                      )}
-                                      <button 
-                                        onClick={() => openCloneModal(lab)} 
-                                        className="btn btn-secondary" 
-                                        style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
-                                        title="Clone lab assignment to another class"
-                                      >
-                                        <Copy size={13} style={{ marginRight: '4px' }} /> Clone
-                                      </button>
-                                      <button 
-                                        onClick={() => openEditLabModal(lab)} 
-                                        className="btn btn-secondary" 
-                                        style={{ padding: '5px 10px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
-                                        title="Edit Lab"
-                                      >
-                                        <Edit2 size={13} style={{ marginRight: '4px', color: '#475569' }} /> Edit
-                                      </button>
-                                      <button 
-                                        onClick={() => handleDeleteLab(lab.id, lab.title)} 
-                                        className="btn btn-danger" 
-                                        style={{ padding: '5px 10px', fontSize: '12px' }}
-                                        title="Delete Lab"
-                                      >
-                                        <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
-                                      </button>
-                                      <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '12px' }}>
-                                        Grade &rarr;
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                    {clsGroup.classDesc && (
+                                      <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                                        — {clsGroup.classDesc}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span className="badge badge-submitted" style={{ fontSize: '11px', fontWeight: '600' }}>
+                                      {clsGroup.labs.length} {clsGroup.labs.length === 1 ? 'lab' : 'labs'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Tier 3: Labs Table */}
+                                {!isClassCollapsed && (
+                                  <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
+                                    <table className="cyber-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Lab Assignment</th>
+                                          <th>Deadline</th>
+                                          <th>Late Penalty Policy</th>
+                                          <th>VM Provision</th>
+                                          <th>Status</th>
+                                          <th style={{ textAlign: 'right' }}>Actions & Grading</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {clsGroup.labs.map(lab => (
+                                          <tr key={lab.id}>
+                                            <td>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
+                                                  ID #{lab.id}
+                                                </span>
+                                                <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                                                <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
+                                                  🏷️ {lab.grade_tag || 'Default'}
+                                                </span>
+                                              </div>
+                                            </td>
+                                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                              {new Date(lab.deadline).toLocaleString('en-US')}
+                                            </td>
+                                            <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                              {lab.late_policy?.allow_late 
+                                                ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
+                                                : 'No late submissions allowed'}
+                                            </td>
+                                            <td>
+                                              {lab.enable_vm !== false ? (
+                                                <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
+                                                  {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
+                                                </span>
+                                              ) : (
+                                                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
+                                              )}
+                                            </td>
+                                            <td>
+                                              <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
+                                                {lab.is_active ? 'Active' : 'Inactive'}
+                                              </span>
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                {lab.enable_vm !== false && (
+                                                  <button 
+                                                    onClick={() => openVmManagerModal(lab)} 
+                                                    className="btn btn-secondary" 
+                                                    style={{ padding: '5px 10px', fontSize: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
+                                                    title="Manage & Purge Student VMs"
+                                                  >
+                                                    <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
+                                                  </button>
+                                                )}
+                                                <button 
+                                                  onClick={() => openCloneModal(lab)} 
+                                                  className="btn btn-secondary" 
+                                                  style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
+                                                  title="Clone lab assignment to another class"
+                                                >
+                                                  <Copy size={13} style={{ marginRight: '4px' }} /> Clone
+                                                </button>
+                                                <button 
+                                                  onClick={() => openEditLabModal(lab)} 
+                                                  className="btn btn-secondary" 
+                                                  style={{ padding: '5px 10px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
+                                                  title="Edit Lab"
+                                                >
+                                                  <Edit2 size={13} style={{ marginRight: '4px', color: '#475569' }} /> Edit
+                                                </button>
+                                                <button 
+                                                  onClick={() => handleDeleteLab(lab.id, lab.title)} 
+                                                  className="btn btn-danger" 
+                                                  style={{ padding: '5px 10px', fontSize: '12px' }}
+                                                  title="Delete Lab"
+                                                >
+                                                  <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                                                </button>
+                                                <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '12px' }}>
+                                                  Grade &rarr;
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
                   )
                 })}
 
-                {groupedLabs.length === 0 && (
+                {groupedSemesters.length === 0 && (
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
                     No labs designed yet or no labs match current filter. Click the button above to create one.
                   </div>
@@ -1638,7 +1809,12 @@ export default function InstructorDashboard() {
                       onClick={() => fetchClassDetails(c.id)}
                       style={{ cursor: 'pointer', background: selectedClass?.id === c.id ? 'rgba(242, 112, 36, 0.05)' : '' }}
                     >
-                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{c.name}</td>
+                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
+                        <div>{c.name}</div>
+                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', marginTop: '2px', display: 'inline-block' }}>
+                          📅 {c.semester || 'unknown'}
+                        </span>
+                      </td>
                       <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
                       <td style={{ textAlign: 'right' }}>
                         <span className="badge badge-submitted">View &rarr;</span>

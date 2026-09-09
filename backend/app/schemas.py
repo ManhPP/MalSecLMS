@@ -59,6 +59,7 @@ class UserOut(UserBase):
 class ClassBase(BaseModel):
     name: str
     description: Optional[str] = None
+    semester: Optional[str] = "unknown"
 
 class ClassCreate(ClassBase):
     pass

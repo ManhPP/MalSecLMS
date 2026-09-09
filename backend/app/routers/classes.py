@@ -46,9 +46,11 @@ def create_class(
     if existing_class:
         raise HTTPException(status_code=400, detail="Class name already exists")
         
+    semester_val = (class_data.semester or "").strip() or "unknown"
     new_class = Class(
         name=class_data.name,
-        description=class_data.description
+        description=class_data.description,
+        semester=semester_val
     )
     db.add(new_class)
     db.commit()
@@ -57,7 +59,7 @@ def create_class(
     log = AuditLog(
         user_id=current_user.id,
         action="create_class",
-        target=f"Created class: {new_class.name}",
+        target=f"Created class: {new_class.name} (Semester: {semester_val})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
@@ -79,6 +81,7 @@ def update_class(
         
     class_.name = class_data.name
     class_.description = class_data.description
+    class_.semester = (class_data.semester or "").strip() or "unknown"
     db.commit()
     db.refresh(class_)
     return class_

@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [editingClass, setEditingClass] = useState(null)
   const [className, setClassName] = useState('')
   const [classDesc, setClassDesc] = useState('')
+  const [classSemester, setClassSemester] = useState('unknown')
 
   // VM Manager Modal State
   const [showVmManagerModal, setShowVmManagerModal] = useState(false)
@@ -268,9 +269,11 @@ export default function AdminDashboard() {
     if (cls) {
       setClassName(cls.name)
       setClassDesc(cls.description || '')
+      setClassSemester(cls.semester || 'unknown')
     } else {
       setClassName('')
       setClassDesc('')
+      setClassSemester('unknown')
     }
     setShowClassModal(true)
   }
@@ -292,7 +295,11 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ name: className, description: classDesc })
+        body: JSON.stringify({ 
+          name: className, 
+          description: classDesc,
+          semester: classSemester.trim() || 'unknown'
+        })
       })
 
       const data = await res.json()
@@ -693,7 +700,12 @@ export default function AdminDashboard() {
                       }}
                       style={{ cursor: 'pointer', background: selectedClass?.id === c.id ? 'rgba(0, 242, 254, 0.05)' : '' }}
                     >
-                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{c.name}</td>
+                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
+                        <div>{c.name}</div>
+                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10.5px', marginTop: '3px', display: 'inline-block' }}>
+                          📅 {c.semester || 'unknown'}
+                        </span>
+                      </td>
                       <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -1244,6 +1256,23 @@ export default function AdminDashboard() {
                     value={className}
                     onChange={(e) => setClassName(e.target.value)}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Semester</span>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Optional (Default: "unknown")</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. SP26, FA25, SU26, unknown..."
+                    value={classSemester}
+                    onChange={(e) => setClassSemester(e.target.value)}
+                  />
+                  <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                    💡 Used for grouping classes and allowing instructors/students to hide older semesters.
+                  </p>
                 </div>
                 
                 <div className="form-group">
