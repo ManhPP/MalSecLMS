@@ -503,3 +503,117 @@ def get_class_analytics(
         "lab_performance": lab_performance,
         "student_progress": student_progress
     }
+
+
+@router.get("/{class_id}/gradebook")
+def get_class_gradebook(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """
+    API Lấy ma trận bảng điểm tổng hợp (Gradebook Matrix) của lớp học phần:
+    - Danh sách sinh viên thuộc lớp
+    - Danh sách các bài lab thuộc lớp
+    - Điểm số, trạng thái bài nộp, mức phạt muộn của từng sinh viên cho từng bài lab
+    - Điểm trung bình môn (GPA) của từng sinh viên
+    """
+    class_ = db.query(Class).filter(Class.id == class_id).first()
+    if not class_:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    if current_user.role == "lecturer" and current_user not in class_.users:
+        raise HTTPException(status_code=403, detail="You do not manage this class")
+
+    students = [u for u in class_.users if u.role == "student"]
+    students = sorted(students, key=lambda s: s.full_name)
+    labs = sorted(class_.labs, key=lambda l: l.id)
+
+    lab_ids = [l.id for l in labs]
+    from app.models import Submission
+    submissions = []
+    if lab_ids:
+        submissions = db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).all()
+
+    # Map submission theo (student_id, lab_id)
+    sub_map = {}
+    for s in submissions:
+        sub_map[(s.student_id, s.lab_id)] = s
+
+    # Xây dựng ma trận điểm cho từng sinh viên
+    gradebook_rows = []
+    for st in students:
+        lab_grades = {}
+        valid_scores = []
+        completed_count = 0
+
+        for l in labs:
+            sub = sub_map.get((st.id, l.id))
+            if sub:
+                status_str = sub.status
+                raw_score = sub.score
+                late_penalty = sub.late_penalty or 0.0
+                # Điểm thực sau phạt muộn
+                final_score = None
+                if raw_score is not None:
+                    final_score = round(max(0.0, raw_score * (1.0 - late_penalty / 100.0)), 2)
+                    valid_scores.append(final_score)
+                
+                if status_str in ['submitted', 'graded']:
+                    completed_count += 1
+
+                lab_grades[str(l.id)] = {
+                    "submission_id": sub.id,
+                    "status": status_str,
+                    "raw_score": raw_score,
+                    "late_penalty": late_penalty,
+                    "final_score": final_score,
+                    "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
+                    "is_plagiarized": sub.is_plagiarized
+                }
+            else:
+                lab_grades[str(l.id)] = {
+                    "submission_id": None,
+                    "status": "not_submitted",
+                    "raw_score": None,
+                    "late_penalty": 0.0,
+                    "final_score": None,
+                    "submitted_at": None,
+                    "is_plagiarized": False
+                }
+
+        avg_score = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else None
+
+        gradebook_rows.append({
+            "student_id": st.id,
+            "username": st.username,
+            "full_name": st.full_name,
+            "email": st.email,
+            "completed_labs": completed_count,
+            "average_score": avg_score,
+            "grades": lab_grades
+        })
+
+    return {
+        "class_id": class_.id,
+        "class_name": class_.name,
+        "labs": [
+            {
+                "id": l.id,
+                "title": l.title,
+                "deadline": l.deadline.isoformat() if l.deadline else None,
+                "is_active": l.is_active
+            }
+            for l in labs
+        ],
+        "students": [
+            {
+                "id": s.id,
+                "username": s.username,
+                "full_name": s.full_name,
+                "email": s.email
+            }
+            for s in students
+        ],
+        "rows": gradebook_rows
+    }

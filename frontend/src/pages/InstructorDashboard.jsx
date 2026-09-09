@@ -231,6 +231,14 @@ export default function InstructorDashboard() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [studentAnalyticsSearch, setStudentAnalyticsSearch] = useState('')
 
+  // Gradebook Matrix state
+  const [gradebookClassId, setGradebookClassId] = useState('')
+  const [gradebookData, setGradebookData] = useState(null)
+  const [gradebookLoading, setGradebookLoading] = useState(false)
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState([]) // Array of student usernames, empty = all
+  const [selectedLabFilter, setSelectedLabFilter] = useState([]) // Array of lab IDs (numbers), empty = all
+  const [gradebookStudentSearch, setGradebookStudentSearch] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [success, setSuccess] = useState('')
@@ -261,6 +269,82 @@ export default function InstructorDashboard() {
     } finally {
       setAnalyticsLoading(false)
     }
+  }
+
+  // Fetch Class Gradebook Matrix
+  const fetchClassGradebook = async (classId) => {
+    if (!classId) return
+    setGradebookLoading(true)
+    setError('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/classes/${classId}/gradebook`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Unable to load gradebook')
+      }
+      const data = await res.json()
+      setGradebookData(data)
+    } catch (err) {
+      console.error('Error fetching gradebook:', err)
+      setError(err.message)
+    } finally {
+      setGradebookLoading(false)
+    }
+  }
+
+  // Export Gradebook to CSV
+  const exportGradebookToCSV = (filteredRows, visibleLabs) => {
+    if (!filteredRows || filteredRows.length === 0 || !visibleLabs || visibleLabs.length === 0) {
+      alert('No data available to export.')
+      return
+    }
+
+    // Build CSV Headers
+    const headers = [
+      'STT',
+      'MSSV',
+      'Ho va Ten',
+      'Email',
+      'So lab da nop',
+      ...visibleLabs.map(l => `"${l.title.replace(/"/g, '""')}"`),
+      'Diem trung binh'
+    ]
+
+    // Build CSV Rows
+    const csvLines = [headers.join(',')]
+
+    filteredRows.forEach((row, idx) => {
+      const line = [
+        idx + 1,
+        `"${row.username}"`,
+        `"${row.full_name.replace(/"/g, '""')}"`,
+        `"${row.email || ''}"`,
+        row.completed_labs,
+        ...visibleLabs.map(l => {
+          const g = row.grades[String(l.id)]
+          if (!g || g.final_score === null) return '""'
+          return g.final_score
+        }),
+        row.average_score !== null ? row.average_score : '""'
+      ]
+      csvLines.push(line.join(','))
+    })
+
+    // Create BOM and Blob for UTF-8 CSV
+    const csvContent = '\uFEFF' + csvLines.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const classNameClean = (gradebookData?.class_name || 'Class').replace(/[^a-zA-Z0-9_-]/g, '_')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Gradebook_${classNameClean}_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   // Fetch initial data
@@ -1100,6 +1184,22 @@ export default function InstructorDashboard() {
           >
             <BarChart3 size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
             Class Analytics & Insights
+          </button>
+          
+          <button 
+            onClick={() => {
+              setViewState('gradebook')
+              const targetClassId = gradebookClassId || (classes.length > 0 ? classes[0].id : '')
+              if (targetClassId) {
+                if (!gradebookClassId) setGradebookClassId(targetClassId)
+                fetchClassGradebook(targetClassId)
+              }
+            }} 
+            className={`btn ${viewState === 'gradebook' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+          >
+            <FileSpreadsheet size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+            Gradebook & Export
           </button>
           
           <button 
@@ -2113,6 +2213,333 @@ export default function InstructorDashboard() {
               </div>
             </>
           )}
+
+        </div>
+      )}
+
+      {/* VIEW 5: COMPREHENSIVE CLASS GRADEBOOK MATRIX & CSV EXPORT */}
+      {viewState === 'gradebook' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Top Control Bar: Class selector, Student multiselect, Lab multiselect & CSV Export button */}
+          <div className="cyber-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '8px', borderRadius: '8px', color: '#10b981' }}>
+                  <FileSpreadsheet size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', margin: 0, color: 'var(--text-primary)', fontWeight: '600' }}>Comprehensive Gradebook & Export</h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: 0 }}>
+                    Cross-lab grade matrix, customized multi-student/multi-lab filtering, and Excel/CSV download.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Class:</label>
+                <select
+                  className="form-select"
+                  style={{ width: '220px', margin: 0, background: '#ffffff', fontWeight: '500' }}
+                  value={gradebookClassId}
+                  onChange={(e) => {
+                    const cId = parseInt(e.target.value)
+                    setGradebookClassId(cId)
+                    setSelectedStudentFilter([])
+                    setSelectedLabFilter([])
+                    fetchClassGradebook(cId)
+                  }}
+                >
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => fetchClassGradebook(gradebookClassId)}
+                  className="btn btn-secondary"
+                  disabled={gradebookLoading}
+                  style={{ padding: '8px 12px' }}
+                  title="Refresh Gradebook"
+                >
+                  <RefreshCw size={15} className={gradebookLoading ? 'spin-slow' : ''} />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Section: Multi-Select Students & Multi-Select Labs */}
+            {gradebookData && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                {/* Lab Multi-filter */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Filter size={14} style={{ color: 'var(--neon-cyan)' }} />
+                      Filter Labs ({selectedLabFilter.length > 0 ? `${selectedLabFilter.length}/${gradebookData.labs.length} selected` : 'All Labs'})
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedLabFilter([])}
+                        style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Select All
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedLabFilter(gradebookData.labs.map(l => l.id))}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '11.5px', cursor: 'pointer' }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '80px', overflowY: 'auto', padding: '4px 0' }}>
+                    {gradebookData.labs.map(l => {
+                      const isSelected = selectedLabFilter.length === 0 || selectedLabFilter.includes(l.id)
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => {
+                            if (selectedLabFilter.length === 0) {
+                              // If previously was "All", switch to selecting just this one
+                              setSelectedLabFilter([l.id])
+                            } else if (selectedLabFilter.includes(l.id)) {
+                              const next = selectedLabFilter.filter(id => id !== l.id)
+                              setSelectedLabFilter(next.length === 0 ? [] : next)
+                            } else {
+                              setSelectedLabFilter([...selectedLabFilter, l.id])
+                            }
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '16px',
+                            fontSize: '11.5px',
+                            cursor: 'pointer',
+                            border: isSelected ? '1px solid var(--neon-cyan)' : '1px solid #cbd5e1',
+                            background: isSelected ? 'rgba(242, 112, 36, 0.1)' : '#f8fafc',
+                            color: isSelected ? 'var(--neon-cyan)' : 'var(--text-secondary)',
+                            fontWeight: isSelected ? '600' : 'normal',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {l.title}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Student Multi-filter & Search */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={14} style={{ color: '#2563eb' }} />
+                      Filter Students ({selectedStudentFilter.length > 0 ? `${selectedStudentFilter.length}/${gradebookData.students.length} selected` : 'All Students'})
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedStudentFilter([])}
+                        style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', fontSize: '11.5px', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Select All
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ paddingLeft: '30px', margin: 0, padding: '5px 8px 5px 30px', fontSize: '12px', height: '32px' }}
+                        placeholder="Filter student list by name or MSSV..."
+                        value={gradebookStudentSearch}
+                        onChange={(e) => setGradebookStudentSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Gradebook Matrix Content */}
+          {gradebookLoading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <RefreshCw size={32} className="spin-slow" style={{ color: 'var(--neon-cyan)', marginBottom: '12px' }} />
+              <p style={{ fontSize: '14px' }}>Compiling cross-lab submission records and final grades...</p>
+            </div>
+          ) : !gradebookData ? (
+            <div className="cyber-card" style={{ textAlign: 'center', padding: '50px' }}>
+              <School size={48} style={{ opacity: 0.25, color: 'var(--neon-cyan)', marginBottom: '12px' }} />
+              <p style={{ color: 'var(--text-muted)' }}>No gradebook data available for this class.</p>
+            </div>
+          ) : (() => {
+            // Determine visible labs
+            const visibleLabs = gradebookData.labs.filter(l => 
+              selectedLabFilter.length === 0 || selectedLabFilter.includes(l.id)
+            )
+
+            // Determine visible student rows
+            const filteredRows = gradebookData.rows.filter(st => {
+              // Student multi-select filter
+              if (selectedStudentFilter.length > 0 && !selectedStudentFilter.includes(st.username)) {
+                return false
+              }
+              // Student text search filter
+              if (gradebookStudentSearch) {
+                const q = gradebookStudentSearch.toLowerCase()
+                return st.full_name.toLowerCase().includes(q) || st.username.toLowerCase().includes(q)
+              }
+              return true
+            })
+
+            return (
+              <div className="cyber-card" style={{ padding: '20px' }}>
+                {/* Header & Export Toolbar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      Showing {filteredRows.length} students across {visibleLabs.length} labs
+                    </span>
+                    {(selectedLabFilter.length > 0 || selectedStudentFilter.length > 0 || gradebookStudentSearch) && (
+                      <span className="badge badge-submitted" style={{ fontSize: '11px', background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>
+                        Filters active
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => exportGradebookToCSV(filteredRows, visibleLabs)}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}
+                    title="Export currently filtered gradebook table to CSV file"
+                  >
+                    <Download size={15} />
+                    EXPORT GRADEBOOK TO CSV (.csv)
+                  </button>
+                </div>
+
+                {/* Grade Matrix Table */}
+                <div className="table-container" style={{ margin: 0, overflowX: 'auto', maxHeight: '580px' }}>
+                  <table className="cyber-table" style={{ fontSize: '12.5px', borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc' }}>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                        <th style={{ minWidth: '160px', position: 'sticky', left: 0, zIndex: 11, background: '#f8fafc', boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
+                          Student Name
+                        </th>
+                        <th style={{ minWidth: '110px' }}>MSSV</th>
+                        <th style={{ textAlign: 'center', minWidth: '70px' }}>Labs Done</th>
+                        
+                        {/* Dynamic Lab Column Headers */}
+                        {visibleLabs.map(lab => (
+                          <th key={lab.id} style={{ minWidth: '110px', textAlign: 'center' }} title={lab.title}>
+                            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px', margin: '0 auto' }}>
+                              {lab.title}
+                            </div>
+                          </th>
+                        ))}
+
+                        <th style={{ minWidth: '100px', textAlign: 'center', fontWeight: '700', color: 'var(--neon-cyan)' }}>
+                          GPA
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={5 + visibleLabs.length} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                            No student matches the specified filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredRows.map((row, rIdx) => (
+                          <tr key={row.student_id}>
+                            <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{rIdx + 1}</td>
+                            <td style={{ fontWeight: '600', color: 'var(--text-primary)', position: 'sticky', left: 0, background: '#ffffff', boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
+                              {row.full_name}
+                            </td>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{row.username}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ fontWeight: '600', color: row.completed_labs === visibleLabs.length ? '#10b981' : 'var(--text-secondary)' }}>
+                                {row.completed_labs}/{visibleLabs.length}
+                              </span>
+                            </td>
+
+                            {/* Lab Grades */}
+                            {visibleLabs.map(lab => {
+                              const grade = row.grades[String(lab.id)]
+                              if (!grade || grade.status === 'not_submitted') {
+                                return (
+                                  <td key={lab.id} style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '11.5px' }}>
+                                    <span style={{ opacity: 0.5 }}>—</span>
+                                  </td>
+                                )
+                              }
+                              if (grade.status === 'submitted') {
+                                return (
+                                  <td key={lab.id} style={{ textAlign: 'center' }}>
+                                    <span className="badge badge-submitted" style={{ fontSize: '10.5px' }}>
+                                      Submitted
+                                    </span>
+                                  </td>
+                                )
+                              }
+                              if (grade.status === 'graded') {
+                                const sc = grade.final_score
+                                return (
+                                  <td key={lab.id} style={{ textAlign: 'center' }}>
+                                    <span style={{ 
+                                      fontWeight: '700', 
+                                      fontSize: '13px',
+                                      color: sc >= 8 ? '#059669' : sc >= 5 ? '#d97706' : '#dc2626' 
+                                    }}>
+                                      {sc}
+                                    </span>
+                                    {grade.late_penalty > 0 && (
+                                      <span style={{ fontSize: '10px', color: '#dc2626', display: 'block' }}>
+                                        (-{grade.late_penalty}%)
+                                      </span>
+                                    )}
+                                  </td>
+                                )
+                              }
+                              return (
+                                <td key={lab.id} style={{ textAlign: 'center', fontSize: '11.5px' }}>
+                                  <span className="badge badge-draft" style={{ fontSize: '10.5px' }}>
+                                    {grade.status}
+                                  </span>
+                                </td>
+                              )
+                            })}
+
+                            {/* Class GPA */}
+                            <td style={{ textAlign: 'center' }}>
+                              {row.average_score !== null ? (
+                                <span style={{ 
+                                  fontWeight: '800', 
+                                  fontSize: '13.5px',
+                                  color: row.average_score >= 8 ? '#059669' : row.average_score >= 5 ? '#d97706' : '#dc2626' 
+                                }}>
+                                  {row.average_score}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
         </div>
       )}
