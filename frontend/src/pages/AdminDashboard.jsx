@@ -1493,6 +1493,12 @@ export default function AdminDashboard() {
             </div>
             <form onSubmit={handleSaveClass}>
               <div className="modal-body">
+                {error && (
+                  <div className="plag-alert-banner" style={{ marginBottom: '14px' }}>
+                    <ShieldAlert size={16} />
+                    <span>{error}</span>
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">Class Name</label>
                   <input 
@@ -1563,6 +1569,12 @@ export default function AdminDashboard() {
             </div>
             <form onSubmit={handleSaveSemester}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {error && (
+                  <div className="plag-alert-banner" style={{ margin: 0 }}>
+                    <ShieldAlert size={16} />
+                    <span>{error}</span>
+                  </div>
+                )}
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label">Semester Code / Name</label>
                   <input 
