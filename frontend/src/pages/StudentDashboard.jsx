@@ -788,27 +788,35 @@ export default function StudentDashboard() {
     return 0
   })
 
-  // List of unique semesters from student classes
+  // Current active semester configured by Admin
+  const studentCurrentSemester = React.useMemo(() => {
+    const activeSem = semestersList.find(s => s.is_active)
+    if (activeSem?.name) return activeSem.name
+    const semSet = new Set()
+    classes.forEach(c => semSet.add(c.semester || 'unknown'))
+    const arr = Array.from(semSet).filter(s => s !== 'unknown').sort((a, b) => b.localeCompare(a))
+    return arr[0] || 'unknown'
+  }, [semestersList, classes])
+
+  // List of unique semesters from student classes (Current active semester sorted first)
   const studentAvailableSemesters = React.useMemo(() => {
     const semSet = new Set()
     classes.forEach(c => {
       semSet.add(c.semester || 'unknown')
     })
     return Array.from(semSet).sort((a, b) => {
+      // 1. Current active semester always comes first
+      if (a === studentCurrentSemester && b !== studentCurrentSemester) return -1
+      if (b === studentCurrentSemester && a !== studentCurrentSemester) return 1
+      // 2. Unknown semester always comes last
       if (a === 'unknown') return 1
       if (b === 'unknown') return -1
+      // 3. Otherwise sort reverse alphabetical (e.g. SP26, FA25)
       return b.localeCompare(a)
     })
-  }, [classes])
+  }, [classes, studentCurrentSemester])
 
-  // Current active semester configured by Admin
-  const studentCurrentSemester = React.useMemo(() => {
-    const activeSem = semestersList.find(s => s.is_active)
-    if (activeSem?.name) return activeSem.name
-    return studentAvailableSemesters.find(s => s !== 'unknown') || studentAvailableSemesters[0] || 'unknown'
-  }, [semestersList, studentAvailableSemesters])
-
-  // Hierarchical Grouping for Students: Semester -> Class -> Labs
+  // Hierarchical Grouping for Students: Semester -> Class -> Labs (Current active semester on top)
   const studentGroupedSemesters = React.useMemo(() => {
     const semMap = {}
     filteredActiveLabs.forEach(lab => {
@@ -839,11 +847,16 @@ export default function StudentDashboard() {
       totalLabs: Object.values(s.classes).reduce((acc, c) => acc + c.labs.length, 0),
       classes: Object.values(s.classes)
     })).sort((a, b) => {
+      // 1. Current active semester always first
+      if (a.semester === studentCurrentSemester && b.semester !== studentCurrentSemester) return -1
+      if (b.semester === studentCurrentSemester && a.semester !== studentCurrentSemester) return 1
+      // 2. Unknown semester always last
       if (a.semester === 'unknown') return 1
       if (b.semester === 'unknown') return -1
+      // 3. Otherwise reverse alphabetical
       return b.semester.localeCompare(a.semester)
     })
-  }, [filteredActiveLabs, classes])
+  }, [filteredActiveLabs, classes, studentCurrentSemester])
 
   // Backward compatibility alias for single group
   const groupedActiveLabs = React.useMemo(() => {

@@ -1186,7 +1186,18 @@ export default function InstructorDashboard() {
     }
   }
 
-  // List of unique semesters from classes
+  // Current active semester configured by Admin (fallback to newest recognized)
+  const currentSemester = React.useMemo(() => {
+    const activeSem = semestersList.find(s => s.is_active)
+    if (activeSem?.name) return activeSem.name
+    const semSet = new Set()
+    semestersList.forEach(s => { if (s.name) semSet.add(s.name) })
+    classes.forEach(c => { semSet.add(c.semester || 'unknown') })
+    const arr = Array.from(semSet).filter(s => s !== 'unknown').sort((a, b) => b.localeCompare(a))
+    return arr[0] || 'unknown'
+  }, [semestersList, classes])
+
+  // List of unique semesters from classes (Current active semester sorted first)
   const availableSemesters = React.useMemo(() => {
     const semSet = new Set()
     // Include configured semesters from Admin
@@ -1198,18 +1209,16 @@ export default function InstructorDashboard() {
       semSet.add(c.semester || 'unknown')
     })
     return Array.from(semSet).sort((a, b) => {
+      // 1. Current active semester always comes first
+      if (a === currentSemester && b !== currentSemester) return -1
+      if (b === currentSemester && a !== currentSemester) return 1
+      // 2. Unknown semester always comes last
       if (a === 'unknown') return 1
       if (b === 'unknown') return -1
-      return b.localeCompare(a) // newest first like SP26, FA25
+      // 3. Otherwise reverse alphabetical (e.g. SP26, FA25)
+      return b.localeCompare(a)
     })
-  }, [classes, semestersList])
-
-  // Current active semester configured by Admin (fallback to newest recognized)
-  const currentSemester = React.useMemo(() => {
-    const activeSem = semestersList.find(s => s.is_active)
-    if (activeSem?.name) return activeSem.name
-    return availableSemesters.find(s => s !== 'unknown') || availableSemesters[0] || 'unknown'
-  }, [semestersList, availableSemesters])
+  }, [classes, semestersList, currentSemester])
 
   // Lab filtering and sorting logic
   const filteredLabs = labs.filter(lab => {
@@ -1279,17 +1288,22 @@ export default function InstructorDashboard() {
       semMap[semester].classes[cid].labs.push(lab)
     })
 
-    // Convert to sorted array of semesters
+    // Convert to sorted array of semesters (Current active semester on top)
     return Object.values(semMap).map(s => ({
       semester: s.semester,
       totalLabs: Object.values(s.classes).reduce((acc, c) => acc + c.labs.length, 0),
       classes: Object.values(s.classes)
     })).sort((a, b) => {
+      // 1. Current active semester always first
+      if (a.semester === currentSemester && b.semester !== currentSemester) return -1
+      if (b.semester === currentSemester && a.semester !== currentSemester) return 1
+      // 2. Unknown semester always last
       if (a.semester === 'unknown') return 1
       if (b.semester === 'unknown') return -1
+      // 3. Otherwise reverse alphabetical
       return b.semester.localeCompare(a.semester)
     })
-  }, [filteredLabs, classes])
+  }, [filteredLabs, classes, currentSemester])
 
   // Backward compatibility alias for single group
   const groupedLabs = React.useMemo(() => {
