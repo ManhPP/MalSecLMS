@@ -182,11 +182,35 @@ export default function AdminDashboard() {
     }
   }
 
-
-
   useEffect(() => {
     fetchData()
   }, [])
+
+  const handleCleanOrphanedVms = async () => {
+    if (!confirm('Are you sure you want to scan and purge all student VMs belonging to deleted/non-existent labs?\nThis will permanently destroy orphaned VMs on Proxmox.')) return
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch('/api/admin/vms/clean-orphaned', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to clean orphaned VMs')
+      setSuccess(data.message || 'Orphaned VMs cleaned successfully!')
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
 
   // User CRUD handlers
   const handleSaveUser = async (e) => {
@@ -1290,9 +1314,24 @@ export default function AdminDashboard() {
       {/* TAB VMS CONTENT */}
       {activeTab === 'vms' && (
         <div className="cyber-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '18px' }}>Proxmox VE Cluster VM Management</h3>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Total Labs: {labs.length}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', margin: 0 }}>Proxmox VE Cluster VM Management</h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                Monitor and manage active student VMs on Proxmox. Total Active Labs: {labs.length}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button 
+                onClick={handleCleanOrphanedVms} 
+                className="btn btn-danger" 
+                style={{ padding: '8px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                disabled={actionLoading}
+                title="Scan Proxmox cluster and destroy student VMs belonging to deleted/non-existent labs"
+              >
+                <Trash2 size={15} /> Clean Orphaned VMs
+              </button>
+            </div>
           </div>
 
           <div className="table-container">

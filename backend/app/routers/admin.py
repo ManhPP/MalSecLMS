@@ -124,3 +124,32 @@ def import_students_csv(
             status_code=400,
             detail=f"CSV file structure or data error: {str(e)}"
         )
+
+@router.post("/vms/clean-orphaned")
+def clean_orphaned_vms(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Quét và dọn dẹp các máy ảo sinh viên trên Proxmox thuộc các bài lab không còn tồn tại trong hệ thống.
+    Chỉ tác động trong dải VMID sinh viên (STUDENT_VMID_MIN - STUDENT_VMID_MAX).
+    """
+    from app.models import Lab
+    from app.services.vm_service import clean_orphaned_student_vms
+
+    active_labs = db.query(Lab.id).all()
+    active_lab_ids = [l[0] for l in active_labs]
+
+    result = clean_orphaned_student_vms(active_lab_ids)
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="clean_orphaned_vms",
+        target=f"Orphaned VMs Purged: {result.get('purged_count', 0)}",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
+    return result

@@ -643,11 +643,29 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
             return {"success": True, "message": msg}
         elif action in ["purge", "delete"]:
             try:
-                proxmox.nodes(node).qemu(vmid).status.stop.post()
-                time.sleep(2)
+                vm_stat = proxmox.nodes(node).qemu(vmid).status.current.get()
+                if vm_stat.get("status") == "running":
+                    logger.info(f"[VM_ORCHESTRATION] VM {vmid} is running, stopping before purge...")
+                    stop_upid = proxmox.nodes(node).qemu(vmid).status.stop.post()
+                    try:
+                        _wait_for_pve_task(proxmox, node, stop_upid, f"stopping VM {vmid} for purge")
+                    except Exception as stop_err:
+                        logger.warning(f"Could not cleanly wait for stop on VM {vmid}: {stop_err}")
+                        time.sleep(3)
+            except Exception as stat_err:
+                logger.warning(f"Failed to check status before purge on VM {vmid}: {stat_err}")
+                try:
+                    proxmox.nodes(node).qemu(vmid).status.stop.post()
+                    time.sleep(2)
+                except Exception:
+                    pass
+
+            destroy_upid = proxmox.nodes(node).qemu(vmid).delete(purge=1)
+            try:
+                _wait_for_pve_task(proxmox, node, destroy_upid, f"purging VM {vmid}")
             except Exception:
                 pass
-            proxmox.nodes(node).qemu(vmid).delete(purge=1)
+
             msg = f"Đã xóa hoàn toàn máy ảo sinh viên {vmid} khỏi Proxmox cluster"
             logger.info(f"[VM_ORCHESTRATION] CONTROL | Action: PURGE | VMID: {vmid}")
             return {"success": True, "message": msg}
@@ -656,5 +674,60 @@ def control_student_vm(vmid: int, action: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"[VM_ORCHESTRATION] CONTROL_ERROR on VMID {vmid} ({action}): {e}", exc_info=True)
         return {"success": False, "message": f"Lỗi thao tác máy ảo {vmid}: {str(e)}"}
+
+
+def clean_orphaned_student_vms(active_lab_ids: List[int]) -> Dict[str, Any]:
+    """
+    Quét toàn bộ cluster Proxmox tìm và xóa sạch các máy ảo sinh viên
+    có tiền tố lab-<id>-... mà lab_id không còn nằm trong active_lab_ids.
+    Chỉ tác động trong dải STUDENT_VMID_MIN đến STUDENT_VMID_MAX.
+    """
+    proxmox = get_pve_client()
+    if not proxmox:
+        return {"success": False, "message": "Không thể kết nối Proxmox VE API", "purged_count": 0, "details": []}
+
+    node = settings.PVE_NODE
+    purged = []
+    failed = []
+
+    try:
+        resources = proxmox.cluster.resources.get(type="vm")
+        active_set = set(active_lab_ids)
+
+        for res in resources:
+            vmid = int(res.get("vmid", -1))
+            vm_name = res.get("name", "")
+
+            # Security Boundary Guard: Chỉ quét dải máy ảo sinh viên
+            if not (settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX):
+                continue
+
+            # Kiểm tra tên định dạng: lab-{lab_id}-... hoặc lab-{lab_id}
+            if vm_name.startswith("lab-"):
+                parts = vm_name.split("-")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    vm_lab_id = int(parts[1])
+                    # Nếu lab không còn tồn tại trên hệ thống
+                    if vm_lab_id not in active_set:
+                        try:
+                            logger.info(f"[ORPHAN_CLEANUP] Found orphaned VM {vmid} ('{vm_name}') for non-existent Lab {vm_lab_id}. Purging...")
+                            res_control = control_student_vm(vmid, "purge")
+                            if res_control.get("success"):
+                                purged.append({"vmid": vmid, "name": vm_name, "lab_id": vm_lab_id})
+                            else:
+                                failed.append({"vmid": vmid, "name": vm_name, "error": res_control.get("message")})
+                        except Exception as exc:
+                            failed.append({"vmid": vmid, "name": vm_name, "error": str(exc)})
+
+        return {
+            "success": True,
+            "message": f"Đã dọn dẹp thành công {len(purged)} máy ảo mồ côi." if purged else "Không phát hiện máy ảo mồ côi nào cần dọn dẹp.",
+            "purged_count": len(purged),
+            "purged": purged,
+            "failed": failed
+        }
+    except Exception as e:
+        logger.error(f"[ORPHAN_CLEANUP] Failed to scan or clean orphaned VMs: {e}", exc_info=True)
+        return {"success": False, "message": f"Lỗi quét máy ảo: {str(e)}", "purged_count": 0, "details": []}
 
 
