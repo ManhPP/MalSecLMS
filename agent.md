@@ -23,6 +23,7 @@ Tệp này là tài liệu bàn giao nhanh cho agent hoặc kỹ sư tiếp qu�
   - Tag đầu điểm cho bài lab (`grade_tag`, e.g. "Assignment 1", "Chuyên cần", "Giữa kỳ", "Default"), hiển thị badge cho sinh viên và giảng viên.
   - Ma trận điểm số tổng hợp (Comprehensive Gradebook) xem chi tiết theo từng lab hoặc tính điểm trung bình gộp theo đầu điểm; hỗ trợ lọc đa tiêu chí sinh viên/lab và xuất ra file CSV.
   - Quản lý Kì học tập trung (`Academic Semesters`): Admin tạo/quản lý kì học và gán kì hiện hành (`Active Term`); Admin và Giảng viên chọn kì học từ dropdown danh sách đã tạo; bộ lọc thống kê tự động đồng bộ theo kì hiện hành.
+  - Quản lý & Đồng bộ Máy ảo Sinh viên (09/2026): Tối ưu hóa cơ chế hủy máy ảo (`control_student_vm` - tự động gửi lệnh `stop` và đợi hoàn tất task PVE trước khi `delete(purge=1)`); bổ sung API & nút bấm Admin "Dọn dẹp máy ảo mồ côi" (`Clean Orphaned VMs`) tự động quét và thu hồi tài nguyên của các bài lab đã bị xóa.
 - Tài liệu hiện trạng đầy đủ nhất là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.md` (phiên bản 1.2).
 - Bản Word tương ứng là `Tai_lieu_van_hanh_MalSec_Proxmox_2026-08-05.docx`.
 
