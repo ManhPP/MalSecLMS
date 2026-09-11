@@ -4,6 +4,34 @@ import {
   Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check 
 } from 'lucide-react'
 
+// --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
+export const parseVietnamDate = (dateInput) => {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return dateInput;
+  let s = String(dateInput).trim();
+  // If string has no timezone indicator (no Z, no +, no -offset), treat as Vietnam GMT+7
+  if (!s.includes('Z') && !s.includes('+') && !s.match(/-\d\d:\d\d$/)) {
+    s = s.replace(' ', 'T') + '+07:00';
+  }
+  return new Date(s);
+};
+
+export const formatLocalTime = (dateInput) => {
+  if (!dateInput) return '—';
+  const d = parseVietnamDate(dateInput);
+  if (!d || isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
+
 export default function AdminDashboard() {
   const [users, setUsers] = useState([])
   const [classes, setClasses] = useState([])
@@ -1340,7 +1368,7 @@ export default function AdminDashboard() {
                 <tr>
                   <th>Practical Lab Title</th>
                   <th>Assigned Class</th>
-                  <th>Deadline (UTC)</th>
+                  <th>Hạn nộp (Deadline)</th>
                   <th>Lab Status</th>
                   <th style={{ textAlign: 'right' }}>Manage VMs</th>
                 </tr>
@@ -1360,7 +1388,7 @@ export default function AdminDashboard() {
                       </td>
                       <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                        {new Date(lab.deadline).toLocaleString('en-US')}
+                        {formatLocalTime(lab.deadline)}
                       </td>
                       <td>
                         <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
@@ -1399,7 +1427,7 @@ export default function AdminDashboard() {
             <table className="cyber-table">
               <thead>
                 <tr>
-                  <th>Timestamp (UTC)</th>
+                  <th>Thời gian (Timestamp)</th>
                   <th>Actor / User</th>
                   <th>Action</th>
                   <th>IP Address</th>
@@ -1410,7 +1438,7 @@ export default function AdminDashboard() {
                 {auditLogs.map(log => (
                   <tr key={log.id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                      {new Date(log.timestamp).toLocaleString('en-US')}
+                      {formatLocalTime(log.timestamp)}
                     </td>
                     <td style={{ fontWeight: '500' }}>
                       {log.user ? `${log.user.full_name} (@${log.user.username})` : 'System'}

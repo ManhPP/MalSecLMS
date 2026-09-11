@@ -104,6 +104,47 @@ const parseMarkdown = (text) => {
   });
 };
 
+// --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
+export const parseVietnamDate = (dateInput) => {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return dateInput;
+  let s = String(dateInput).trim();
+  // If string has no timezone indicator (no Z, no +, no -offset), treat as Vietnam GMT+7
+  if (!s.includes('Z') && !s.includes('+') && !s.match(/-\d\d:\d\d$/)) {
+    s = s.replace(' ', 'T') + '+07:00';
+  }
+  return new Date(s);
+};
+
+export const formatLocalTime = (dateInput) => {
+  if (!dateInput) return '—';
+  const d = parseVietnamDate(dateInput);
+  if (!d || isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
+
+export const toLocalIsoInput = (dateInput) => {
+  if (!dateInput) return '';
+  let s = String(dateInput).trim();
+  if (s.length === 16 && s.includes('T')) return s;
+  if (!s.includes('Z') && !s.includes('+') && !s.match(/-\d\d:\d\d$/)) {
+    s = s.replace(' ', 'T') + '+07:00';
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  const vnDateStr = d.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).replace(' ', 'T');
+  return vnDateStr.slice(0, 16);
+};
+
 export default function InstructorDashboard() {
   const [labs, setLabs] = useState([])
   const [classes, setClasses] = useState([])
@@ -700,7 +741,7 @@ export default function InstructorDashboard() {
       setError('VM template, protocol, or port configuration is incomplete!')
       return
     }
-    if (enableVm && ['rdp', 'ssh'].includes(vmProtocol) && !vmUsername.trim()) {
+    if (enableVm && vmProtocol !== 'vnc' && !vmUsername.trim()) {
       setError('Please enter a username for RDP/SSH connection!')
       return
     }
@@ -710,12 +751,13 @@ export default function InstructorDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
+      const deadlinePayload = deadline.length === 16 ? `${deadline}:00` : deadline
       const payload = {
         title: labTitle,
         description: labDesc,
         grade_tag: gradeTag.trim() || 'Default',
         form_fields: formFields,
-        deadline: new Date(deadline).toISOString(),
+        deadline: deadlinePayload,
         late_policy: {
           allow_late: allowLate,
           penalty_per_hour_percent: parseFloat(penaltyPerHour),
@@ -734,30 +776,59 @@ export default function InstructorDashboard() {
         if (vmPassword) payload.vm_password = vmPassword
       }
 
-      const url = editingLab ? `/api/labs/${editingLab.id}` : '/api/labs/'
-      const method = editingLab ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      })
+      let res
+      if (editingLab) {
+        res = await fetch(`/api/labs/${editingLab.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        })
+      } else {
+        res = await fetch('/api/labs/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        })
+      }
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Error saving lab')
+      if (!res.ok) throw new Error(data.detail || 'Error saving lab assignment')
 
-      setSuccess(editingLab ? 'Lab configuration updated successfully!' : 'Published lab assignment with dynamic report form successfully!')
+      setSuccess(`Lab assignment ${editingLab ? 'updated' : 'created'} successfully!`)
       setShowLabModal(false)
-      setEditingLab(null)
       fetchData()
+      resetLabForm()
     } catch (err) {
       setError(err.message)
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const resetLabForm = () => {
+    setEditingLab(null)
+    setLabTitle('')
+    setLabDesc('')
+    setGradeTag('')
+    setDeadline('')
+    setAllowLate(true)
+    setPenaltyPerHour(0.5)
+    setMaxPenalty(30.0)
+    setFormFields([])
+    setEnableVm(true)
+    setIsLinkedClone(true)
+    const configuredProtocol = runtimeConfig?.vm?.default_protocol || 'rdp'
+    setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || 1001)
+    setVmProtocol(configuredProtocol)
+    setVmPort(runtimeConfig?.vm?.protocol_ports?.[configuredProtocol] || 3389)
+    setVmUsername('')
+    setVmPassword('')
   }
 
   const openCreateLabModal = () => {
@@ -795,9 +866,7 @@ export default function InstructorDashboard() {
     setClassId(lab.class_id || (classes[0]?.id || ''))
     
     if (lab.deadline) {
-      const d = new Date(lab.deadline)
-      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-      setDeadline(localIso)
+      setDeadline(toLocalIsoInput(lab.deadline))
     } else {
       setDeadline('')
     }
@@ -852,9 +921,7 @@ export default function InstructorDashboard() {
     setCloneNewTitle(`${lab.title} (Copy)`)
     
     if (lab.deadline) {
-      const d = new Date(lab.deadline)
-      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-      setCloneNewDeadline(localIso)
+      setCloneNewDeadline(toLocalIsoInput(lab.deadline))
     } else {
       setCloneNewDeadline('')
     }
@@ -875,10 +942,13 @@ export default function InstructorDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
+      const deadlinePayload = cloneNewDeadline 
+        ? (cloneNewDeadline.length === 16 ? `${cloneNewDeadline}:00` : cloneNewDeadline)
+        : null
       const payload = {
         target_class_id: parseInt(cloneTargetClassId),
         new_title: cloneNewTitle.trim(),
-        new_deadline: cloneNewDeadline ? new Date(cloneNewDeadline).toISOString() : null
+        new_deadline: deadlinePayload
       }
 
       const res = await fetch(`/api/labs/${cloneSourceLab.id}/clone`, {
@@ -1251,10 +1321,14 @@ export default function InstructorDashboard() {
       return b.id - a.id
     }
     if (labSortOrder === 'deadline_asc') {
-      return new Date(a.deadline) - new Date(b.deadline)
+      const da = parseVietnamDate(a.deadline)
+      const db = parseVietnamDate(b.deadline)
+      return (da?.getTime() || 0) - (db?.getTime() || 0)
     }
     if (labSortOrder === 'deadline_desc') {
-      return new Date(b.deadline) - new Date(a.deadline)
+      const da = parseVietnamDate(a.deadline)
+      const db = parseVietnamDate(b.deadline)
+      return (db?.getTime() || 0) - (da?.getTime() || 0)
     }
     if (labSortOrder === 'title_asc') {
       return a.title.localeCompare(b.title)
@@ -1668,7 +1742,7 @@ export default function InstructorDashboard() {
                                               </div>
                                             </td>
                                             <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                              {new Date(lab.deadline).toLocaleString('en-US')}
+                                              {formatLocalTime(lab.deadline)}
                                             </td>
                                             <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                                               {lab.late_policy?.allow_late 
@@ -1780,7 +1854,7 @@ export default function InstructorDashboard() {
                           </td>
                           <td style={{ color: 'var(--text-primary)' }}>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
-                            {new Date(lab.deadline).toLocaleString('en-US')}
+                            {formatLocalTime(lab.deadline)}
                           </td>
                           <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                             {lab.late_policy?.allow_late 
@@ -3149,7 +3223,7 @@ export default function InstructorDashboard() {
                         </span>
                       </div>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '4px 0 0 0' }}>
-                        Student ID: {activeSubmission.student?.username} | Submitted: {new Date(activeSubmission.submitted_at).toLocaleString('en-US')}
+                        Student ID: {activeSubmission.student?.username} | Submitted: {formatLocalTime(activeSubmission.submitted_at)}
                       </p>
                     </div>
 
@@ -3587,7 +3661,7 @@ export default function InstructorDashboard() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Deadline (UTC)</label>
+                    <label className="form-label">Deadline (Giờ VN GMT+7)</label>
                     <input 
                       type="datetime-local" 
                       className="form-input" 
@@ -3885,7 +3959,7 @@ export default function InstructorDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">New Extended Deadline (UTC)</label>
+                  <label className="form-label">New Extended Deadline (Giờ VN GMT+7)</label>
                   <input 
                     type="datetime-local" 
                     className="form-input" 

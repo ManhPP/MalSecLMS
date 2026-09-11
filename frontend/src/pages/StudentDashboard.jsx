@@ -237,6 +237,34 @@ const MarkdownEditor = ({ value, onChange, disabled }) => {
   );
 };
 
+// --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
+export const parseVietnamDate = (dateInput) => {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return dateInput;
+  let s = String(dateInput).trim();
+  // If string has no timezone indicator (no Z, no +, no -offset), treat as Vietnam GMT+7
+  if (!s.includes('Z') && !s.includes('+') && !s.match(/-\d\d:\d\d$/)) {
+    s = s.replace(' ', 'T') + '+07:00';
+  }
+  return new Date(s);
+};
+
+export const formatLocalTime = (dateInput) => {
+  if (!dateInput) return '—';
+  const d = parseVietnamDate(dateInput);
+  if (!d || isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
+
 export default function StudentDashboard() {
   const { user } = useAuth()
   const [activeLabs, setActiveLabs] = useState([])
@@ -451,7 +479,7 @@ export default function StudentDashboard() {
   const getEffectiveDeadline = (lab) => {
     if (!lab) return null
     const extStr = (lab.individual_extensions || {})[user?.username]
-    return extStr ? new Date(extStr) : (lab.deadline ? new Date(lab.deadline) : null)
+    return extStr ? parseVietnamDate(extStr) : (lab.deadline ? parseVietnamDate(lab.deadline) : null)
   }
 
   const isLabPastDeadline = (lab) => {
@@ -639,16 +667,16 @@ export default function StudentDashboard() {
 
     // Confirm late penalty before final submission
     const now = new Date()
-    let deadline = new Date(selectedLab.deadline)
+    let deadline = parseVietnamDate(selectedLab.deadline)
     
     // Check personal exception extension
     const extStr = (selectedLab.individual_extensions || {})[user.username]
     if (extStr) {
-      deadline = new Date(extStr)
+      deadline = parseVietnamDate(extStr)
     }
 
     let warningText = 'Are you sure you want to submit your final report?'
-    if (now > deadline) {
+    if (deadline && now > deadline) {
       const policy = selectedLab.late_policy || {}
       const penalty = policy.penalty_per_hour_percent || 0
       const hoursLate = (now - deadline) / 3600000.0
@@ -665,24 +693,65 @@ export default function StudentDashboard() {
 
     try {
       await triggerServerSideAutoSave(answers)
-
-      // Submit final
       const res = await fetch(`/api/submissions/lab/${selectedLab.id}/submit`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ answers })
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Error submitting report')
 
-      setSuccess('Lab report submitted successfully! Your submission is now awaiting instructor grading.')
+      setSuccess('Your lab report has been submitted successfully!')
       setSubmissionStatus(data.status)
-      setLatePenalty(data.late_penalty)
       fetchStudentLabs()
     } catch (err) {
       setError(err.message)
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  // Handle Fullscreen toggle
+  const toggleFullscreen = () => {
+    if (!vdiContainerRef.current) return
+    if (!document.fullscreenElement) {
+      vdiContainerRef.current.requestFullscreen().catch(err => {
+        console.error('Error attempting to enable full-screen mode:', err.message)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  // Switch VM Protocol Mode (VNC <-> RDP)
+  const handleSwitchProtocol = async (newProtocol) => {
+    if (!vmInfo || vmInfo.status !== 'running') return
+    if (newProtocol === vmProtocolMode) return
+
+    setSwitchingProtocol(true)
+    setVmProtocolMode(newProtocol)
+    
+    const time = new Date().toLocaleTimeString('en-GB')
+    if (newProtocol === 'vnc') {
+      setVmOs('Standard Display (VNC Console)')
+      setVmLogs([
+        ...vmLogs,
+        `[${time}] [-] RDP: Disconnecting session...`,
+        `[${time}] [+] VNC: Establishing WebSocket display stream to port ${vmInfo?.ports?.vnc || 5900}...`,
+        `[${time}] [+] VNC: Stream ready.`
+      ])
+    } else {
+      setVmOs('FLARE-VM [Windows Security] — RDP Connection Active')
+      setVmLogs([
+        ...vmLogs,
+        `[${time}] [-] VNC: Connection closed.`,
+        `[${time}] [+] RDP: Connecting to configured lab target${vmInfo?.ip_address ? ` (${vmInfo.ip_address})` : ''}...`,
+        `[${time}] [+] RDP: Connection OK.`
+      ])
     }
   }
 
@@ -722,12 +791,13 @@ export default function StudentDashboard() {
 
   // Countdown timer calculator helper (with personal exception support)
   const getRemainingTime = (lab) => {
-    let deadline = new Date(lab.deadline)
+    let deadline = parseVietnamDate(lab.deadline)
     const extStr = (lab.individual_extensions || {})[user.username]
     if (extStr) {
-      deadline = new Date(extStr)
+      deadline = parseVietnamDate(extStr)
     }
 
+    if (!deadline) return { text: 'No Deadline', isExpired: false }
     const diff = deadline - new Date()
     if (diff <= 0) return { text: 'Overdue / Expired', isExpired: true }
 
@@ -777,10 +847,14 @@ export default function StudentDashboard() {
     return matchesSearch && matchesClass && matchesStatus
   }).sort((a, b) => {
     if (studentLabSort === 'deadline_asc') {
-      return new Date(a.deadline) - new Date(b.deadline)
+      const da = parseVietnamDate(a.deadline)
+      const db = parseVietnamDate(b.deadline)
+      return (da?.getTime() || 0) - (db?.getTime() || 0)
     }
     if (studentLabSort === 'deadline_desc') {
-      return new Date(b.deadline) - new Date(a.deadline)
+      const da = parseVietnamDate(a.deadline)
+      const db = parseVietnamDate(b.deadline)
+      return (db?.getTime() || 0) - (da?.getTime() || 0)
     }
     if (studentLabSort === 'title_asc') {
       return a.title.localeCompare(b.title)
@@ -1191,8 +1265,8 @@ export default function StudentDashboard() {
 
                                               <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
                                                 {isExtension 
-                                                  ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
-                                                  : new Date(lab.deadline).toLocaleString('en-US')}
+                                                  ? formatLocalTime(lab.individual_extensions[user.username])
+                                                  : formatLocalTime(lab.deadline)}
                                               </td>
                                               <td style={{ 
                                                 color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
@@ -1303,8 +1377,8 @@ export default function StudentDashboard() {
 
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
                             {isExtension 
-                              ? new Date(lab.individual_extensions[user.username]).toLocaleString('en-US')
-                              : new Date(lab.deadline).toLocaleString('en-US')}
+                              ? formatLocalTime(lab.individual_extensions[user.username])
+                              : formatLocalTime(lab.deadline)}
                           </td>
                           <td style={{ 
                             color: timer.isExpired ? 'var(--neon-ruby)' : 'var(--neon-amber)',
@@ -1391,7 +1465,7 @@ export default function StudentDashboard() {
                           )}
                         </td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          {new Date(sub.submitted_at).toLocaleString('en-US')}
+                          {formatLocalTime(sub.submitted_at)}
                         </td>
                         <td style={{ color: sub.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--text-secondary)' }}>
                           {sub.late_penalty > 0 ? `Penalty: -${sub.late_penalty}%` : 'None'}
@@ -1440,6 +1514,9 @@ export default function StudentDashboard() {
                 )}
                 <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
                   🏷️ {selectedLab.grade_tag || 'Default'}
+                </span>
+                <span className="badge" style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: '500', padding: '2px 8px', border: '1px solid #cbd5e1' }} title="Submission Deadline">
+                  ⏰ Deadline: <b>{formatLocalTime(getEffectiveDeadline(selectedLab))}</b>
                 </span>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>Student ID: {user.username} | Status: <b>{submissionStatus}</b></p>
