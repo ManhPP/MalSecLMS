@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { 
   BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
-  School, Layers, ChevronDown, Calendar
+  School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock
 } from 'lucide-react'
 import { useAuth } from '../App.jsx'
 
@@ -475,6 +475,18 @@ export default function StudentDashboard() {
     fetchRuntimeConfig()
   }, [])
 
+  // Listen to browser Back / Forward buttons so returning from doing_lab does not redirect to login
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (viewState === 'doing_lab') {
+        setViewState('dashboard')
+        setSelectedLab(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [viewState])
+
   // Helper tính hạn chót thực tế của sinh viên (kể cả gia hạn cá nhân)
   const getEffectiveDeadline = (lab) => {
     if (!lab) return null
@@ -580,6 +592,11 @@ export default function StudentDashboard() {
       }
       
       setViewState('doing_lab')
+      try {
+        window.history.pushState({ view: 'doing_lab', labId: lab.id }, '')
+      } catch (e) {
+        // ignore history error if any
+      }
       setLastSavedTime(new Date().toLocaleTimeString('en-US'))
 
       if (lab.enable_vm !== false) {
@@ -608,33 +625,37 @@ export default function StudentDashboard() {
     setAnswers(updated)
   }
 
-  // Secure File upload (with Airlock anti-virus/metadata sanitize checks)
+  // Secure File upload (with Airlock anti-virus/metadata sanitize checks - supports multiple files)
   const handleFileUpload = async (fieldId, e) => {
-    const file = e.target.files[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
 
     setUploadingField(fieldId)
     setError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
-    const formData = new FormData()
-    formData.append('file', file)
-
     try {
-      const res = await fetch(`/api/submissions/lab/${selectedLab.id}/upload/${fieldId}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      })
+      let lastUploadedName = ''
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Error uploading evidence file')
+        const res = await fetch(`/api/submissions/lab/${selectedLab.id}/upload/${fieldId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        })
 
-      setSuccess(data.message)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || `Lỗi khi tải tệp ${file.name}`)
+        lastUploadedName = data.filename
+      }
+
+      setSuccess(files.length > 1 ? `Đã tải lên ${files.length} tệp an toàn!` : 'Tải file lên thành công và an toàn!')
       setTimeout(() => setSuccess(''), 5000)
 
-      // Refresh attachment list
+      // Refresh submission detail & attachments
       const detailRes = await fetch(`/api/submissions/lab/${selectedLab.id}/my`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -642,14 +663,49 @@ export default function StudentDashboard() {
         const sub = await detailRes.json()
         if (sub) {
           setFileAttachments(sub.file_attachments || [])
-          setAnswers({ ...answers, [fieldId]: data.filename })
+          setAnswers(sub.answers || {})
         }
       }
-
     } catch (err) {
       setError(err.message)
     } finally {
       setUploadingField(null)
+      // Reset input element value so user can re-upload same file name if needed
+      e.target.value = ''
+    }
+  }
+
+  // Delete attachment handler
+  const handleDeleteAttachment = async (fieldId, filepath) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa tệp đính kèm này không?')) return
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/submissions/lab/${selectedLab.id}/attachment/${fieldId}?filepath=${encodeURIComponent(filepath)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Lỗi khi xóa tệp đính kèm')
+
+      setSuccess('Đã xóa tệp đính kèm!')
+      setTimeout(() => setSuccess(''), 3000)
+
+      // Refresh attachments list
+      const detailRes = await fetch(`/api/submissions/lab/${selectedLab.id}/my`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (detailRes.ok) {
+        const sub = await detailRes.json()
+        if (sub) {
+          setFileAttachments(sub.file_attachments || [])
+          setAnswers(sub.answers || {})
+        }
+      }
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -1776,7 +1832,7 @@ export default function StudentDashboard() {
               {selectedLab.form_fields.map((field) => {
                 const isReadOnly = !canEditSubmission()
                 const ans = answers[field.id] || ''
-                const attachment = fileAttachments.find(a => a.field_id === field.id)
+                const fieldAttachments = (fileAttachments || []).filter(a => a.field_id === field.id)
 
                 return (
                   <div key={field.id} className="form-group" style={{ marginBottom: '24px' }}>
@@ -1861,39 +1917,81 @@ export default function StudentDashboard() {
                       />
                     )}
 
-                    {/* FIELD TYPE: FILE UPLOAD (Screenshots, PCAPs) */}
+                    {/* FIELD TYPE: FILE UPLOAD (Screenshots, PCAPs, Code, Word/PDF) */}
                     {field.type === 'file' && (
-                      <div>
-                        {attachment ? (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
-                            <span style={{ color: 'var(--neon-cyan)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <CheckCircle size={15} />
-                              <a 
-                                href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ color: 'var(--neon-cyan)', textDecoration: 'underline' }}
-                              >
-                                {attachment.original_filename}
-                              </a>
-                            </span>
-                            {!isReadOnly && (
-                              <label style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px' }}>
-                                Upload different file...
-                                <input 
-                                  type="file" 
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => handleFileUpload(field.id, e)}
-                                />
-                              </label>
-                            )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* List of currently attached files for this field */}
+                        {fieldAttachments.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {fieldAttachments.map((att, attIdx) => {
+                              const ext = (att.original_filename || '').split('.').pop().toLowerCase();
+                              const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go'].includes(ext);
+                              return (
+                                <div 
+                                  key={attIdx} 
+                                  style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'space-between', 
+                                    padding: '10px 14px', 
+                                    background: 'rgba(0,0,0,0.25)', 
+                                    borderRadius: '6px', 
+                                    border: '1px solid var(--border-color)', 
+                                    fontSize: '13px' 
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                                    {isCode ? (
+                                      <Code size={16} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                                    ) : ['png', 'jpg', 'jpeg'].includes(ext) ? (
+                                      <CheckCircle size={16} style={{ color: 'var(--neon-emerald)', flexShrink: 0 }} />
+                                    ) : (
+                                      <FileText size={16} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                                    )}
+                                    <a 
+                                      href={`/api/submissions/file?path=${encodeURIComponent(att.filepath)}&token=${localStorage.getItem('malsec_token')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ color: 'var(--neon-cyan)', textDecoration: 'underline', fontWeight: '500', wordBreak: 'break-all' }}
+                                    >
+                                      {att.original_filename}
+                                    </a>
+                                    {isCode && (
+                                      <span className="badge badge-submitted" style={{ fontSize: '10px', padding: '1px 5px' }}>CODE</span>
+                                    )}
+                                  </div>
+
+                                  {!isReadOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAttachment(field.id, att.filepath)}
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--neon-ruby)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        marginLeft: '10px'
+                                      }}
+                                      title="Xóa tệp này"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        ) : isReadOnly ? (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Empty)</span>
-                        ) : (
-                          <div className="upload-zone" style={{ padding: '16px 24px' }}>
+                        )}
+
+                        {/* Upload Zone (Multiple Files Supported) */}
+                        {!isReadOnly ? (
+                          <div className="upload-zone" style={{ padding: '16px 24px', marginTop: fieldAttachments.length > 0 ? '6px' : '0' }}>
                             <input 
                               type="file" 
+                              multiple
                               style={{ display: 'none' }} 
                               id={`fileInput-${field.id}`}
                               onChange={(e) => handleFileUpload(field.id, e)}
@@ -1902,17 +2000,23 @@ export default function StudentDashboard() {
                             <label htmlFor={`fileInput-${field.id}`} style={{ cursor: 'pointer', display: 'block' }}>
                               <Upload size={20} className="upload-icon" style={{ margin: '0 auto 6px' }} />
                               <p style={{ fontSize: '13px', fontWeight: '500' }}>
-                                {uploadingField === field.id ? 'SCANNING SECURITY & UPLOADING...' : 'Choose document (PDF, DOCX), image or ZIP file'}
+                                {uploadingField === field.id 
+                                  ? 'ĐANG QUÉT BẢO MẬT & TẢI LÊN...' 
+                                  : fieldAttachments.length > 0 
+                                    ? '+ Thêm tệp khác (hỗ trợ nhiều file, file code, ảnh, docx, pdf, zip)...'
+                                    : 'Chọn tệp đính kèm (hỗ trợ nhiều file, file code, ảnh, docx, pdf, zip)'}
                               </p>
                               {runtimeConfig?.uploads && (
                                 <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  Allowed formats: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
-                                  {runtimeConfig.uploads.zip_password ? ` ZIP password: '${runtimeConfig.uploads.zip_password}'.` : ''}
+                                  Định dạng cho phép: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
+                                  {runtimeConfig.uploads.zip_password ? ` Mật khẩu ZIP nếu nén mẫu: '${runtimeConfig.uploads.zip_password}'.` : ''}
                                 </p>
                               )}
                             </label>
                           </div>
-                        )}
+                        ) : fieldAttachments.length === 0 ? (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Trống)</span>
+                        ) : null}
                       </div>
                     )}
                   </div>

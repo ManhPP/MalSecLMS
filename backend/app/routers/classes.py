@@ -479,9 +479,19 @@ def get_class_analytics(
     for st in sorted(students, key=lambda s: s.full_name):
         s_subs = sub_by_student.get(st.id, [])
         s_completed = [s for s in s_subs if s.status in ['submitted', 'graded']]
-        s_scores = [s.score for s in s_completed if s.status == 'graded' and s.score is not None]
         s_late = sum(1 for s in s_completed if s.late_penalty > 0)
-        s_avg = round(sum(s_scores) / len(s_scores), 2) if s_scores else None
+        
+        # Tính điểm GPA cho sinh viên: bài chưa có điểm hoặc chưa nộp mặc định là 0.0
+        student_lab_scores = []
+        for lab in target_labs:
+            sub = next((s for s in s_subs if s.lab_id == lab.id), None)
+            if sub and sub.score is not None:
+                lp = sub.late_penalty or 0.0
+                student_lab_scores.append(round(max(0.0, sub.score * (1.0 - lp / 100.0)), 2))
+            else:
+                student_lab_scores.append(0.0)
+
+        s_avg = round(sum(student_lab_scores) / len(student_lab_scores), 2) if student_lab_scores else 0.0
         completion_pct = round((len(s_completed) / comparison_total_labs * 100), 1) if comparison_total_labs else 0
         
         vm_info = student_vm_status_map.get(st.username, {"status": "none", "vmid": None})
@@ -597,6 +607,11 @@ def get_class_gradebook(
                     valid_scores.append(final_score)
                     if tag in tag_scores_collector:
                         tag_scores_collector[tag].append(final_score)
+                else:
+                    # Bài chưa có điểm: mặc định tính 0.0 vào GPA
+                    valid_scores.append(0.0)
+                    if tag in tag_scores_collector:
+                        tag_scores_collector[tag].append(0.0)
                 
                 if status_str in ['submitted', 'graded']:
                     completed_count += 1
@@ -612,6 +627,11 @@ def get_class_gradebook(
                     "is_plagiarized": sub.is_plagiarized
                 }
             else:
+                # Bài chưa nộp: mặc định tính 0.0 vào GPA
+                valid_scores.append(0.0)
+                if tag in tag_scores_collector:
+                    tag_scores_collector[tag].append(0.0)
+
                 lab_grades[str(l.id)] = {
                     "submission_id": None,
                     "status": "not_submitted",
@@ -630,15 +650,15 @@ def get_class_gradebook(
             if scores_for_tag:
                 tag_grades[t] = {
                     "average_score": round(sum(scores_for_tag) / len(scores_for_tag), 2),
-                    "completed_count": len(scores_for_tag)
+                    "completed_count": len([s for s in scores_for_tag if s > 0.0])
                 }
             else:
                 tag_grades[t] = {
-                    "average_score": None,
+                    "average_score": 0.0,
                     "completed_count": 0
                 }
 
-        avg_score = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else None
+        avg_score = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else 0.0
 
         gradebook_rows.append({
             "student_id": st.id,

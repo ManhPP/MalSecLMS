@@ -86,6 +86,12 @@ class Settings:
         }
         # Tự động hỗ trợ docx cho bài nộp báo cáo Word của sinh viên
         self.ALLOWED_EXTENSIONS.add("docx")
+        # Tự động hỗ trợ các định dạng mã nguồn / file code cho bài tập thực hành
+        CODE_EXTENSIONS = {
+            "c", "cpp", "h", "hpp", "py", "java", "asm", "s", "js", "ts",
+            "html", "css", "json", "sql", "sh", "ps1", "rs", "go", "php"
+        }
+        self.ALLOWED_EXTENSIONS.update(CODE_EXTENSIONS)
         self.MALWARE_ZIP_PASSWORD = _required_env("MALWARE_ZIP_PASSWORD")
 
         # Proxmox VE

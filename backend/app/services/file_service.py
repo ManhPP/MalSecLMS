@@ -21,13 +21,13 @@ class FileService:
                 detail=f"Định dạng file '.{ext}' không được phép. Chỉ cho phép các định dạng: {', '.join(settings.ALLOWED_EXTENSIONS)}"
             )
         
-        # Danh sách đen định dạng thực thi nguy hiểm
-        dangerous_extensions = {'exe', 'bat', 'sh', 'elf', 'msi', 'scr', 'cmd', 'vbs', 'js', 'py'}
+        # Danh sách đen định dạng thực thi nguy hiểm dạng binary (chỉ cấm binary executable, không cấm file source code)
+        dangerous_extensions = {'exe', 'msi', 'scr', 'dll', 'sys', 'com', 'pif', 'bin', 'cpl', 'iso', 'vba'}
         if ext in dangerous_extensions:
             logger.warning(f"[FILE_REJECTED] Filename: '{filename}' | Reason: Dangerous executable extension '.{ext}'")
             raise HTTPException(
                 status_code=400,
-                detail=f"File thực thi nguy hiểm '.{ext}' bị cấm tuyệt đối vì lý do an toàn bảo mật."
+                detail=f"File thực thi nhị phân nguy hiểm '.{ext}' bị cấm tuyệt đối vì lý do an toàn bảo mật."
             )
         return ext
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
 import { Terminal, ShieldAlert, Key, User } from 'lucide-react'
@@ -9,8 +9,21 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   
-  const { login } = useAuth()
+  const { user, login } = useAuth()
   const navigate = useNavigate()
+
+  // Auto-redirect if already authenticated (prevent back button landing on login page)
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin') {
+        navigate('/admin', { replace: true })
+      } else if (user.role === 'lecturer') {
+        navigate('/lecturer', { replace: true })
+      } else {
+        navigate('/student', { replace: true })
+      }
+    }
+  }, [user, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -44,13 +57,13 @@ export default function Login() {
         role: data.role
       }, data.access_token)
 
-      // Navigate by role
+      // Navigate by role with replace: true so /login is not left in history
       if (data.role === 'admin') {
-        navigate('/admin')
+        navigate('/admin', { replace: true })
       } else if (data.role === 'lecturer') {
-        navigate('/lecturer')
+        navigate('/lecturer', { replace: true })
       } else {
-        navigate('/student')
+        navigate('/student', { replace: true })
       }
 
     } catch (err) {

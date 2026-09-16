@@ -151,10 +151,17 @@ export default function InstructorDashboard() {
   const [submissions, setSubmissions] = useState([])
   const [students, setStudents] = useState([]) // For exception dropdown
   
-  // Navigation states: 'dashboard' | 'grading' | 'classes'
+  // Navigation states: 'dashboard' | 'grading' | 'classes' | 'analytics' | 'gradebook' | 'student_grading'
   const [viewState, setViewState] = useState('dashboard') 
   const [selectedLab, setSelectedLab] = useState(null)
   
+  // Grade by Student states
+  const [studentGradingClass, setStudentGradingClass] = useState(null)
+  const [studentGradingStudent, setStudentGradingStudent] = useState(null)
+  const [studentGradingLabs, setStudentGradingLabs] = useState([]) // array of { lab, submission }
+  const [studentGradingActiveLabIndex, setStudentGradingActiveLabIndex] = useState(0)
+  const [studentGradingLoading, setStudentGradingLoading] = useState(false)
+
   // Speed Grader active submission
   const [activeSubmission, setActiveSubmission] = useState(null)
   const [activeSubIndex, setActiveSubIndex] = useState(-1)
@@ -383,10 +390,10 @@ export default function InstructorDashboard() {
           row.completed_labs,
           ...visibleTags.map(t => {
             const tg = row.tag_grades?.[t]
-            if (!tg || tg.average_score === null) return '""'
+            if (!tg || tg.average_score === null) return '0'
             return tg.average_score
           }),
-          row.average_score !== null ? row.average_score : '""'
+          row.average_score !== null && row.average_score !== undefined ? row.average_score : 0
         ]
         csvLines.push(line.join(','))
       })
@@ -418,10 +425,10 @@ export default function InstructorDashboard() {
           row.completed_labs,
           ...visibleLabs.map(l => {
             const g = row.grades[String(l.id)]
-            if (!g || g.final_score === null) return '""'
+            if (!g || g.final_score === null) return '0'
             return g.final_score
           }),
-          row.average_score !== null ? row.average_score : '""'
+          row.average_score !== null && row.average_score !== undefined ? row.average_score : 0
         ]
         csvLines.push(line.join(','))
       })
@@ -493,6 +500,21 @@ export default function InstructorDashboard() {
     fetchPveTemplates()
   }, [])
 
+  // Listen to browser Back button so sub-views (grading, student_grading) return smoothly without redirecting to login
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (viewState === 'grading' || viewState === 'student_grading') {
+        setViewState('dashboard')
+        setSelectedLab(null)
+        setActiveSubmission(null)
+        setStudentGradingStudent(null)
+        setStudentGradingLabs([])
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [viewState])
+
   // Fetch Submissions for a selected Lab
   const fetchSubmissions = async (lab) => {
     setLoading(true)
@@ -508,6 +530,9 @@ export default function InstructorDashboard() {
       const data = await res.json()
       setSubmissions(data)
       setViewState('grading')
+      try {
+        window.history.pushState({ view: 'grading', labId: lab.id }, '')
+      } catch (e) {}
 
       // Fetch class students for individual extensions
       const classRes = await fetch(`/api/classes/${lab.class_id}`, {
@@ -525,6 +550,67 @@ export default function InstructorDashboard() {
     }
   }
 
+  // Fetch all labs & submissions for a specific student (Grade by Student view)
+  const openStudentGrading = async (cls, student, defaultLabIndex = 0) => {
+    if (!cls || !student) return
+    setStudentGradingLoading(true)
+    setError('')
+    setSuccess('')
+    setStudentGradingClass(cls)
+    setStudentGradingStudent(student)
+    setStudentGradingLabs([])
+    setStudentGradingActiveLabIndex(defaultLabIndex)
+    setActiveSubmission(null)
+
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/submissions/class/${cls.id}/student/${student.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Unable to load student labs')
+      }
+      const data = await res.json()
+      const labsData = data.labs || []
+      setStudentGradingLabs(labsData)
+      setViewState('student_grading')
+      try {
+        window.history.pushState({ view: 'student_grading', classId: cls.id, studentId: student.id }, '')
+      } catch (e) {}
+
+      // If labs available, activate the selected lab submission
+      if (labsData.length > 0) {
+        const targetIdx = defaultLabIndex >= 0 && defaultLabIndex < labsData.length ? defaultLabIndex : 0
+        setStudentGradingActiveLabIndex(targetIdx)
+        const targetPair = labsData[targetIdx]
+        if (targetPair && targetPair.submission) {
+          setActiveSubmission(targetPair.submission)
+          setSelectedLab(targetPair.lab)
+          setScore(targetPair.submission.score !== null ? targetPair.submission.score : 10.0)
+          setComment(targetPair.submission.comment || '')
+          setRequestResubmit(targetPair.submission.status === 're_submit_requested')
+        }
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setStudentGradingLoading(false)
+    }
+  }
+
+  // Switch active lab when in Grade by Student view
+  const handleSelectStudentGradingLab = (pair, index) => {
+    setStudentGradingActiveLabIndex(index)
+    setSelectedLab(pair.lab)
+    setActiveSubmission(pair.submission)
+    if (pair.submission) {
+      setScore(pair.submission.score !== null ? pair.submission.score : 10.0)
+      setComment(pair.submission.comment || '')
+      setRequestResubmit(pair.submission.status === 're_submit_requested')
+    }
+  }
+
   // Document Preview Handler (PDF / DOCX)
   const handleOpenDocPreview = async (attachment) => {
     if (!attachment || !attachment.filepath) return
@@ -534,12 +620,31 @@ export default function InstructorDashboard() {
     const ext = filename.split('.').pop().toLowerCase()
 
     setPreviewError('')
+    const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext)
     setPreviewDoc({
       filename,
       filepath: attachment.filepath,
       url: fileUrl,
-      type: ext === 'docx' ? 'docx' : ext === 'pdf' ? 'pdf' : ['png', 'jpg', 'jpeg'].includes(ext) ? 'image' : 'other'
+      type: ext === 'docx' ? 'docx' : ext === 'pdf' ? 'pdf' : ['png', 'jpg', 'jpeg'].includes(ext) ? 'image' : isCode ? 'code' : 'other',
+      content: ''
     })
+
+    // If Code / Text, fetch text content directly
+    if (isCode) {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(fileUrl)
+        if (!res.ok) throw new Error('Không thể tải file code từ máy chủ')
+        const textContent = await res.text()
+        setPreviewDoc(prev => prev ? { ...prev, content: textContent } : null)
+      } catch (err) {
+        console.error('Error loading code file:', err)
+        setPreviewError('Lỗi hiển thị file mã nguồn: ' + err.message)
+      } finally {
+        setPreviewLoading(false)
+      }
+      return
+    }
 
     // If DOCX, fetch arrayBuffer and render via docx-preview
     if (ext === 'docx') {
@@ -624,18 +729,26 @@ export default function InstructorDashboard() {
 
       setSuccess(`Graded successfully for student ${data.student?.full_name}!`)
       
-      // Update local submissions list
-      const updatedList = [...submissions]
-      updatedList[activeSubIndex] = data
-      setSubmissions(updatedList)
-
-      // Auto next student submission!
-      if (activeSubIndex < submissions.length - 1) {
-        handleSelectGrading(submissions[activeSubIndex + 1], activeSubIndex + 1)
-      } else {
-        setActiveSubmission(null)
-        setActiveSubIndex(-1)
+      // Update local submissions list if in lab grading mode
+      if (activeSubIndex >= 0 && submissions.length > 0) {
+        const updatedList = [...submissions]
+        updatedList[activeSubIndex] = data
+        setSubmissions(updatedList)
       }
+
+      // Update studentGradingLabs if in student grading mode
+      if (studentGradingLabs.length > 0 && studentGradingActiveLabIndex >= 0) {
+        const updatedLabs = [...studentGradingLabs]
+        if (updatedLabs[studentGradingActiveLabIndex]) {
+          updatedLabs[studentGradingActiveLabIndex] = {
+            ...updatedLabs[studentGradingActiveLabIndex],
+            submission: data
+          }
+          setStudentGradingLabs(updatedLabs)
+        }
+      }
+
+      setActiveSubmission(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -1430,8 +1543,8 @@ export default function InstructorDashboard() {
         </div>
       )}
 
-      {/* Tab Navigation (Only shown if not in Speed Grader/grading view) */}
-      {viewState !== 'grading' && (
+      {/* Tab Navigation (Only shown if not in Speed Grader/grading view or student_grading view) */}
+      {viewState !== 'grading' && viewState !== 'student_grading' && (
         <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '1px', marginBottom: '24px' }}>
           <button 
             onClick={() => setViewState('dashboard')} 
@@ -2143,23 +2256,37 @@ export default function InstructorDashboard() {
                                       {student.is_active ? 'Active' : 'Locked'}
                                     </span>
                                   </td>
-                                  <td style={{ textAlign: 'right' }}>
-                                    <button 
-                                      onClick={() => handleOpenStudentModal(student)} 
-                                      className="btn btn-secondary" 
-                                      style={{ padding: '4px 8px', fontSize: '12px', marginRight: '6px' }}
-                                      title="Edit details"
-                                    >
-                                      <Edit2 size={12} />
-                                    </button>
-                                    <button 
-                                      onClick={() => handleRemoveStudentFromClass(student.id)} 
-                                      className="btn btn-danger" 
-                                      style={{ padding: '4px 8px', fontSize: '12px' }}
-                                      title="Remove from class"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
+                                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                                      <button 
+                                        type="button"
+                                        onClick={() => openStudentGrading(selectedClass, student)} 
+                                        className="btn btn-primary" 
+                                        style={{ padding: '5px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+                                        title="Grade all labs for this student"
+                                      >
+                                        <FileCheck size={13} />
+                                        Grade Labs
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleOpenStudentModal(student)} 
+                                        className="btn btn-secondary" 
+                                        style={{ padding: '5px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                        title="Edit details"
+                                      >
+                                        <Edit2 size={13} />
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleRemoveStudentFromClass(student.id)} 
+                                        className="btn btn-danger" 
+                                        style={{ padding: '5px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                        title="Remove from class"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))
@@ -2566,6 +2693,7 @@ export default function InstructorDashboard() {
                         <th>Punctuality</th>
                         <th>Average Score</th>
                         <th>Sandbox VM Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2631,6 +2759,24 @@ export default function InstructorDashboard() {
                                   Offline / Not created
                                 </span>
                               )}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const matchedClass = classes.find(c => c.id === analyticsClassId)
+                                  const studentObj = (matchedClass?.users || []).find(u => u.id === st.student_id) || { id: st.student_id, full_name: st.full_name, username: st.username, role: 'student' }
+                                  if (matchedClass) {
+                                    openStudentGrading(matchedClass, studentObj)
+                                  }
+                                }}
+                                className="btn btn-primary"
+                                style={{ padding: '4px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                title={`Grade all labs for ${st.full_name}`}
+                              >
+                                <FileCheck size={12} />
+                                Grade
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -3063,7 +3209,25 @@ export default function InstructorDashboard() {
                           <tr key={row.student_id}>
                             <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{rIdx + 1}</td>
                             <td style={{ fontWeight: '600', color: 'var(--text-primary)', position: 'sticky', left: 0, background: '#ffffff', boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
-                              {row.full_name}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span>{row.full_name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const matchedClass = classes.find(c => c.id === gradebookClassId)
+                                    const studentObj = (matchedClass?.users || []).find(u => u.id === row.student_id) || { id: row.student_id, full_name: row.full_name, username: row.username, role: 'student' }
+                                    if (matchedClass) {
+                                      openStudentGrading(matchedClass, studentObj)
+                                    }
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '2px 6px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                  title={`Grade all labs for ${row.full_name}`}
+                                >
+                                  <FileCheck size={12} style={{ color: 'var(--neon-cyan)' }} />
+                                  Grade
+                                </button>
+                              </div>
                             </td>
                             <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{row.username}</td>
                             <td style={{ textAlign: 'center' }}>
@@ -3217,7 +3381,7 @@ export default function InstructorDashboard() {
                           activeSubmission.status === 'submitted' ? 'badge-submitted' :
                           activeSubmission.status === 'graded' ? 'badge-graded' : 'badge-resubmit'
                         }`} style={{ fontSize: '11.5px', padding: '2px 8px' }}>
-                          {activeSubmission.status === 'draft' ? 'Draft' :
+                          {activeSubmission.status === 'draft' ? (Object.keys(activeSubmission.answers || {}).length === 0 ? 'Not Submitted' : 'Draft') :
                            activeSubmission.status === 'submitted' ? 'Submitted' :
                            activeSubmission.status === 'graded' ? `Graded: ${activeSubmission.score}/10` : 'Resubmit Requested'}
                         </span>
@@ -3250,11 +3414,20 @@ export default function InstructorDashboard() {
                             }
                           }}
                         >
-                          {submissions.map((sub, idx) => (
-                            <option key={sub.id} value={idx}>
-                              {idx + 1}. {sub.student?.full_name} ({sub.student?.username}) - {sub.status === 'graded' ? `[${sub.score}/10]` : sub.status === 'submitted' ? '[Submitted]' : `[${sub.status}]`}
-                            </option>
-                          ))}
+                          {submissions.map((sub, idx) => {
+                            const subStatusLabel = sub.status === 'graded' 
+                              ? `[${sub.score}/10]` 
+                              : sub.status === 'submitted' 
+                                ? '[Submitted]' 
+                                : Object.keys(sub.answers || {}).length === 0 
+                                  ? '[Not Submitted]' 
+                                  : '[Draft]';
+                            return (
+                              <option key={sub.id} value={idx}>
+                                {idx + 1}. {sub.student?.full_name} ({sub.student?.username}) - {subStatusLabel}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 
@@ -3314,8 +3487,8 @@ export default function InstructorDashboard() {
 
                   {/* Render answers dynamically based on design form fields */}
                   {selectedLab.form_fields.map((field) => {
-                    const ans = activeSubmission.answers[field.id] || ''
-                    const attachment = activeSubmission.file_attachments.find(a => a.field_id === field.id)
+                    const ans = (activeSubmission.answers || {})[field.id] || ''
+                    const fieldAttachments = (activeSubmission.file_attachments || []).filter(a => a.field_id === field.id)
 
                     return (
                       <div key={field.id} style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px dashed var(--border-color)' }}>
@@ -3362,71 +3535,86 @@ export default function InstructorDashboard() {
                           </div>
                         )}
 
-                        {/* FILE ATTACHMENTS (IMAGE OR DECRYPTED ZIP) */}
+                        {/* FILE ATTACHMENTS (IMAGE, CODE, DOCX, PDF, ZIP) */}
                         {field.type === 'file' && (
                           <div>
-                            {attachment ? (
-                              <div>
-                                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  File: <b>{attachment.original_filename}</b>
-                                </div>
-                                
-                                {/* Display inline if image */}
-                                {attachment.original_filename.split('.').pop().toLowerCase() in {png:1, jpg:1, jpeg:1} ? (
-                                  <div style={{ background: '#000', padding: '10px', borderRadius: '8px', display: 'inline-block', maxWidth: '100%' }}>
-                                    <img 
-                                      src={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`} 
-                                      alt="Screenshot" 
-                                      style={{ maxWidth: '100%', maxHeight: '350px', borderRadius: '4px', border: '1px solid #374151', cursor: 'zoom-in' }} 
-                                      onClick={() => window.open(`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`, '_blank')}
-                                    />
-                                  </div>
-                                ) : attachment.original_filename.endsWith('.zip') ? (
-                                  /* Display safe extraction and AV scan results if Zip */
-                                  <div style={{ padding: '16px', background: 'rgba(17,24,39,0.9)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
-                                    <h5 style={{ fontSize: '13px', color: 'var(--neon-cyan)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <ShieldCheck size={15} /> AIRLOCK SECURITY SCAN RESULTS
-                                      {runtimeConfig?.uploads?.zip_password && ` (Zip password '${runtimeConfig.uploads.zip_password}')`}
-                                    </h5>
-                                    
-                                    <div style={{ fontSize: '12.5px', color: 'var(--neon-emerald)', marginBottom: '8px' }}>
-                                      [+] Status: <b>CLEAN (NO LIVE MALICIOUS THREAT DETECTED)</b>
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                      Scanned memory-extracted log files:
-                                    </div>
-                                    <ul style={{ paddingLeft: '16px', fontSize: '12px', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>
-                                      <li>analysis_behavior.log</li>
-                                      <li>dump_pcap_wireshark.txt</li>
-                                      <li>check_anti_vm.asm</li>
-                                    </ul>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    {/* PREVIEW BUTTON FOR PDF, DOCX, OR IMAGES */}
-                                    {['pdf', 'docx'].includes(attachment.original_filename.split('.').pop().toLowerCase()) && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => handleOpenDocPreview(attachment)} 
-                                        className="btn btn-primary" 
-                                        style={{ padding: '7px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
-                                      >
-                                        <Eye size={15} /> Preview ({attachment.original_filename.split('.').pop().toUpperCase()})
-                                      </button>
-                                    )}
+                            {fieldAttachments.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {fieldAttachments.map((attachment, attIdx) => {
+                                  const ext = (attachment.original_filename || '').split('.').pop().toLowerCase();
+                                  const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext);
 
-                                    {/* RAW DOWNLOAD BUTTON */}
-                                    <a 
-                                      href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
-                                      className="btn btn-secondary" 
-                                      style={{ padding: '7px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                      target="_blank" 
-                                      rel="noreferrer"
-                                    >
-                                      <Download size={14} /> Download File
-                                    </a>
-                                  </div>
-                                )}
+                                  return (
+                                    <div key={attIdx} style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          {isCode ? <Code size={15} style={{ color: 'var(--neon-amber)' }} /> : <FileText size={15} style={{ color: 'var(--neon-cyan)' }} />}
+                                          File #{attIdx + 1}: <b style={{ color: 'var(--text-primary)' }}>{attachment.original_filename}</b>
+                                        </span>
+                                        {isCode && <span className="badge badge-submitted" style={{ fontSize: '10px' }}>CODE</span>}
+                                      </div>
+                                      
+                                      {/* Display inline if image */}
+                                      {ext in {png:1, jpg:1, jpeg:1} ? (
+                                        <div style={{ background: '#000', padding: '10px', borderRadius: '8px', display: 'inline-block', maxWidth: '100%' }}>
+                                          <img 
+                                            src={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`} 
+                                            alt="Screenshot" 
+                                            style={{ maxWidth: '100%', maxHeight: '350px', borderRadius: '4px', border: '1px solid #374151', cursor: 'zoom-in' }} 
+                                            onClick={() => window.open(`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`, '_blank')}
+                                          />
+                                        </div>
+                                      ) : ext === 'zip' ? (
+                                        /* Display safe extraction and AV scan results if Zip */
+                                        <div style={{ padding: '14px', background: 'rgba(17,24,39,0.9)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
+                                          <h5 style={{ fontSize: '12.5px', color: 'var(--neon-cyan)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ShieldCheck size={14} /> AIRLOCK SECURITY SCAN RESULTS
+                                            {runtimeConfig?.uploads?.zip_password && ` (Zip password '${runtimeConfig.uploads.zip_password}')`}
+                                          </h5>
+                                          <div style={{ fontSize: '12px', color: 'var(--neon-emerald)', marginBottom: '6px' }}>
+                                            [+] Status: <b>CLEAN (NO LIVE MALICIOUS THREAT DETECTED)</b>
+                                          </div>
+                                          <div style={{ marginTop: '8px' }}>
+                                            <a 
+                                              href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                              className="btn btn-secondary" 
+                                              style={{ padding: '5px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                              target="_blank" 
+                                              rel="noreferrer"
+                                            >
+                                              <Download size={13} /> Download ZIP
+                                            </a>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                          {/* PREVIEW BUTTON FOR PDF, DOCX, OR CODE FILES */}
+                                          {['pdf', 'docx', ...['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log']].includes(ext) && (
+                                            <button 
+                                              type="button" 
+                                              onClick={() => handleOpenDocPreview(attachment)} 
+                                              className="btn btn-primary" 
+                                              style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}
+                                            >
+                                              <Eye size={14} /> {isCode ? 'Xem Code' : `Preview (${ext.toUpperCase()})`}
+                                            </button>
+                                          )}
+
+                                          {/* RAW DOWNLOAD BUTTON */}
+                                          <a 
+                                            href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                            className="btn btn-secondary" 
+                                            style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                          >
+                                            <Download size={13} /> Download File
+                                          </a>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(No attachment uploaded for this field)</span>
@@ -3507,7 +3695,7 @@ export default function InstructorDashboard() {
                   </div>
 
                   <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '46px', marginTop: '16px' }} disabled={actionLoading}>
-                    {actionLoading ? 'SAVING GRADE...' : 'SAVE AND NEXT STUDENT'}
+                    {actionLoading ? 'SAVING GRADE...' : 'SAVE GRADE'}
                   </button>
                 </form>
               </div>
@@ -3543,7 +3731,7 @@ export default function InstructorDashboard() {
                             sub.status === 'submitted' ? 'badge-submitted' : 
                             sub.status === 'graded' ? 'badge-graded' : 'badge-resubmit'
                           }`}>
-                            {sub.status === 'draft' ? 'Draft' :
+                            {sub.status === 'draft' ? (Object.keys(sub.answers || {}).length === 0 ? 'Not Submitted' : 'Draft') :
                              sub.status === 'submitted' ? 'Submitted' :
                              sub.status === 'graded' ? 'Graded' : 'Resubmit Requested'}
                           </span>
@@ -3571,7 +3759,6 @@ export default function InstructorDashboard() {
                             onClick={() => handleSelectGrading(sub, index)} 
                             className="btn btn-primary" 
                             style={{ padding: '6px 12px', fontSize: '12.5px' }}
-                            disabled={sub.status === 'draft'}
                           >
                             Speed Grader
                           </button>
@@ -3585,6 +3772,427 @@ export default function InstructorDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 3: GRADE BY STUDENT (Chấm điểm theo từng sinh viên) */}
+      {viewState === 'student_grading' && studentGradingStudent && studentGradingClass && (
+        <div>
+          {/* Top Header & Navigation Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <button 
+              onClick={() => { 
+                setViewState('classes'); 
+                setStudentGradingStudent(null); 
+                setStudentGradingLabs([]); 
+                setActiveSubmission(null); 
+                setSelectedLab(null); 
+              }} 
+              className="btn btn-secondary" 
+              style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <ArrowLeft size={16} /> Back to Class
+            </button>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '20px', color: 'var(--text-primary)', margin: 0 }}>
+                  Student Grading: {studentGradingStudent.full_name}
+                </h2>
+                <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                  MSSV: {studentGradingStudent.username}
+                </span>
+                <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', fontWeight: 'bold' }}>
+                  Class: {studentGradingClass.name} {studentGradingClass.semester ? `(${studentGradingClass.semester})` : ''}
+                </span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px', margin: '4px 0 0 0' }}>
+                Select any lab assigned to this student below to review their findings, source code, screenshots, and grade them directly.
+              </p>
+            </div>
+
+            {/* Quick Student Switcher Bar */}
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', gap: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <Users size={15} style={{ color: 'var(--neon-cyan)' }} />
+                <span style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-secondary)' }}>Switch Student:</span>
+                <select
+                  className="form-select"
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '13px',
+                    margin: 0,
+                    minWidth: '220px',
+                    background: '#f8fafc',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    border: '1px solid #cbd5e1'
+                  }}
+                  value={studentGradingStudent.id}
+                  onChange={(e) => {
+                    const nextStudentId = parseInt(e.target.value)
+                    const nextStudent = (studentGradingClass.users || []).find(u => u.id === nextStudentId)
+                    if (nextStudent) {
+                      openStudentGrading(studentGradingClass, nextStudent)
+                    }
+                  }}
+                >
+                  {(studentGradingClass.users || [])
+                    .filter(u => u.role === 'student')
+                    .map((st, idx) => (
+                      <option key={st.id} value={st.id}>
+                        {idx + 1}. {st.full_name} ({st.username})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {studentGradingLoading ? (
+            <div className="cyber-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <RefreshCw size={24} className="spin-slow" style={{ margin: '0 auto 12px auto', display: 'block', color: 'var(--neon-cyan)' }} />
+              Loading student's practical labs and submissions...
+            </div>
+          ) : studentGradingLabs.length === 0 ? (
+            <div className="cyber-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <BookOpen size={36} style={{ opacity: 0.3, margin: '0 auto 12px auto', display: 'block', color: 'var(--neon-cyan)' }} />
+              This class has no practical labs created yet.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
+              
+              {/* Left Column: List of All Labs for This Student */}
+              <div className="cyber-card" style={{ padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <h4 style={{ fontSize: '14px', margin: 0, fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <BookOpen size={16} style={{ color: 'var(--neon-cyan)' }} />
+                    Assigned Labs ({studentGradingLabs.length})
+                  </h4>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {studentGradingLabs.filter(p => p.submission?.status === 'graded').length} graded
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
+                  {studentGradingLabs.map((pair, pIdx) => {
+                    const { lab, submission: sub } = pair
+                    const isSelected = pIdx === studentGradingActiveLabIndex
+                    const subStatus = sub?.status || 'draft'
+                    const hasAnswers = Object.keys(sub?.answers || {}).length > 0 || (sub?.file_attachments || []).length > 0
+
+                    return (
+                      <div
+                        key={lab.id}
+                        onClick={() => handleSelectStudentGradingLab(pair, pIdx)}
+                        style={{
+                          padding: '12px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          background: isSelected ? 'rgba(242, 112, 36, 0.08)' : '#ffffff',
+                          border: isSelected ? '2px solid var(--neon-cyan)' : '1px solid #e2e8f0',
+                          transition: 'all 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                          <span style={{ fontWeight: isSelected ? '700' : '600', fontSize: '13px', color: isSelected ? 'var(--neon-cyan)' : 'var(--text-primary)', lineHeight: '1.3' }}>
+                            {pIdx + 1}. {lab.title}
+                          </span>
+                          {lab.grade_tag && (
+                            <span className="badge" style={{ fontSize: '9.5px', padding: '1px 5px', background: 'rgba(5, 150, 105, 0.1)', color: '#059669' }}>
+                              {lab.grade_tag}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                          <span className={`badge ${
+                            subStatus === 'graded' ? 'badge-graded' :
+                            subStatus === 'submitted' ? 'badge-submitted' :
+                            subStatus === 're_submit_requested' ? 'badge-resubmit' : 'badge-draft'
+                          }`} style={{ fontSize: '10.5px', padding: '1px 6px' }}>
+                            {subStatus === 'graded' ? `Graded: ${sub.score}/10` :
+                             subStatus === 'submitted' ? 'Submitted' :
+                             subStatus === 're_submit_requested' ? 'Resubmit' :
+                             hasAnswers ? 'Draft' : 'Not Started'}
+                          </span>
+
+                          {sub?.late_penalty > 0 && (
+                            <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: '600' }}>
+                              Late -{sub.late_penalty}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: Speed Grader Workspace for the Selected Lab */}
+              <div>
+                {activeSubmission && selectedLab ? (
+                  <div className="split-container" style={{ margin: 0 }}>
+                    {/* Left Inner (65%): Student answers dynamically rendered */}
+                    <div className="split-left">
+                      <div className="cyber-card" style={{ flex: 1, overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <h3 style={{ fontSize: '18px', color: 'var(--neon-cyan)', margin: 0 }}>
+                                Lab: {selectedLab.title}
+                              </h3>
+                              <span className={`badge ${
+                                activeSubmission.status === 'draft' ? 'badge-draft' :
+                                activeSubmission.status === 'submitted' ? 'badge-submitted' :
+                                activeSubmission.status === 'graded' ? 'badge-graded' : 'badge-resubmit'
+                              }`} style={{ fontSize: '11.5px', padding: '2px 8px' }}>
+                                {activeSubmission.status === 'draft' ? (Object.keys(activeSubmission.answers || {}).length === 0 ? 'Not Submitted' : 'Draft') :
+                                 activeSubmission.status === 'submitted' ? 'Submitted' :
+                                 activeSubmission.status === 'graded' ? `Graded: ${activeSubmission.score}/10` : 'Resubmit Requested'}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '4px 0 0 0' }}>
+                              Student: {studentGradingStudent.full_name} ({studentGradingStudent.username}) | Submitted: {formatLocalTime(activeSubmission.submitted_at)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Plagiarism details alert if detected */}
+                        {activeSubmission.is_plagiarized && (
+                          <div className="plag-alert-banner" style={{ marginBottom: '20px' }}>
+                            <ShieldAlert size={20} style={{ flexShrink: 0 }} />
+                            <div>
+                              <div style={{ fontWeight: 'bold' }}>
+                                [!] ACADEMIC INTEGRITY WARNING: Plagiarism Flagged ({activeSubmission.plagiarism_score}% similarity)
+                              </div>
+                              <div style={{ fontSize: '12.5px', marginTop: '4px' }}>
+                                Similar phrases matching other submissions found in the database.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Question by question answers */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                          {(selectedLab.form_fields || []).map((field, fIdx) => {
+                            const ans = (activeSubmission.answers || {})[field.id]
+                            const fieldAttachments = (activeSubmission.file_attachments || []).filter(
+                              a => a.field_id === field.id
+                            )
+
+                            return (
+                              <div key={field.id} className="answer-item-card">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                  <span className="badge badge-draft" style={{ fontSize: '11px', padding: '2px 6px' }}>Q{fIdx + 1}</span>
+                                  <span style={{ fontWeight: '600', fontSize: '14.5px', color: 'var(--text-primary)' }}>{field.label}</span>
+                                </div>
+
+                                {/* TEXT FIELD */}
+                                {field.type === 'text' && (
+                                  <div className="answer-box-text">
+                                    {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
+                                  </div>
+                                )}
+
+                                {/* SELECT FIELD */}
+                                {field.type === 'select' && (
+                                  <div className="answer-box-select">
+                                    {ans || <span style={{ color: 'var(--text-muted)' }}>(Empty)</span>}
+                                  </div>
+                                )}
+
+                                {/* CHECKBOX FIELD */}
+                                {field.type === 'checkbox' && (
+                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', padding: '4px 0' }}>
+                                    {ans ? ans.split(', ').map((item, idx) => (
+                                      <span key={idx} className="badge badge-submitted" style={{ fontSize: '12px', border: '1px solid var(--neon-cyan)', background: '#fff' }}>
+                                        {item}
+                                      </span>
+                                    )) : (
+                                      <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>(Empty)</span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* TEXTAREA FIELD */}
+                                {field.type === 'textarea' && (
+                                  <div className="answer-box-textarea">
+                                    {parseMarkdown(ans)}
+                                  </div>
+                                )}
+
+                                {/* FILE ATTACHMENTS */}
+                                {field.type === 'file' && (
+                                  <div>
+                                    {fieldAttachments.length > 0 ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {fieldAttachments.map((attachment, attIdx) => {
+                                          const ext = (attachment.original_filename || '').split('.').pop().toLowerCase();
+                                          const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext);
+
+                                          return (
+                                            <div key={attIdx} style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                  {isCode ? <Code size={15} style={{ color: 'var(--neon-amber)' }} /> : <FileText size={15} style={{ color: 'var(--neon-cyan)' }} />}
+                                                  File #{attIdx + 1}: <b style={{ color: 'var(--text-primary)' }}>{attachment.original_filename}</b>
+                                                </span>
+                                                {isCode && <span className="badge badge-submitted" style={{ fontSize: '10px' }}>CODE</span>}
+                                              </div>
+                                              
+                                              {/* Display inline if image */}
+                                              {ext in {png:1, jpg:1, jpeg:1} ? (
+                                                <div style={{ background: '#000', padding: '10px', borderRadius: '8px', display: 'inline-block', maxWidth: '100%' }}>
+                                                  <img 
+                                                    src={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`} 
+                                                    alt="Screenshot" 
+                                                    style={{ maxWidth: '100%', maxHeight: '350px', borderRadius: '4px', border: '1px solid #374151', cursor: 'zoom-in' }} 
+                                                    onClick={() => window.open(`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${localStorage.getItem('malsec_token')}`, '_blank')}
+                                                  />
+                                                </div>
+                                              ) : ext === 'zip' ? (
+                                                <div style={{ padding: '14px', background: 'rgba(17,24,39,0.9)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
+                                                  <h5 style={{ fontSize: '12.5px', color: 'var(--neon-cyan)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <ShieldCheck size={14} /> AIRLOCK SECURITY SCAN RESULTS
+                                                    {runtimeConfig?.uploads?.zip_password && ` (Zip password '${runtimeConfig.uploads.zip_password}')`}
+                                                  </h5>
+                                                  <div style={{ fontSize: '12px', color: 'var(--neon-emerald)', marginBottom: '6px' }}>
+                                                    [+] Status: <b>CLEAN (NO LIVE MALICIOUS THREAT DETECTED)</b>
+                                                  </div>
+                                                  <div style={{ marginTop: '8px' }}>
+                                                    <a 
+                                                      href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                                      className="btn btn-secondary" 
+                                                      style={{ padding: '5px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                      target="_blank" 
+                                                      rel="noreferrer"
+                                                    >
+                                                      <Download size={13} /> Download ZIP
+                                                    </a>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                  {['pdf', 'docx', ...['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log']].includes(ext) && (
+                                                    <button 
+                                                      type="button" 
+                                                      onClick={() => handleOpenDocPreview(attachment)} 
+                                                      className="btn btn-primary" 
+                                                      style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}
+                                                    >
+                                                      <Eye size={14} /> {isCode ? 'Xem Code' : `Preview (${ext.toUpperCase()})`}
+                                                    </button>
+                                                  )}
+
+                                                  <a 
+                                                    href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                                    className="btn btn-secondary" 
+                                                    style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                  >
+                                                    <Download size={13} /> Download File
+                                                  </a>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(No attachment uploaded for this field)</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Inner (35%): Score panel */}
+                    <div className="split-right">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>Score & Evaluation</h3>
+                      </div>
+
+                      <div className={`evaluation-status-box ${activeSubmission.late_penalty > 0 ? 'late' : ''}`}>
+                        <Clock size={16} style={{ color: activeSubmission.late_penalty > 0 ? 'var(--neon-ruby)' : 'var(--neon-emerald)', flexShrink: 0 }} />
+                        <div style={{ fontSize: '13px' }}>
+                          {activeSubmission.late_penalty > 0 ? (
+                            <span style={{ color: 'var(--neon-ruby)', fontWeight: '600' }}>
+                              Late submission! Penalty deducted: <b>{activeSubmission.late_penalty}%</b>.
+                            </span>
+                          ) : (
+                            <span style={{ color: '#15803d', fontWeight: '600' }}>
+                              On-time submission. No penalty applied.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleSaveGrade} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                        <div className="form-group">
+                          <label className="form-label">Practical Lab Score (Scale of 10.0)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            required 
+                            step="0.1" 
+                            min="0" 
+                            max="10"
+                            value={score}
+                            onChange={(e) => setScore(e.target.value)}
+                          />
+                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            {activeSubmission.late_penalty > 0 && score && (
+                              <span>Final score after late penalty deduction: <b>{(parseFloat(score) * (1 - activeSubmission.late_penalty / 100)).toFixed(2)}</b> / 10</span>
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                          <input 
+                            type="checkbox" 
+                            id="studentReqResubmitCheck"
+                            checked={requestResubmit}
+                            onChange={(e) => setRequestResubmit(e.target.checked)}
+                          />
+                          <label htmlFor="studentReqResubmitCheck" style={{ fontSize: '13.5px', color: 'var(--neon-ruby)', cursor: 'pointer', fontWeight: '500' }}>
+                            Request student to resubmit (Re-submit)
+                          </label>
+                        </div>
+
+                        <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <label className="form-label">Instructor Detailed Feedback</label>
+                          <textarea 
+                            className="form-input form-textarea" 
+                            placeholder="Enter feedback for student..."
+                            style={{ flex: 1, minHeight: '150px' }}
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                          />
+                        </div>
+
+                        <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '46px', marginTop: '16px' }} disabled={actionLoading}>
+                          {actionLoading ? 'SAVING GRADE...' : 'SAVE GRADE'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="cyber-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Please select a lab from the left sidebar to start grading.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -4382,6 +4990,49 @@ export default function InstructorDashboard() {
                     background: '#ffffff'
                   }} 
                 />
+              )}
+
+              {/* CODE / TEXT Preview: Monospace formatted code viewer with line numbers */}
+              {previewDoc.type === 'code' && !previewError && !previewLoading && (
+                <div style={{ padding: '24px', maxWidth: '1000px', width: '100%', margin: '0 auto' }}>
+                  <div style={{ 
+                    background: '#090d16', 
+                    borderRadius: '8px', 
+                    border: '1px solid rgba(0, 242, 254, 0.2)', 
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                  }}>
+                    <div style={{ 
+                      padding: '10px 16px', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span style={{ fontSize: '12.5px', fontFamily: 'var(--font-mono)', color: 'var(--neon-cyan)', fontWeight: '600' }}>
+                        {previewDoc.filename}
+                      </span>
+                      <span className="badge badge-submitted" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                        SOURCE CODE
+                      </span>
+                    </div>
+                    <pre style={{ 
+                      margin: 0, 
+                      padding: '16px 20px', 
+                      fontFamily: 'var(--font-mono)', 
+                      fontSize: '13px', 
+                      lineHeight: '1.6', 
+                      color: '#e2e8f0', 
+                      whiteSpace: 'pre-wrap', 
+                      wordBreak: 'break-all',
+                      overflowX: 'auto',
+                      maxHeight: '65vh'
+                    }}>
+                      <code>{previewDoc.content}</code>
+                    </pre>
+                  </div>
+                </div>
               )}
             </div>
           </div>
