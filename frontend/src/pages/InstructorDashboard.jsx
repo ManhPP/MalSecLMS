@@ -5,7 +5,8 @@ import {
   ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
-  ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle
+  ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
+  Paperclip, Upload
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
@@ -182,6 +183,8 @@ export default function InstructorDashboard() {
   const [penaltyPerHour, setPenaltyPerHour] = useState(0.5)
   const [maxPenalty, setMaxPenalty] = useState(30.0)
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
+  const [labAttachments, setLabAttachments] = useState([]) // File đính kèm tài liệu học liệu bài lab do GV cung cấp
+  const [uploadingLabAttachment, setUploadingLabAttachment] = useState(false)
   const [enableVm, setEnableVm] = useState(true)
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
@@ -840,6 +843,48 @@ export default function InstructorDashboard() {
     setFormFields(updated)
   }
 
+  // Upload attachment file for lab (Instructor)
+  const handleLabAttachmentUpload = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    setUploadingLabAttachment(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const uploadedList = []
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const res = await fetch('/api/labs/upload-attachment', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        })
+
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || `Lỗi khi tải tệp ${file.name}`)
+        uploadedList.push(data)
+      }
+
+      setLabAttachments(prev => [...prev, ...uploadedList])
+      setSuccess(`Đã đính kèm ${uploadedList.length} tài liệu thành công!`)
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploadingLabAttachment(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleRemoveLabAttachment = (indexToRemove) => {
+    setLabAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove))
+  }
+
   const handleSaveLab = async (e) => {
     e.preventDefault()
     if (formFields.length === 0) {
@@ -870,6 +915,7 @@ export default function InstructorDashboard() {
         description: labDesc,
         grade_tag: gradeTag.trim() || 'Default',
         form_fields: formFields,
+        attachment_files: labAttachments,
         deadline: deadlinePayload,
         late_policy: {
           allow_late: allowLate,
@@ -934,6 +980,7 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(0.5)
     setMaxPenalty(30.0)
     setFormFields([])
+    setLabAttachments([])
     setEnableVm(true)
     setIsLinkedClone(true)
     const configuredProtocol = runtimeConfig?.vm?.default_protocol || 'rdp'
@@ -963,6 +1010,7 @@ export default function InstructorDashboard() {
     setVmUsername('')
     setVmPassword('')
     fetchPveTemplates()
+    setLabAttachments([])
     setFormFields([
       { id: 'q_md5', type: 'text', label: 'Malware MD5/SHA256 Hash', required: true },
       { id: 'q_asm', type: 'textarea', label: 'Mechanism Analysis & Assembly Code Excerpt', required: true },
@@ -988,6 +1036,7 @@ export default function InstructorDashboard() {
     setPenaltyPerHour(lab.late_policy?.penalty_per_hour_percent ?? 0.5)
     setMaxPenalty(lab.late_policy?.max_penalty_percent ?? 30.0)
     setFormFields(lab.form_fields || [])
+    setLabAttachments(lab.attachment_files || [])
     setEnableVm(lab.enable_vm !== false)
     setIsLinkedClone(lab.is_linked_clone !== false)
     const configuredProtocol = lab.vm_protocol || runtimeConfig?.vm?.default_protocol || ''
@@ -4248,6 +4297,113 @@ export default function InstructorDashboard() {
                     value={labDesc}
                     onChange={(e) => setLabDesc(e.target.value)}
                   />
+                </div>
+
+                {/* Lab Attachment Files (Tài liệu học liệu / File mẫu đính kèm do giảng viên cung cấp) */}
+                <div className="form-group" style={{ background: 'rgba(242, 112, 36, 0.03)', border: '1px dashed rgba(242, 112, 36, 0.3)', borderRadius: '8px', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--neon-cyan)', fontWeight: '600' }}>
+                      <Paperclip size={15} /> Tài liệu & Tệp đính kèm học liệu bài Lab (Tùy chọn)
+                    </label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sinh viên sẽ xem và tải về khi mở lab</span>
+                  </div>
+
+                  {/* Danh sách file đính kèm hiện tại */}
+                  {labAttachments.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                      {labAttachments.map((fileItem, idx) => (
+                        <div 
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            background: '#ffffff',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            fontSize: '12.5px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                            <FileText size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                            <span style={{ fontWeight: '500', color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                              {fileItem.original_filename || fileItem.filename}
+                            </span>
+                            {fileItem.size_bytes && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                ({(fileItem.size_bytes / 1024).toFixed(1)} KB)
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDocPreview({ filepath: fileItem.filepath, original_filename: fileItem.original_filename || fileItem.filename })}
+                              className="btn btn-secondary"
+                              style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Xem thử tài liệu"
+                            >
+                              <Eye size={12} /> Xem
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLabAttachment(idx)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--neon-ruby)',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                              title="Xóa tệp đính kèm này"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Khu vực chọn file đính kèm */}
+                  <div>
+                    <input 
+                      type="file"
+                      id="labAttachmentInput"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleLabAttachmentUpload}
+                      disabled={uploadingLabAttachment}
+                    />
+                    <label 
+                      htmlFor="labAttachmentInput" 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '8px', 
+                        padding: '10px 16px', 
+                        background: '#ffffff', 
+                        border: '1px solid var(--border-color)', 
+                        borderRadius: '6px', 
+                        cursor: uploadingLabAttachment ? 'not-allowed' : 'pointer',
+                        fontSize: '12.5px',
+                        color: 'var(--text-primary)',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Upload size={14} style={{ color: 'var(--neon-cyan)' }} />
+                      {uploadingLabAttachment 
+                        ? 'Đang quét bảo mật và tải lên...' 
+                        : labAttachments.length > 0 
+                          ? '+ Thêm tài liệu / tệp đính kèm khác (Word, PDF, ZIP, Code, Ảnh)...' 
+                          : 'Đính kèm tệp cho bài Lab (hỗ trợ nhiều file: Word, PDF, ZIP mẫu mã độc, Code, Ảnh)...'}
+                    </label>
+                  </div>
                 </div>
 
                 <div className="form-group">

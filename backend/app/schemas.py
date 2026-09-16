@@ -109,6 +109,7 @@ class LabBase(BaseModel):
     description: Optional[str] = None
     grade_tag: Optional[str] = None
     form_fields: List[Dict[str, Any]] = []
+    attachment_files: Optional[List[Dict[str, Any]]] = []
     deadline: datetime
     late_policy: Dict[str, Any] = {
         "allow_late": True,
@@ -133,6 +134,7 @@ class LabUpdate(BaseModel):
     description: Optional[str] = None
     grade_tag: Optional[str] = None
     form_fields: Optional[List[Dict[str, Any]]] = None
+    attachment_files: Optional[List[Dict[str, Any]]] = None
     deadline: Optional[datetime] = None
     late_policy: Optional[Dict[str, Any]] = None
     individual_extensions: Optional[Dict[str, str]] = None

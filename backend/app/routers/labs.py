@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.database import get_db
@@ -7,6 +7,7 @@ from app.models import Lab, User, Class, AuditLog
 from app.request_utils import get_client_ip
 from app.schemas import LabOut, LabCreate, LabUpdate, LabClone
 from app.security import require_lecturer, require_student, get_current_user, require_any_user
+from app.services.file_service import FileService
 
 router = APIRouter(prefix="/labs", tags=["Labs"])
 
@@ -130,6 +131,7 @@ def create_lab(
         description=lab_data.description,
         grade_tag=lab_data.grade_tag.strip() if lab_data.grade_tag and lab_data.grade_tag.strip() else None,
         form_fields=lab_data.form_fields,
+        attachment_files=lab_data.attachment_files or [],
         deadline=lab_data.deadline,
         late_policy=lab_data.late_policy,
         individual_extensions=lab_data.individual_extensions,
@@ -185,6 +187,8 @@ def update_lab(
         lab.grade_tag = lab_data.grade_tag.strip() or None
     if lab_data.form_fields is not None:
         lab.form_fields = lab_data.form_fields
+    if lab_data.attachment_files is not None:
+        lab.attachment_files = lab_data.attachment_files
     if lab_data.deadline is not None:
         lab.deadline = lab_data.deadline
     if lab_data.late_policy is not None:
@@ -265,7 +269,16 @@ def delete_lab(
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
 
-    # 1. Xóa sạch các file vật lý đính kèm của các bài nộp thuộc lab này
+    # 1. Xóa sạch các file vật lý đính kèm của bài lab này và các bài nộp thuộc lab này
+    lab_attachments = lab.attachment_files or []
+    for att in lab_attachments:
+        filepath = att.get("filepath")
+        if filepath and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+
     submissions = db.query(Submission).filter(Submission.lab_id == lab_id).all()
     for sub in submissions:
         attachments = sub.file_attachments or []
@@ -332,6 +345,7 @@ def clone_lab(
         description=source_lab.description,
         grade_tag=clone_data.grade_tag if clone_data.grade_tag is not None else source_lab.grade_tag,
         form_fields=source_lab.form_fields,
+        attachment_files=source_lab.attachment_files or [],
         deadline=deadline,
         late_policy=source_lab.late_policy,
         individual_extensions={}, # Làm mới danh sách gia hạn cá nhân
@@ -614,6 +628,25 @@ def batch_control_lab_vms(
     db.commit()
 
     return {"success": True, "message": msg, "affected_count": affected_count}
+
+
+@router.post("/upload-attachment")
+def upload_lab_attachment(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_lecturer)
+):
+    """API tải tệp tài liệu đính kèm cho bài lab (Giảng viên/Admin)"""
+    is_image = file.filename.split('.')[-1].lower() in {'png', 'jpg', 'jpeg'}
+    saved_file_info = FileService.save_uploaded_file(file, is_image=is_image)
+    
+    return {
+        "filename": saved_file_info["saved_filename"],
+        "original_filename": saved_file_info["original_filename"],
+        "filepath": saved_file_info["filepath"],
+        "size_bytes": saved_file_info.get("size_bytes", 0),
+        "sha256": saved_file_info.get("sha256", "N/A"),
+        "uploaded_at": saved_file_info.get("uploaded_at")
+    }
 
 
 

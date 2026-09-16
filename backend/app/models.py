@@ -66,6 +66,10 @@ class Lab(Base):
     # [{id: "q1", type: "text"|"textarea"|"select"|"file", label: "...", options: ["...", "..."], required: true}]
     form_fields = Column(JSONB, nullable=False, server_default='[]')
     
+    # attachment_files lưu danh sách tài liệu/file đính kèm của bài lab do giảng viên cung cấp
+    # [{filename: "guideline.pdf", original_filename: "HuongDan.pdf", filepath: "/app/uploads/...", size_bytes: 12345, uploaded_at: "..."}]
+    attachment_files = Column(JSONB, nullable=False, server_default='[]')
+    
     deadline = Column(DateTime, nullable=False)
     
     # late_policy lưu cấu hình phạt nộp muộn

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { 
   BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
-  School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock
+  School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock,
+  Download, Eye, Paperclip, X, RefreshCw
 } from 'lucide-react'
+import { renderAsync } from 'docx-preview'
 import { useAuth } from '../App.jsx'
 
 // --- CYBERPUNK MARKDOWN PARSER UTILITIES ---
@@ -281,6 +283,12 @@ export default function StudentDashboard() {
   const [score, setScore] = useState(null)
   const [comment, setComment] = useState('')
   const [latePenalty, setLatePenalty] = useState(0.0)
+
+  // In-Browser Document Preview Modal State (DOCX, PDF, Code, Images)
+  const [previewDoc, setPreviewDoc] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const docxContainerRef = useRef(null)
   
   // UI indicators
   const [loading, setLoading] = useState(false)
@@ -609,6 +617,85 @@ export default function StudentDashboard() {
     }
   }
 
+
+  // In-Browser Document Preview Handler (DOCX, PDF, Code, Images)
+  const handleOpenDocPreview = async (attachment) => {
+    if (!attachment || !attachment.filepath) return
+    const token = localStorage.getItem('malsec_token')
+    const fileUrl = `/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&token=${token}`
+    const filename = attachment.original_filename || attachment.filename || 'document'
+    const ext = filename.split('.').pop().toLowerCase()
+
+    setPreviewError('')
+    const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext)
+    setPreviewDoc({
+      filename,
+      filepath: attachment.filepath,
+      url: fileUrl,
+      type: ext === 'docx' ? 'docx' : ext === 'pdf' ? 'pdf' : ['png', 'jpg', 'jpeg'].includes(ext) ? 'image' : isCode ? 'code' : 'other',
+      content: ''
+    })
+
+    // If Code / Text, fetch text content directly
+    if (isCode) {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(fileUrl)
+        if (!res.ok) throw new Error('Không thể tải file code từ máy chủ')
+        const textContent = await res.text()
+        setPreviewDoc(prev => prev ? { ...prev, content: textContent } : null)
+      } catch (err) {
+        console.error('Error loading code file:', err)
+        setPreviewError('Lỗi hiển thị file mã nguồn: ' + err.message)
+      } finally {
+        setPreviewLoading(false)
+      }
+      return
+    }
+
+    // If DOCX, fetch arrayBuffer and render via docx-preview
+    if (ext === 'docx') {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(fileUrl)
+        if (!res.ok) throw new Error('Unable to download Word document from server')
+        const arrayBuffer = await res.arrayBuffer()
+        
+        setTimeout(async () => {
+          if (docxContainerRef.current) {
+            docxContainerRef.current.innerHTML = ''
+            await renderAsync(arrayBuffer, docxContainerRef.current, null, {
+              className: 'docx-preview-content',
+              inWrapper: false,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              breakPages: true
+            })
+            const grayEls = docxContainerRef.current.querySelectorAll('*')
+            grayEls.forEach(el => {
+              if (el.style && (el.style.background === 'gray' || el.style.backgroundColor === 'gray')) {
+                el.style.background = '#ffffff'
+              }
+            })
+          }
+          setPreviewLoading(false)
+        }, 150)
+      } catch (err) {
+        console.error('Error rendering DOCX:', err)
+        setPreviewError('Error displaying DOCX document: ' + err.message)
+        setPreviewLoading(false)
+      }
+    }
+  }
+
+  const handleCloseDocPreview = () => {
+    setPreviewDoc(null)
+    setPreviewLoading(false)
+    setPreviewError('')
+    if (docxContainerRef.current) {
+      docxContainerRef.current.innerHTML = ''
+    }
+  }
 
   // Direct manual save draft
   const handleManualSaveDraft = async () => {
@@ -1767,6 +1854,103 @@ export default function StudentDashboard() {
                 </div>
               )}
 
+              {/* Lab Materials / Instructor Attachments (Tài liệu học liệu đính kèm do Giảng viên cung cấp) */}
+              {selectedLab.attachment_files && selectedLab.attachment_files.length > 0 && (
+                <div className="cyber-card" style={{
+                  marginBottom: '20px',
+                  padding: '16px',
+                  background: 'rgba(242, 112, 36, 0.04)',
+                  border: '1px solid rgba(242, 112, 36, 0.3)',
+                  borderRadius: '8px'
+                }}>
+                  <h4 style={{
+                    fontSize: '14.5px',
+                    color: 'var(--neon-cyan)',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '10px',
+                    borderBottom: '1px dashed rgba(242, 112, 36, 0.2)',
+                    paddingBottom: '8px'
+                  }}>
+                    <Paperclip size={16} /> Tài liệu & Tệp đính kèm học liệu bài Lab
+                  </h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '0 0 10px 0' }}>
+                    Tài liệu hướng dẫn, mẫu mã độc hoặc file thực hành do giảng viên cung cấp cho bài lab này:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedLab.attachment_files.map((item, idx) => {
+                      const fname = item.original_filename || item.filename || 'Tài liệu'
+                      const ext = (fname || '').split('.').pop().toLowerCase()
+                      const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext)
+                      const isPdf = ext === 'pdf'
+                      const isDocx = ext === 'docx'
+                      const isImg = ['png', 'jpg', 'jpeg'].includes(ext)
+                      const canPreview = isPdf || isDocx || isCode || isImg
+                      const fileUrl = `/api/submissions/file?path=${encodeURIComponent(item.filepath)}&token=${localStorage.getItem('malsec_token')}`
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            background: '#ffffff',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            fontSize: '13px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                            {isCode ? (
+                              <Code size={16} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                            ) : isImg ? (
+                              <CheckCircle size={16} style={{ color: 'var(--neon-emerald)', flexShrink: 0 }} />
+                            ) : (
+                              <FileText size={16} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                            )}
+                            <span style={{ fontWeight: '500', color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                              {fname}
+                            </span>
+                            {item.size_bytes && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                ({(item.size_bytes / 1024).toFixed(1)} KB)
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '10px' }}>
+                            {canPreview && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDocPreview({ filepath: item.filepath, original_filename: fname })}
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                title="Xem trực tiếp trên trình duyệt"
+                              >
+                                <Eye size={13} /> Xem
+                              </button>
+                            )}
+                            <a
+                              href={`${fileUrl}&download=true`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-primary"
+                              style={{ padding: '4px 10px', fontSize: '11.5px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Tải về máy tính"
+                            >
+                              <Download size={13} /> Tải về
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Lab Report Submission</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Answer questions and attach evidence files below.</p>
@@ -2024,6 +2208,162 @@ export default function StudentDashboard() {
               })}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* DOCUMENT PREVIEW MODAL (PDF / DOCX / CODE / IMAGE) */}
+      {previewDoc && (
+        <div className="modal-overlay" style={{ zIndex: 9999, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: '1100px', 
+              width: '95vw', 
+              height: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column',
+              background: '#ffffff',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div className="modal-header" style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="badge" style={{ background: previewDoc.type === 'pdf' ? '#ef4444' : previewDoc.type === 'docx' ? '#2563eb' : '#059669', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
+                  {previewDoc.type.toUpperCase()}
+                </span>
+                <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, fontWeight: '600', maxWidth: '600px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={previewDoc.filename}>
+                  {previewDoc.filename}
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <a 
+                  href={`${previewDoc.url}&download=true`} 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                  target="_blank" 
+                  rel="noreferrer"
+                >
+                  <Download size={13} /> Tải bản gốc
+                </a>
+                <button 
+                  type="button" 
+                  onClick={handleCloseDocPreview} 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 10px', fontSize: '13px', display: 'flex', alignItems: 'center' }}
+                  title="Đóng cửa sổ xem trước"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div style={{ flex: 1, position: 'relative', overflowY: 'auto', background: previewDoc.type === 'pdf' ? '#525659' : '#ffffff', display: 'flex', flexDirection: 'column' }}>
+              {previewLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '40px', color: 'var(--text-primary)' }}>
+                  <RefreshCw size={28} className="spin-slow" style={{ color: 'var(--neon-cyan)' }} />
+                  <p style={{ fontSize: '14px', margin: 0 }}>Đang nạp và hiển thị tài liệu...</p>
+                </div>
+              )}
+
+              {previewError && (
+                <div style={{ margin: '24px auto', maxWidth: '600px', padding: '20px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
+                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Không thể hiển thị trực tiếp tài liệu</p>
+                  <p style={{ fontSize: '13px', marginBottom: '16px' }}>{previewError}</p>
+                  <a 
+                    href={`${previewDoc.url}&download=true`} 
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '13px' }}
+                    target="_blank" 
+                    rel="noreferrer"
+                  >
+                    <Download size={14} style={{ marginRight: '6px' }} /> Tải về để xem
+                  </a>
+                </div>
+              )}
+
+              {/* PDF Preview: Native Browser Viewer via iframe */}
+              {previewDoc.type === 'pdf' && !previewError && (
+                <iframe
+                  src={previewDoc.url}
+                  title={previewDoc.filename}
+                  style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
+                />
+              )}
+
+              {/* DOCX Preview: Rendered HTML Container via docx-preview */}
+              {previewDoc.type === 'docx' && (
+                <div 
+                  ref={docxContainerRef} 
+                  style={{ 
+                    display: previewLoading ? 'none' : 'block',
+                    padding: '24px', 
+                    margin: '0 auto', 
+                    maxWidth: '900px', 
+                    width: '100%',
+                    background: '#ffffff'
+                  }} 
+                />
+              )}
+
+              {/* IMAGE Preview */}
+              {previewDoc.type === 'image' && !previewError && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px', height: '100%', overflow: 'auto', background: '#090d16' }}>
+                  <img 
+                    src={previewDoc.url} 
+                    alt={previewDoc.filename} 
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} 
+                  />
+                </div>
+              )}
+
+              {/* CODE / TEXT Preview */}
+              {previewDoc.type === 'code' && !previewError && !previewLoading && (
+                <div style={{ padding: '24px', maxWidth: '1000px', width: '100%', margin: '0 auto' }}>
+                  <div style={{ 
+                    background: '#090d16', 
+                    borderRadius: '8px', 
+                    border: '1px solid rgba(0, 242, 254, 0.2)', 
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                  }}>
+                    <div style={{ 
+                      padding: '10px 16px', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span style={{ fontSize: '12.5px', fontFamily: 'var(--font-mono)', color: 'var(--neon-cyan)', fontWeight: '600' }}>
+                        {previewDoc.filename}
+                      </span>
+                      <span className="badge badge-submitted" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                        SOURCE CODE
+                      </span>
+                    </div>
+                    <pre style={{ 
+                      margin: 0, 
+                      padding: '16px 20px', 
+                      fontFamily: 'var(--font-mono)', 
+                      fontSize: '13px', 
+                      lineHeight: '1.6', 
+                      color: '#e2e8f0', 
+                      whiteSpace: 'pre-wrap', 
+                      wordBreak: 'break-all',
+                      overflowX: 'auto',
+                      maxHeight: '65vh'
+                    }}>
+                      <code>{previewDoc.content}</code>
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

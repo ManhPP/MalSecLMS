@@ -24,6 +24,7 @@ for i in range(5):
         with engine.connect() as conn:
             from sqlalchemy import text
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS grade_tag VARCHAR;"))
+            conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS attachment_files JSONB DEFAULT '[]'::jsonb;"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS semester VARCHAR DEFAULT 'unknown';"))
             conn.execute(text("UPDATE classes SET semester = 'unknown' WHERE semester IS NULL;"))
             # Auto-seed semesters table from classes table if empty

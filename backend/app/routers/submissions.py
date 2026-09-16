@@ -668,13 +668,26 @@ def get_submission_file(
         
     # 3. Phân quyền truy cập tệp
     if current_user.role == "student":
-        student_subs = db.query(Submission).filter(Submission.student_id == current_user.id).all()
+        student_class_ids = [c.id for c in current_user.classes]
         allowed = False
-        for sub in student_subs:
-            attachments = sub.file_attachments or []
-            if any(att.get("filepath") == path for att in attachments):
+        
+        # Kiểm tra xem file có thuộc tài liệu bài lab của các lớp sinh viên tham gia không
+        student_labs = db.query(Lab).filter(Lab.class_id.in_(student_class_ids), Lab.is_active == True).all()
+        for l in student_labs:
+            lab_files = l.attachment_files or []
+            if any(att.get("filepath") == path for att in lab_files):
                 allowed = True
                 break
+
+        if not allowed:
+            # Kiểm tra xem file có thuộc bài nộp của chính sinh viên này không
+            student_subs = db.query(Submission).filter(Submission.student_id == current_user.id).all()
+            for sub in student_subs:
+                attachments = sub.file_attachments or []
+                if any(att.get("filepath") == path for att in attachments):
+                    allowed = True
+                    break
+                    
         if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -683,18 +696,30 @@ def get_submission_file(
     elif current_user.role == "lecturer":
         lecturer_class_ids = [c.id for c in current_user.classes]
         allowed = False
-        all_subs = db.query(Submission).all()
-        for sub in all_subs:
-            attachments = sub.file_attachments or []
-            if any(att.get("filepath") == path for att in attachments):
-                lab = db.query(Lab).filter(Lab.id == sub.lab_id).first()
-                if lab and lab.class_id in lecturer_class_ids:
-                    allowed = True
-                    break
+
+        # Kiểm tra xem file có thuộc tài liệu bài lab của các lớp giảng viên quản lý không
+        lecturer_labs = db.query(Lab).filter(Lab.class_id.in_(lecturer_class_ids)).all()
+        for l in lecturer_labs:
+            lab_files = l.attachment_files or []
+            if any(att.get("filepath") == path for att in lab_files):
+                allowed = True
+                break
+
+        if not allowed:
+            # Kiểm tra xem file có thuộc bài nộp của lớp giảng viên quản lý không
+            all_subs = db.query(Submission).all()
+            for sub in all_subs:
+                attachments = sub.file_attachments or []
+                if any(att.get("filepath") == path for att in attachments):
+                    lab = db.query(Lab).filter(Lab.id == sub.lab_id).first()
+                    if lab and lab.class_id in lecturer_class_ids:
+                        allowed = True
+                        break
+                        
         if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Bạn không quản lý lớp học chứa bài nộp có tệp tin này"
+                detail="Bạn không quản lý lớp học chứa bài lab hoặc bài nộp có tệp tin này"
             )
 
     # 4. Phục vụ tệp
