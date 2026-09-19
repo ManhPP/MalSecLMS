@@ -40,10 +40,10 @@ export class ErrorBoundary extends React.Component {
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
           }}>
             <h2 style={{ color: '#ff0844', fontSize: '20px', marginBottom: '12px', fontWeight: '600' }}>
-              ⚠️ Đã xảy ra lỗi giao diện
+              ⚠️ UI Rendering Error Encountered
             </h2>
             <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
-              Hệ thống vừa gặp sự cố hiển thị. Bạn có thể bấm nút bên dưới để tải lại trang hoặc quay về trang chủ.
+              The system encountered a display error. You can click the buttons below to reload the page or return to the homepage.
             </p>
             {this.state.error && (
               <div style={{
@@ -74,7 +74,7 @@ export class ErrorBoundary extends React.Component {
                   cursor: 'pointer'
                 }}
               >
-                Tải lại trang
+                Reload Page
               </button>
               <button
                 onClick={() => { window.location.href = '/'; }}
@@ -88,7 +88,7 @@ export class ErrorBoundary extends React.Component {
                   cursor: 'pointer'
                 }}
               >
-                Về trang chủ
+                Return to Home
               </button>
             </div>
           </div>

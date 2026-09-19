@@ -641,12 +641,12 @@ export default function StudentDashboard() {
       setPreviewLoading(true)
       try {
         const res = await fetch(fileUrl)
-        if (!res.ok) throw new Error('Không thể tải file code từ máy chủ')
+        if (!res.ok) throw new Error('Unable to download source code file from server')
         const textContent = await res.text()
         setPreviewDoc(prev => prev ? { ...prev, content: textContent } : null)
       } catch (err) {
         console.error('Error loading code file:', err)
-        setPreviewError('Lỗi hiển thị file mã nguồn: ' + err.message)
+        setPreviewError('Source code preview error: ' + err.message)
       } finally {
         setPreviewLoading(false)
       }
@@ -735,11 +735,11 @@ export default function StudentDashboard() {
         })
 
         const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || `Lỗi khi tải tệp ${file.name}`)
+        if (!res.ok) throw new Error(data.detail || `Upload failed for file ${file.name}`)
         lastUploadedName = data.filename
       }
 
-      setSuccess(files.length > 1 ? `Đã tải lên ${files.length} tệp an toàn!` : 'Tải file lên thành công và an toàn!')
+      setSuccess(files.length > 1 ? `Successfully uploaded ${files.length} files!` : 'File uploaded successfully and verified!')
       setTimeout(() => setSuccess(''), 5000)
 
       // Refresh submission detail & attachments
@@ -764,7 +764,7 @@ export default function StudentDashboard() {
 
   // Delete attachment handler
   const handleDeleteAttachment = async (fieldId, filepath) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa tệp đính kèm này không?')) return
+    if (!window.confirm('Are you sure you want to remove this attachment?')) return
     setError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
@@ -775,9 +775,9 @@ export default function StudentDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Lỗi khi xóa tệp đính kèm')
+      if (!res.ok) throw new Error(data.detail || 'Error deleting attachment')
 
-      setSuccess('Đã xóa tệp đính kèm!')
+      setSuccess('Attachment removed successfully!')
       setTimeout(() => setSuccess(''), 3000)
 
       // Refresh attachments list
@@ -1855,6 +1855,7 @@ export default function StudentDashboard() {
               )}
 
               {/* Lab Materials / Instructor Attachments (Tài liệu học liệu đính kèm do Giảng viên cung cấp) */}
+              {/* Lab Materials / Instructor Attachments */}
               {selectedLab.attachment_files && selectedLab.attachment_files.length > 0 && (
                 <div className="cyber-card" style={{
                   marginBottom: '20px',
@@ -1874,14 +1875,14 @@ export default function StudentDashboard() {
                     borderBottom: '1px dashed rgba(242, 112, 36, 0.2)',
                     paddingBottom: '8px'
                   }}>
-                    <Paperclip size={16} /> Tài liệu & Tệp đính kèm học liệu bài Lab
+                    <Paperclip size={16} /> Lab Reference Materials & Attachments
                   </h4>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '0 0 10px 0' }}>
-                    Tài liệu hướng dẫn, mẫu mã độc hoặc file thực hành do giảng viên cung cấp cho bài lab này:
+                    Reference documents, malware samples, or practice files provided by the instructor for this lab:
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {selectedLab.attachment_files.map((item, idx) => {
-                      const fname = item.original_filename || item.filename || 'Tài liệu'
+                      const fname = item.original_filename || item.filename || 'Document'
                       const ext = (fname || '').split('.').pop().toLowerCase()
                       const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext)
                       const isPdf = ext === 'pdf'
@@ -1928,9 +1929,9 @@ export default function StudentDashboard() {
                                 onClick={() => handleOpenDocPreview({ filepath: item.filepath, original_filename: fname })}
                                 className="btn btn-secondary"
                                 style={{ padding: '4px 8px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Xem trực tiếp trên trình duyệt"
+                                title="Preview directly in browser"
                               >
-                                <Eye size={13} /> Xem
+                                <Eye size={13} /> View
                               </button>
                             )}
                             <a
@@ -1939,9 +1940,9 @@ export default function StudentDashboard() {
                               rel="noreferrer"
                               className="btn btn-primary"
                               style={{ padding: '4px 10px', fontSize: '11.5px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Tải về máy tính"
+                              title="Download to computer"
                             >
-                              <Download size={13} /> Tải về
+                              <Download size={13} /> Download
                             </a>
                           </div>
                         </div>
@@ -2159,7 +2160,7 @@ export default function StudentDashboard() {
                                         alignItems: 'center',
                                         marginLeft: '10px'
                                       }}
-                                      title="Xóa tệp này"
+                                      title="Delete this file"
                                     >
                                       <Trash2 size={16} />
                                     </button>
@@ -2185,21 +2186,21 @@ export default function StudentDashboard() {
                               <Upload size={20} className="upload-icon" style={{ margin: '0 auto 6px' }} />
                               <p style={{ fontSize: '13px', fontWeight: '500' }}>
                                 {uploadingField === field.id 
-                                  ? 'ĐANG QUÉT BẢO MẬT & TẢI LÊN...' 
+                                  ? 'SECURITY SCANNING & UPLOADING...' 
                                   : fieldAttachments.length > 0 
-                                    ? '+ Thêm tệp khác (hỗ trợ nhiều file, file code, ảnh, docx, pdf, zip)...'
-                                    : 'Chọn tệp đính kèm (hỗ trợ nhiều file, file code, ảnh, docx, pdf, zip)'}
+                                    ? '+ Attach another file (supports multiple files, code files, images, docx, pdf, zip)...'
+                                    : 'Select attachment files (supports multiple files, code files, images, docx, pdf, zip)'}
                               </p>
                               {runtimeConfig?.uploads && (
                                 <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  Định dạng cho phép: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
-                                  {runtimeConfig.uploads.zip_password ? ` Mật khẩu ZIP nếu nén mẫu: '${runtimeConfig.uploads.zip_password}'.` : ''}
+                                  Allowed formats: {runtimeConfig.uploads.allowed_extensions.join(', ')}.
+                                  {runtimeConfig.uploads.zip_password ? ` ZIP password if compressing samples: '${runtimeConfig.uploads.zip_password}'.` : ''}
                                 </p>
                               )}
                             </label>
                           </div>
                         ) : fieldAttachments.length === 0 ? (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Trống)</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>(Empty)</span>
                         ) : null}
                       </div>
                     )}
@@ -2247,14 +2248,14 @@ export default function StudentDashboard() {
                   target="_blank" 
                   rel="noreferrer"
                 >
-                  <Download size={13} /> Tải bản gốc
+                  <Download size={13} /> Download Original
                 </a>
                 <button 
                   type="button" 
                   onClick={handleCloseDocPreview} 
                   className="btn btn-secondary" 
                   style={{ padding: '6px 10px', fontSize: '13px', display: 'flex', alignItems: 'center' }}
-                  title="Đóng cửa sổ xem trước"
+                  title="Close document preview"
                 >
                   <X size={16} />
                 </button>
@@ -2266,13 +2267,13 @@ export default function StudentDashboard() {
               {previewLoading && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '40px', color: 'var(--text-primary)' }}>
                   <RefreshCw size={28} className="spin-slow" style={{ color: 'var(--neon-cyan)' }} />
-                  <p style={{ fontSize: '14px', margin: 0 }}>Đang nạp và hiển thị tài liệu...</p>
+                  <p style={{ fontSize: '14px', margin: 0 }}>Loading document preview...</p>
                 </div>
               )}
 
               {previewError && (
                 <div style={{ margin: '24px auto', maxWidth: '600px', padding: '20px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
-                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Không thể hiển thị trực tiếp tài liệu</p>
+                  <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Unable to display document directly</p>
                   <p style={{ fontSize: '13px', marginBottom: '16px' }}>{previewError}</p>
                   <a 
                     href={`${previewDoc.url}&download=true`} 
@@ -2281,7 +2282,7 @@ export default function StudentDashboard() {
                     target="_blank" 
                     rel="noreferrer"
                   >
-                    <Download size={14} style={{ marginRight: '6px' }} /> Tải về để xem
+                    <Download size={14} style={{ marginRight: '6px' }} /> Download to view
                   </a>
                 </div>
               )}

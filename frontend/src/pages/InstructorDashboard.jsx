@@ -661,12 +661,12 @@ export default function InstructorDashboard() {
       setPreviewLoading(true)
       try {
         const res = await fetch(fileUrl)
-        if (!res.ok) throw new Error('Không thể tải file code từ máy chủ')
+        if (!res.ok) throw new Error('Unable to download source code file from server')
         const textContent = await res.text()
         setPreviewDoc(prev => prev ? { ...prev, content: textContent } : null)
       } catch (err) {
         console.error('Error loading code file:', err)
-        setPreviewError('Lỗi hiển thị file mã nguồn: ' + err.message)
+        setPreviewError('Source code preview error: ' + err.message)
       } finally {
         setPreviewLoading(false)
       }
@@ -735,7 +735,7 @@ export default function InstructorDashboard() {
     e.preventDefault()
     if (!activeSubmission) return
     if (score === '' || score === null || isNaN(parseFloat(score))) {
-      setError('Vui lòng nhập điểm (từ 0 đến 10)!')
+      setError('Please enter a grade score (from 0 to 10)!')
       return
     }
     setActionLoading(true)
@@ -896,12 +896,12 @@ export default function InstructorDashboard() {
         })
 
         const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || `Lỗi khi tải tệp ${file.name}`)
+        if (!res.ok) throw new Error(data.detail || `Upload failed for file ${file.name}`)
         uploadedList.push(data)
       }
 
       setLabAttachments(prev => [...prev, ...uploadedList])
-      setSuccess(`Đã đính kèm ${uploadedList.length} tài liệu thành công!`)
+      setSuccess(`Successfully attached ${uploadedList.length} reference file(s)!`)
       setTimeout(() => setSuccess(''), 4000)
     } catch (err) {
       setError(err.message)
@@ -4323,16 +4323,16 @@ export default function InstructorDashboard() {
                   />
                 </div>
 
-                {/* Lab Attachment Files (Tài liệu học liệu / File mẫu đính kèm do giảng viên cung cấp) */}
+                {/* Lab Attachment Files */}
                 <div className="form-group" style={{ background: 'rgba(242, 112, 36, 0.03)', border: '1px dashed rgba(242, 112, 36, 0.3)', borderRadius: '8px', padding: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--neon-cyan)', fontWeight: '600' }}>
-                      <Paperclip size={15} /> Tài liệu & Tệp đính kèm học liệu bài Lab (Tùy chọn)
+                      <Paperclip size={15} /> Lab Reference Materials & Attachment Files (Optional)
                     </label>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sinh viên sẽ xem và tải về khi mở lab</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Students will view and download these when opening the lab</span>
                   </div>
 
-                  {/* Danh sách file đính kèm hiện tại */}
+                  {/* Current attachments list */}
                   {labAttachments.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
                       {labAttachments.map((fileItem, idx) => (
@@ -4366,9 +4366,9 @@ export default function InstructorDashboard() {
                               onClick={() => handleOpenDocPreview({ filepath: fileItem.filepath, original_filename: fileItem.original_filename || fileItem.filename })}
                               className="btn btn-secondary"
                               style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Xem thử tài liệu"
+                              title="Preview document"
                             >
-                              <Eye size={12} /> Xem
+                              <Eye size={12} /> View
                             </button>
                             <button
                               type="button"
@@ -4382,7 +4382,7 @@ export default function InstructorDashboard() {
                                 display: 'flex',
                                 alignItems: 'center'
                               }}
-                              title="Xóa tệp đính kèm này"
+                              title="Remove this attachment"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -4392,7 +4392,7 @@ export default function InstructorDashboard() {
                     </div>
                   )}
 
-                  {/* Khu vực chọn file đính kèm */}
+                  {/* File upload input zone */}
                   <div>
                     <input 
                       type="file"
@@ -4422,10 +4422,10 @@ export default function InstructorDashboard() {
                     >
                       <Upload size={14} style={{ color: 'var(--neon-cyan)' }} />
                       {uploadingLabAttachment 
-                        ? 'Đang quét bảo mật và tải lên...' 
+                        ? 'Scanning for security & uploading...' 
                         : labAttachments.length > 0 
-                          ? '+ Thêm tài liệu / tệp đính kèm khác (Word, PDF, ZIP, Code, Ảnh)...' 
-                          : 'Đính kèm tệp cho bài Lab (hỗ trợ nhiều file: Word, PDF, ZIP mẫu mã độc, Code, Ảnh)...'}
+                          ? '+ Attach additional reference file (Word, PDF, ZIP, Code, Image)...' 
+                          : 'Attach files for Lab assignment (supports multiple files: Word, PDF, malware samples in ZIP, Code, Images)...'}
                     </label>
                   </div>
                 </div>
@@ -4449,7 +4449,7 @@ export default function InstructorDashboard() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Deadline (Giờ VN GMT+7)</label>
+                    <label className="form-label">Deadline (Local Time GMT+7)</label>
                     <input 
                       type="datetime-local" 
                       className="form-input" 
@@ -4747,7 +4747,7 @@ export default function InstructorDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">New Extended Deadline (Giờ VN GMT+7)</label>
+                  <label className="form-label">New Extended Deadline (Local Time GMT+7)</label>
                   <input 
                     type="datetime-local" 
                     className="form-input" 

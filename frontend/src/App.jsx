@@ -535,7 +535,7 @@ export default function App() {
           if (!res.ok) {
             // Token expired or invalid
             console.warn('Session token expired or invalid, logging out')
-            sessionStorage.setItem('malsec_session_expired', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+            sessionStorage.setItem('malsec_session_expired', 'Your session has expired. Please sign in again.')
             clearGuacamoleAuth()
             localStorage.removeItem('malsec_user')
             localStorage.removeItem('malsec_token')
@@ -565,7 +565,7 @@ export default function App() {
         const token = localStorage.getItem('malsec_token')
         if (token) {
           console.warn('[AUTH] 401 received from', url, '- terminating expired session')
-          sessionStorage.setItem('malsec_session_expired', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+          sessionStorage.setItem('malsec_session_expired', 'Your session has expired. Please sign in again.')
           clearGuacamoleAuth()
           localStorage.removeItem('malsec_user')
           localStorage.removeItem('malsec_token')

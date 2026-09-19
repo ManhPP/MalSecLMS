@@ -1231,7 +1231,7 @@ export default function AdminDashboard() {
             <div>
               <h3 style={{ fontSize: '18px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar size={20} style={{ color: 'var(--neon-cyan)' }} />
-                Academic Semesters (Quản lý Kỳ học)
+                Academic Semesters
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                 Create and manage academic semesters. The active semester is marked across the platform to group classes and filter submissions.
