@@ -166,7 +166,7 @@ export default function InstructorDashboard() {
   // Speed Grader active submission
   const [activeSubmission, setActiveSubmission] = useState(null)
   const [activeSubIndex, setActiveSubIndex] = useState(-1)
-  const [score, setScore] = useState(5.0)
+  const [score, setScore] = useState('')
   const [comment, setComment] = useState('')
   const [requestResubmit, setRequestResubmit] = useState(false)
 
@@ -179,13 +179,13 @@ export default function InstructorDashboard() {
   const [gradeTag, setGradeTag] = useState('') // Tag đầu điểm (ví dụ: Đầu điểm 1, Chuyên cần, Thực hành 1, Giữa kỳ)
   const [classId, setClassId] = useState('')
   const [deadline, setDeadline] = useState('')
-  const [allowLate, setAllowLate] = useState(true)
-  const [penaltyPerHour, setPenaltyPerHour] = useState(0.5)
-  const [maxPenalty, setMaxPenalty] = useState(30.0)
+  const [allowLate, setAllowLate] = useState(false)
+  const [penaltyPerHour, setPenaltyPerHour] = useState('')
+  const [maxPenalty, setMaxPenalty] = useState('')
   const [formFields, setFormFields] = useState([]) // Dynamic questions builder
   const [labAttachments, setLabAttachments] = useState([]) // File đính kèm tài liệu học liệu bài lab do GV cung cấp
   const [uploadingLabAttachment, setUploadingLabAttachment] = useState(false)
-  const [enableVm, setEnableVm] = useState(true)
+  const [enableVm, setEnableVm] = useState(false)
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
   const [isLinkedClone, setIsLinkedClone] = useState(true)
@@ -590,7 +590,9 @@ export default function InstructorDashboard() {
         if (targetPair && targetPair.submission) {
           setActiveSubmission(targetPair.submission)
           setSelectedLab(targetPair.lab)
-          setScore(targetPair.submission.score !== null ? targetPair.submission.score : 10.0)
+          const isSubmitted = targetPair.submission.status === 'submitted' || targetPair.submission.status === 'graded' || Object.keys(targetPair.submission.answers || {}).length > 0 || (targetPair.submission.file_attachments || []).length > 0
+          const initialScore = targetPair.submission.score !== null ? targetPair.submission.score : (isSubmitted ? '' : 0)
+          setScore(initialScore)
           setComment(targetPair.submission.comment || '')
           setRequestResubmit(targetPair.submission.status === 're_submit_requested')
         }
@@ -608,7 +610,9 @@ export default function InstructorDashboard() {
     setSelectedLab(pair.lab)
     setActiveSubmission(pair.submission)
     if (pair.submission) {
-      setScore(pair.submission.score !== null ? pair.submission.score : 10.0)
+      const isSubmitted = pair.submission.status === 'submitted' || pair.submission.status === 'graded' || Object.keys(pair.submission.answers || {}).length > 0 || (pair.submission.file_attachments || []).length > 0
+      const initialScore = pair.submission.score !== null ? pair.submission.score : (isSubmitted ? '' : 0)
+      setScore(initialScore)
       setComment(pair.submission.comment || '')
       setRequestResubmit(pair.submission.status === 're_submit_requested')
     }
@@ -699,7 +703,9 @@ export default function InstructorDashboard() {
   const handleSelectGrading = (sub, index) => {
     setActiveSubmission(sub)
     setActiveSubIndex(index)
-    setScore(sub.score !== null ? sub.score : 10.0)
+    const isSubmitted = sub.status === 'submitted' || sub.status === 'graded' || Object.keys(sub.answers || {}).length > 0 || (sub.file_attachments || []).length > 0
+    const initialScore = sub.score !== null ? sub.score : (isSubmitted ? '' : 0)
+    setScore(initialScore)
     setComment(sub.comment || '')
     setRequestResubmit(sub.status === 're_submit_requested')
   }
@@ -708,6 +714,10 @@ export default function InstructorDashboard() {
   const handleSaveGrade = async (e) => {
     e.preventDefault()
     if (!activeSubmission) return
+    if (score === '' || score === null || isNaN(parseFloat(score))) {
+      setError('Vui lòng nhập điểm (từ 0 đến 10)!')
+      return
+    }
     setActionLoading(true)
     setError('')
     setSuccess('')
@@ -919,8 +929,8 @@ export default function InstructorDashboard() {
         deadline: deadlinePayload,
         late_policy: {
           allow_late: allowLate,
-          penalty_per_hour_percent: parseFloat(penaltyPerHour),
-          max_penalty_percent: parseFloat(maxPenalty)
+          penalty_per_hour_percent: allowLate && penaltyPerHour !== '' ? parseFloat(penaltyPerHour) : 0,
+          max_penalty_percent: allowLate && maxPenalty !== '' ? parseFloat(maxPenalty) : 0
         },
         class_id: parseInt(classId),
         is_active: true,
@@ -976,17 +986,16 @@ export default function InstructorDashboard() {
     setLabDesc('')
     setGradeTag('')
     setDeadline('')
-    setAllowLate(true)
-    setPenaltyPerHour(0.5)
-    setMaxPenalty(30.0)
+    setAllowLate(false)
+    setPenaltyPerHour('')
+    setMaxPenalty('')
     setFormFields([])
     setLabAttachments([])
-    setEnableVm(true)
+    setEnableVm(false)
     setIsLinkedClone(true)
-    const configuredProtocol = runtimeConfig?.vm?.default_protocol || 'rdp'
-    setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || 1001)
-    setVmProtocol(configuredProtocol)
-    setVmPort(runtimeConfig?.vm?.protocol_ports?.[configuredProtocol] || 3389)
+    setTemplateVmid('')
+    setVmProtocol('')
+    setVmPort('')
     setVmUsername('')
     setVmPassword('')
   }
@@ -998,24 +1007,19 @@ export default function InstructorDashboard() {
     setGradeTag('')
     setClassId(classes[0]?.id || '')
     setDeadline('')
-    setAllowLate(true)
-    setPenaltyPerHour(0.5)
-    setMaxPenalty(30.0)
-    setEnableVm(true)
+    setAllowLate(false)
+    setPenaltyPerHour('')
+    setMaxPenalty('')
+    setEnableVm(false)
     setIsLinkedClone(true)
-    const defaultProtocol = runtimeConfig?.vm?.default_protocol || ''
-    setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || pveTemplates[0]?.vmid || '')
-    setVmProtocol(defaultProtocol)
-    setVmPort(runtimeConfig?.vm?.protocol_ports?.[defaultProtocol] || '')
+    setTemplateVmid('')
+    setVmProtocol('')
+    setVmPort('')
     setVmUsername('')
     setVmPassword('')
     fetchPveTemplates()
     setLabAttachments([])
-    setFormFields([
-      { id: 'q_md5', type: 'text', label: 'Malware MD5/SHA256 Hash', required: true },
-      { id: 'q_asm', type: 'textarea', label: 'Mechanism Analysis & Assembly Code Excerpt', required: true },
-      { id: 'q_shot', type: 'file', label: 'Wireshark/Debugger Analysis Screenshot', required: true }
-    ])
+    setFormFields([])
     setShowLabModal(true)
   }
 
