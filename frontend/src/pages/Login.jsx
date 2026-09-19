@@ -12,6 +12,15 @@ export default function Login() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
 
+  // Check for session expired banner
+  useEffect(() => {
+    const expiredMsg = sessionStorage.getItem('malsec_session_expired')
+    if (expiredMsg) {
+      setError(expiredMsg)
+      sessionStorage.removeItem('malsec_session_expired')
+    }
+  }, [])
+
   // Auto-redirect if already authenticated (prevent back button landing on login page)
   useEffect(() => {
     if (user) {

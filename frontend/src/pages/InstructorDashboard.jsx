@@ -567,6 +567,26 @@ export default function InstructorDashboard() {
 
     const token = localStorage.getItem('malsec_token')
     try {
+      // Ensure class has full student list populated (Gradebook/Analytics use list view which lacks users)
+      let resolvedClass = cls
+      if (!cls.users || cls.users.length === 0) {
+        try {
+          const clsRes = await fetch(`/api/classes/${cls.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (clsRes.ok) {
+            resolvedClass = await clsRes.json()
+            setStudentGradingClass(resolvedClass)
+            const foundStudent = (resolvedClass.users || []).find(u => u.id === student.id)
+            if (foundStudent) {
+              setStudentGradingStudent(foundStudent)
+            }
+          }
+        } catch (clsErr) {
+          console.error('Failed to load class student list', clsErr)
+        }
+      }
+
       const res = await fetch(`/api/submissions/class/${cls.id}/student/${student.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -822,9 +842,9 @@ export default function InstructorDashboard() {
     const newField = {
       id: `q_${Date.now()}`,
       type,
-      label: type === 'text' ? 'MD5/SHA256 Hash' : type === 'textarea' ? 'Mechanism Analysis / Assembly' : type === 'select' ? 'Malware Classification (Single Choice)' : type === 'checkbox' ? 'Malicious Behaviors (Multiple Choice)' : 'Wireshark Screenshot',
+      label: '',
       required: true,
-      options: type === 'select' || type === 'checkbox' ? ['Ransomware (Encryption)', 'Trojan/Spyware (Information Stealer)', 'Worm (Network Propagation)', 'Rootkit (Stealth Persistence)'] : []
+      options: type === 'select' || type === 'checkbox' ? [''] : []
     }
     setFormFields([...formFields, newField])
   }
@@ -849,7 +869,7 @@ export default function InstructorDashboard() {
 
   const addFieldOption = (fieldIndex) => {
     const updated = [...formFields]
-    updated[fieldIndex].options.push('New option')
+    updated[fieldIndex].options.push('')
     setFormFields(updated)
   }
 
