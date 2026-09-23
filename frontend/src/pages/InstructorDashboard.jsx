@@ -214,6 +214,9 @@ export default function InstructorDashboard() {
         const data = await res.json()
         const templates = Array.isArray(data) ? data : []
         setPveTemplates(templates)
+        if (templates.length > 0) {
+          setTemplateVmid(current => current || String(templates[0].vmid))
+        }
       }
     } catch (err) {
       console.error("Failed to fetch PVE templates:", err)
@@ -306,6 +309,7 @@ export default function InstructorDashboard() {
   const [actionLoading, setActionLoading] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [modalError, setModalError] = useState('')
 
   // Fetch Class Analytics (supports optional labId filter)
   const fetchClassAnalytics = async (classId, labId = '') => {
@@ -809,6 +813,7 @@ export default function InstructorDashboard() {
     if (!selectedLab || !extensionStudent || !extensionDeadline) return
     setActionLoading(true)
     setError('')
+    setModalError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
@@ -831,7 +836,7 @@ export default function InstructorDashboard() {
       setExtensionStudent('')
       setExtensionDeadline('')
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
     } finally {
       setActionLoading(false)
     }
@@ -918,23 +923,24 @@ export default function InstructorDashboard() {
   const handleSaveLab = async (e) => {
     e.preventDefault()
     if (formFields.length === 0) {
-      setError('Please create at least one question field for the lab report!')
+      setModalError('Please create at least one question field for the lab report!')
       return
     }
     if (enableVm && !editingLab && !vmPassword) {
-      setError('Please enter a password for the VM connection!')
+      setModalError('Please enter a password for the VM connection!')
       return
     }
     if (enableVm && (!templateVmid || !vmProtocol || !vmPort)) {
-      setError('VM template, protocol, or port configuration is incomplete!')
+      setModalError('VM template, protocol, or port configuration is incomplete!')
       return
     }
     if (enableVm && vmProtocol !== 'vnc' && !vmUsername.trim()) {
-      setError('Please enter a username for RDP/SSH connection!')
+      setModalError('Please enter a username for RDP/SSH connection!')
       return
     }
     setActionLoading(true)
     setError('')
+    setModalError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
@@ -994,7 +1000,7 @@ export default function InstructorDashboard() {
       fetchData()
       resetLabForm()
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
     } finally {
       setActionLoading(false)
     }
@@ -1032,11 +1038,17 @@ export default function InstructorDashboard() {
     setMaxPenalty('')
     setEnableVm(false)
     setIsLinkedClone(true)
-    setTemplateVmid('')
-    setVmProtocol('')
-    setVmPort('')
+
+    const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
+    const defaultTpl = runtimeConfig?.vm?.default_template_vmid || (pveTemplates[0]?.vmid ? String(pveTemplates[0].vmid) : '')
+    const defaultPort = runtimeConfig?.vm?.protocol_ports?.[defaultProto] || 3389
+
+    setTemplateVmid(defaultTpl)
+    setVmProtocol(defaultProto)
+    setVmPort(defaultPort)
     setVmUsername('')
     setVmPassword('')
+    setModalError('')
     fetchPveTemplates()
     setLabAttachments([])
     setFormFields([])
@@ -1069,6 +1081,7 @@ export default function InstructorDashboard() {
     setVmPort(lab.vm_port || runtimeConfig?.vm?.protocol_ports?.[configuredProtocol] || '')
     setVmUsername(lab.vm_username || '')
     setVmPassword('')
+    setModalError('')
 
     fetchPveTemplates()
     setShowLabModal(true)
@@ -1111,6 +1124,7 @@ export default function InstructorDashboard() {
     } else {
       setCloneNewDeadline('')
     }
+    setModalError('')
     setShowCloneModal(true)
   }
 
@@ -1118,12 +1132,13 @@ export default function InstructorDashboard() {
     e.preventDefault()
     if (!cloneSourceLab) return
     if (!cloneTargetClassId) {
-      setError('Please select a target class')
+      setModalError('Please select a target class')
       return
     }
 
     setActionLoading(true)
     setError('')
+    setModalError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
@@ -1154,7 +1169,7 @@ export default function InstructorDashboard() {
       setCloneSourceLab(null)
       fetchData()
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
     } finally {
       setActionLoading(false)
     }
@@ -1180,6 +1195,7 @@ export default function InstructorDashboard() {
 
   const openVmManagerModal = async (lab) => {
     setSelectedLabForVm(lab)
+    setModalError('')
     setShowVmManagerModal(true)
     fetchLabVms(lab.id)
   }
@@ -1189,6 +1205,7 @@ export default function InstructorDashboard() {
     if (action === 'purge' && !confirm(`Are you sure you want to permanently purge VM ${vmid} for student ${studentName}?\nThis VM will be 100% purged from the Proxmox cluster so the student can re-clone a clean VM.`)) return
 
     setVmActionLoading(true)
+    setModalError('')
     const token = localStorage.getItem('malsec_token')
     try {
       const res = await fetch(`/api/labs/${labId}/vms/${vmid}/control`, {
@@ -1204,7 +1221,7 @@ export default function InstructorDashboard() {
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
       setVmActionLoading(false)
     }
   }
@@ -1218,6 +1235,7 @@ export default function InstructorDashboard() {
     if (!confirm(confirmMsg)) return
 
     setVmActionLoading(true)
+    setModalError('')
     const token = localStorage.getItem('malsec_token')
     try {
       const res = await fetch(`/api/labs/${labId}/vms/batch-control`, {
@@ -1233,7 +1251,7 @@ export default function InstructorDashboard() {
       setSuccess(data.message)
       fetchLabVms(labId)
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
       setVmActionLoading(false)
     }
   }
@@ -1258,6 +1276,7 @@ export default function InstructorDashboard() {
     if (!cls) return
     setEditClassSemester(cls.semester || 'unknown')
     setEditClassDesc(cls.description || '')
+    setModalError('')
     setEditClassModal(true)
   }
 
@@ -1266,6 +1285,7 @@ export default function InstructorDashboard() {
     if (!selectedClass) return
     setActionLoading(true)
     setError('')
+    setModalError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
 
@@ -1290,7 +1310,7 @@ export default function InstructorDashboard() {
       fetchClassDetails(selectedClass.id)
       fetchData()
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
     } finally {
       setActionLoading(false)
     }
@@ -1397,6 +1417,7 @@ export default function InstructorDashboard() {
     setStudentEmail(student.email || '')
     setStudentIsActive(student.is_active)
     setStudentPassword('')
+    setModalError('')
     setShowStudentModal(true)
   }
 
@@ -1406,6 +1427,7 @@ export default function InstructorDashboard() {
     if (!editingStudent) return
     setActionLoading(true)
     setError('')
+    setModalError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
     try {
@@ -1436,7 +1458,7 @@ export default function InstructorDashboard() {
       }
       fetchData()
     } catch (err) {
-      setError(err.message)
+      setModalError(err.message)
     } finally {
       setActionLoading(false)
     }
@@ -1609,7 +1631,7 @@ export default function InstructorDashboard() {
         </div>
       )}
 
-      {error && (
+      {error && !showLabModal && !showCloneModal && !showExtensionModal && !showStudentModal && !showVmManagerModal && !editClassModal && (
         <div className="plag-alert-banner" style={{ marginBottom: '20px' }}>
           <ShieldAlert size={18} />
           <span>{error}</span>
@@ -3425,7 +3447,7 @@ export default function InstructorDashboard() {
             </div>
 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-              <button onClick={() => setShowExtensionModal(true)} className="btn btn-secondary">
+              <button onClick={() => { setModalError(''); setShowExtensionModal(true); }} className="btn btn-secondary">
                 <Calendar size={15} /> Individual Extension
               </button>
               <button onClick={handleExportCSV} className="btn btn-secondary">
@@ -4283,6 +4305,12 @@ export default function InstructorDashboard() {
             <form onSubmit={handleSaveLab}>
 
               <div className="modal-body">
+                {modalError && (
+                  <div className="plag-alert-banner" style={{ marginBottom: '16px' }}>
+                    <ShieldAlert size={18} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
                     <label className="form-label">Lab Title</label>
@@ -4475,7 +4503,18 @@ export default function InstructorDashboard() {
                         type="checkbox" 
                         id="enableVmCheck" 
                         checked={enableVm}
-                        onChange={(e) => setEnableVm(e.target.checked)}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setEnableVm(checked)
+                          if (checked) {
+                            const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
+                            if (!vmProtocol) setVmProtocol(defaultProto)
+                            if (!vmPort) setVmPort(runtimeConfig?.vm?.protocol_ports?.[defaultProto] || 3389)
+                            if (!templateVmid) {
+                              setTemplateVmid(runtimeConfig?.vm?.default_template_vmid || (pveTemplates[0]?.vmid ? String(pveTemplates[0].vmid) : ''))
+                            }
+                          }
+                        }}
                       />
                       <label htmlFor="enableVmCheck" style={{ fontSize: '13.5px', cursor: 'pointer', color: 'var(--neon-cyan)', fontWeight: '500' }}>Enable Virtual Machine (VM)</label>
                     </div>
@@ -4727,6 +4766,12 @@ export default function InstructorDashboard() {
             </div>
             <form onSubmit={handleSaveExtension}>
               <div className="modal-body">
+                {modalError && (
+                  <div className="plag-alert-banner" style={{ marginBottom: '16px' }}>
+                    <ShieldAlert size={18} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                   This setting allows the selected student to have an individual submission deadline (Special Extension) without affecting the overall class schedule.
                 </p>
@@ -4778,6 +4823,12 @@ export default function InstructorDashboard() {
             </div>
             <form onSubmit={handleSaveStudentEdit}>
               <div className="modal-body">
+                {modalError && (
+                  <div className="plag-alert-banner" style={{ marginBottom: '16px' }}>
+                    <ShieldAlert size={18} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">Username (Student ID) - Fixed</label>
                   <input 
@@ -4859,6 +4910,12 @@ export default function InstructorDashboard() {
               <button onClick={() => setShowVmManagerModal(false)} className="btn btn-secondary" style={{ padding: '4px 8px' }}>X</button>
             </div>
             <div className="modal-body">
+              {modalError && (
+                <div className="plag-alert-banner" style={{ marginBottom: '16px' }}>
+                  <ShieldAlert size={18} />
+                  <span>{modalError}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
                   List of Proxmox VE virtual machines allocated to students for this lab.
@@ -4997,6 +5054,12 @@ export default function InstructorDashboard() {
             
             <form onSubmit={handleCloneLabSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {modalError && (
+                  <div className="plag-alert-banner" style={{ margin: 0 }}>
+                    <ShieldAlert size={18} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '13px' }}>
                   <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '12px' }}>Source Lab:</div>
                   <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '15px' }}>{cloneSourceLab.title}</div>
@@ -5233,6 +5296,12 @@ export default function InstructorDashboard() {
             
             <form onSubmit={handleSaveClassSettings}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {modalError && (
+                  <div className="plag-alert-banner" style={{ margin: 0 }}>
+                    <ShieldAlert size={18} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <div style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Managing Class:</span>
                   <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--neon-cyan)' }}>{selectedClass.name}</div>
