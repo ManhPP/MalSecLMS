@@ -472,6 +472,7 @@ def generate_guacamole_auth_json_url(
             "enable-desktop-composition": str(
                 settings.GUAC_RDP_ENABLE_DESKTOP_COMPOSITION
             ).lower(),
+            "disable-paste": "false",
         })
     elif protocol == "ssh":
         parameters.update({
