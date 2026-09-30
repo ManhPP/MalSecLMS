@@ -1305,7 +1305,16 @@ export default function StudentDashboard() {
                     const isCollapsed = !!collapsedSemesterGroups[semester]
 
                     return (
-                      <div key={semester} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div 
+                        key={semester} 
+                        style={{ 
+                          border: '1px solid #cbd5e1', 
+                          borderRadius: '16px', 
+                          overflow: 'hidden', 
+                          background: '#ffffff',
+                          boxShadow: '0 4px 12px -2px rgba(0, 0, 0, 0.05)'
+                        }}
+                      >
                         {/* Semester Header */}
                         <div 
                           onClick={() => toggleSemesterGroup(semester)}
@@ -1313,28 +1322,26 @@ export default function StudentDashboard() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '12px 18px',
-                            background: '#ffffff',
-                            borderRadius: '10px',
-                            border: '1px solid #cbd5e1',
+                            padding: '14px 20px',
+                            background: 'linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%)',
                             cursor: 'pointer',
                             userSelect: 'none',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                            borderBottom: isCollapsed ? 'none' : '1px solid #e2e8f0'
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {isCollapsed ? <ChevronRight size={18} style={{ color: 'var(--neon-cyan)' }} /> : <ChevronDown size={18} style={{ color: 'var(--neon-cyan)' }} />}
                             <Calendar size={18} style={{ color: 'var(--neon-cyan)' }} />
-                            <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                              {semester === 'unknown' ? 'Academic Term: Unknown' : `Academic Semester: ${semester}`}
+                            <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>
+                              {semester === 'unknown' ? 'Unknown Academic Semester' : `Semester: ${semester}`}
                             </span>
                             {semester === studentCurrentSemester && (
-                              <span className="badge badge-submitted" style={{ fontSize: '10.5px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                              <span className="badge badge-submitted" style={{ fontSize: '10.5px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 'bold' }}>
                                 Current Active Term
                               </span>
                             )}
                           </div>
-                          <span className="badge badge-draft" style={{ fontSize: '11.5px', fontWeight: '600' }}>
+                          <span className="badge badge-draft" style={{ fontSize: '12px', fontWeight: '600' }}>
                             {semClasses.length} {semClasses.length === 1 ? 'class' : 'classes'}
                           </span>
                         </div>
@@ -1342,9 +1349,11 @@ export default function StudentDashboard() {
                         {/* Grid of Class Cards */}
                         {!isCollapsed && (
                           <div style={{
+                            padding: '24px',
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                            gap: '20px'
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
+                            gap: '24px',
+                            background: '#f8fafc'
                           }}>
                             {semClasses.map((cls, idx) => {
                               const theme = bannerThemes[cls.id % bannerThemes.length]
@@ -1515,14 +1524,15 @@ export default function StudentDashboard() {
 
                                   {/* Card Footer: Quick Actions */}
                                   <div style={{ 
-                                    padding: '10px 20px', 
+                                    padding: '10px 14px', 
                                     background: '#ffffff', 
                                     borderTop: '1px solid #f1f5f9',
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    gap: '6px'
                                   }}>
-                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', flex: 1 }}>
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -1532,7 +1542,7 @@ export default function StudentDashboard() {
                                           setSearchParams({ classId: cls.id, tab: 'labs' })
                                         }}
                                         className="btn btn-secondary"
-                                        style={{ padding: '4px 10px', fontSize: '11.5px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}
+                                        style={{ padding: '4px 8px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
                                       >
                                         <BookOpen size={12} style={{ marginRight: '3px' }} /> Labs ({totalClassLabs})
                                       </button>
@@ -1545,15 +1555,14 @@ export default function StudentDashboard() {
                                           setSearchParams({ classId: cls.id, tab: 'scores' })
                                         }}
                                         className="btn btn-secondary"
-                                        style={{ padding: '4px 10px', fontSize: '11.5px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}
+                                        style={{ padding: '4px 8px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
                                       >
                                         <Award size={12} style={{ marginRight: '3px' }} /> Scores ({classGradedLabs.length})
                                       </button>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: theme.accent, fontWeight: '600', fontSize: '12px' }}>
-                                      <span>Enter</span>
-                                      <ArrowRight size={13} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: theme.accent, fontWeight: '600', fontSize: '12px', flexShrink: 0 }}>
+                                      <ArrowRight size={14} />
                                     </div>
                                   </div>
                                 </div>

@@ -2184,14 +2184,15 @@ export default function InstructorDashboard() {
 
                                   {/* Card Footer: Quick Actions */}
                                   <div style={{ 
-                                    padding: '10px 20px', 
+                                    padding: '10px 14px', 
                                     background: '#ffffff', 
                                     borderTop: '1px solid #f1f5f9',
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    gap: '6px'
                                   }}>
-                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', flex: 1 }}>
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -2201,7 +2202,7 @@ export default function InstructorDashboard() {
                                           setSearchParams({ classId: cls.id, tab: 'students' })
                                         }}
                                         className="btn btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: '11.5px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}
+                                        style={{ padding: '4px 7px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
                                         title="Manage students in this class"
                                       >
                                         <Users size={12} style={{ marginRight: '3px' }} /> Students
@@ -2216,7 +2217,7 @@ export default function InstructorDashboard() {
                                           setSearchParams({ view: 'analytics', classId: cls.id })
                                         }}
                                         className="btn btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: '11.5px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}
+                                        style={{ padding: '4px 7px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
                                         title="View Analytics for this class"
                                       >
                                         <BarChart3 size={12} style={{ marginRight: '3px' }} /> Analytics
@@ -2231,16 +2232,15 @@ export default function InstructorDashboard() {
                                           setSearchParams({ view: 'gradebook', classId: cls.id })
                                         }}
                                         className="btn btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: '11.5px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}
+                                        style={{ padding: '4px 7px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
                                         title="View Gradebook for this class"
                                       >
                                         <FileSpreadsheet size={12} style={{ marginRight: '3px' }} /> Gradebook
                                       </button>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: theme.accent, fontWeight: '600', fontSize: '12px' }}>
-                                      <span>Enter</span>
-                                      <ArrowRight size={13} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: theme.accent, fontWeight: '600', fontSize: '12px', flexShrink: 0 }}>
+                                      <ArrowRight size={14} />
                                     </div>
                                   </div>
                                 </div>
