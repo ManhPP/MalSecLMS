@@ -1878,7 +1878,7 @@ export default function AdminDashboard() {
                         <th>Practical Lab Title</th>
                         <th>Assigned Class</th>
                         <th>Lecturer / Author</th>
-                        <th>Hạn nộp (Deadline)</th>
+                        <th>Submission Deadline</th>
                         <th>Lab Status</th>
                         <th style={{ textAlign: 'right' }}>Manage VMs</th>
                       </tr>
@@ -2034,7 +2034,7 @@ export default function AdminDashboard() {
                                 <th>Practical Lab Title</th>
                                 <th>Assigned Class</th>
                                 <th>Lecturer / Author</th>
-                                <th>Hạn nộp (Deadline)</th>
+                                <th>Submission Deadline</th>
                                 <th>Lab Status</th>
                                 <th style={{ textAlign: 'right' }}>Manage VMs</th>
                               </tr>
@@ -2181,13 +2181,13 @@ export default function AdminDashboard() {
                 className={`btn ${vmToolSpace === 'common' ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                🌐 Không gian Chung (Drive D: Global)
+                🌐 Common Space (Drive D: Global)
               </button>
 
               <div style={{ height: '24px', width: '1px', background: '#cbd5e1', margin: '0 4px' }} />
 
               <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                👨‍🏫 Không gian Giảng viên:
+                👨‍🏫 Lecturer Private Spaces:
               </span>
 
               <select
@@ -2209,7 +2209,7 @@ export default function AdminDashboard() {
                   }
                 }}
               >
-                <option value="">-- Chọn Giảng viên để mở kho riêng --</option>
+                <option value="">-- Select Lecturer to Open Private Workspace --</option>
                 {users.filter(u => u.role === 'lecturer' || u.role === 'admin').map(u => (
                   <option key={u.id} value={`lecturer_${u.username}`}>
                     {u.full_name} (@{u.username})
@@ -2219,7 +2219,7 @@ export default function AdminDashboard() {
 
               {vmToolSpace.startsWith('lecturer_') && (
                 <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', padding: '4px 8px' }}>
-                  🔒 Không gian riêng của Giảng viên: <b>@{vmToolSpace.replace('lecturer_', '')}</b>
+                  🔒 Lecturer Private Space: <b>@{vmToolSpace.replace('lecturer_', '')}</b>
                 </span>
               )}
             </div>
@@ -2237,8 +2237,8 @@ export default function AdminDashboard() {
               </h4>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5, marginBottom: '16px' }}>
                 {vmToolSpace === 'common' 
-                  ? 'File tải lên kho chung sẽ tự động đóng gói vào tools-1001.iso cho toàn bộ máy ảo.'
-                  : `File tải lên không gian riêng của giảng viên @${vmToolSpace.replace('lecturer_', '')}. Giảng viên có thể chọn file này khi tạo bài Lab.`}
+                  ? 'Files uploaded to the common storage will be automatically packaged into tools-1001.iso for all student VMs.'
+                  : `Files uploaded to lecturer @${vmToolSpace.replace('lecturer_', '')}'s private space. The lecturer can select these files when creating lab exercises.`}
               </p>
               <form onSubmit={handleUploadVmTool}>
                 <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -2365,7 +2365,7 @@ export default function AdminDashboard() {
             <table className="cyber-table">
               <thead>
                 <tr>
-                  <th>Thời gian (Timestamp)</th>
+                  <th>Timestamp</th>
                   <th>Actor / User</th>
                   <th>Action</th>
                   <th>IP Address</th>

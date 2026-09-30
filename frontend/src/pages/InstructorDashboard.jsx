@@ -6326,7 +6326,7 @@ export default function InstructorDashboard() {
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Academic Semester (Kỳ học)</span>
+                    <span>Academic Semester</span>
                     <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Default: "unknown"</span>
                   </label>
                   <select 
