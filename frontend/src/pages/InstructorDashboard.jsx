@@ -6,7 +6,7 @@ import {
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
   ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
-  Paperclip, Upload
+  Paperclip, Upload, HardDrive
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
