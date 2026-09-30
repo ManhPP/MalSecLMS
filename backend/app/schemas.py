@@ -124,6 +124,8 @@ class LabBase(BaseModel):
     vm_protocol: Literal["rdp", "vnc", "ssh"] = settings.DEFAULT_VM_PROTOCOL
     vm_port: int = Field(default=settings.DEFAULT_VM_PORT, ge=1, le=65535)
     vm_username: Optional[str] = None
+    vm_drive_mode: Optional[Literal["default", "custom"]] = "default"
+    vm_drive_files: Optional[List[str]] = []
     class_id: int
 
 class LabCreate(LabBase):
@@ -146,6 +148,8 @@ class LabUpdate(BaseModel):
     vm_port: Optional[int] = Field(default=None, ge=1, le=65535)
     vm_username: Optional[str] = None
     vm_password: Optional[str] = Field(default=None, min_length=1)
+    vm_drive_mode: Optional[Literal["default", "custom"]] = None
+    vm_drive_files: Optional[List[str]] = None
     class_id: Optional[int] = None
 
 class LabClone(BaseModel):

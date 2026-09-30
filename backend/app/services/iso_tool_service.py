@@ -129,8 +129,51 @@ class IsoToolService:
         IsoToolService.rebuild_iso()
 
     @staticmethod
-    def sync_to_running_vms() -> Dict[str, Any]:
-        """Remount ổ đĩa ide2 cho các máy ảo sinh viên đang chạy để nhận ngay file mới"""
+    def get_lab_iso_basename(lab_id: int) -> str:
+        """Trả về tên file ISO riêng của bài Lab"""
+        return f"lab-{lab_id}.iso"
+
+    @staticmethod
+    def build_lab_iso(lab_id: int, selected_files: List[str]) -> str:
+        """
+        Tạo file ISO riêng cho bài lab lab-{lab_id}.iso chứa các file được chỉ định từ PVE_TOOLS_DIR.
+        Sử dụng symlinks / hardlinks tạm trên Proxmox để tiết kiệm dung lượng và biên dịch tức thì.
+        """
+        lab_iso_dir = f"/var/lib/vz/template/iso/labs/lab-{lab_id}"
+        lab_iso_path = f"/var/lib/vz/template/iso/labs/{IsoToolService.get_lab_iso_basename(lab_id)}"
+        
+        # Lọc danh sách an toàn
+        safe_files = []
+        for f in selected_files:
+            sf = re.sub(r'[^A-Za-z0-9_.-]', '', f)
+            if sf and "/" not in sf and ".." not in sf:
+                safe_files.append(sf)
+
+        if not safe_files:
+            # Nếu không có file nào được chọn, dọn dẹp thư mục và file ISO nếu có
+            cleanup_cmd = f"rm -rf '{lab_iso_dir}' '{lab_iso_path}'"
+            IsoToolService._run_pve_ssh_command(cleanup_cmd)
+            return ""
+
+        # Tạo thư mục tạm trên Proxmox, tạo symlink tới các file nguồn trong tools-content, rồi chạy genisoimage
+        file_links = " ".join([f"ln -sf '{PVE_TOOLS_DIR}/{f}' '{lab_iso_dir}/{f}';" for f in safe_files])
+        build_cmd = (
+            f"mkdir -p '{lab_iso_dir}' && "
+            f"rm -rf '{lab_iso_dir}'/* && "
+            f"{file_links} "
+            f"genisoimage -J -r -follow-links -V 'LAB_{lab_id}_TOOLS' -o '{lab_iso_path}' '{lab_iso_dir}'"
+        )
+        logger.info(f"[ISO_SERVICE] Building custom ISO for Lab {lab_id} with {len(safe_files)} files...")
+        IsoToolService._run_pve_ssh_command(build_cmd)
+        logger.info(f"[ISO_SERVICE] Custom ISO for Lab {lab_id} built successfully at {lab_iso_path}")
+        return lab_iso_path
+
+    @staticmethod
+    def sync_to_running_vms(lab_id: int | None = None, iso_name: str | None = None) -> Dict[str, Any]:
+        """
+        Remount ổ đĩa ide2 cho các máy ảo sinh viên đang chạy để nhận ngay file mới.
+        Nếu truyền lab_id, chỉ remount cho máy ảo thuộc bài lab đó với ISO chỉ định.
+        """
         proxmox = get_pve_client()
         if not proxmox:
             raise RuntimeError("Cannot connect to Proxmox API")
@@ -138,19 +181,24 @@ class IsoToolService:
         node = settings.PVE_NODE
         resources = proxmox.cluster.resources.get(type="vm")
         synced_count = 0
+        target_iso = iso_name or os.path.basename(PVE_ISO_PATH)
 
         for vm in resources:
             vmid = int(vm.get("vmid", -1))
             status = vm.get("status")
+            name = vm.get("name", "")
             # Chỉ áp dụng cho máy ảo sinh viên trong dải STUDENT_VMID
             if settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX and status == "running":
+                # Nếu lọc theo lab_id
+                if lab_id is not None and not name.startswith(f"lab-{lab_id}-"):
+                    continue
                 try:
                     # Remount ide2
                     proxmox.nodes(node).qemu(vmid).config.post(
-                        ide2=f"local:iso/{os.path.basename(PVE_ISO_PATH)},media=cdrom"
+                        ide2=f"local:iso/{target_iso},media=cdrom"
                     )
                     synced_count += 1
                 except Exception as e:
                     logger.warning(f"[ISO_SERVICE] Failed to remount CD-ROM on VM {vmid}: {e}")
 
-        return {"synced_count": synced_count, "message": f"Synced Drive D: to {synced_count} active VMs"}
+        return {"synced_count": synced_count, "message": f"Synced Drive D: ({target_iso}) to {synced_count} active VMs"}

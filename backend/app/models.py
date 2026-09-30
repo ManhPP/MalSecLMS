@@ -90,7 +90,12 @@ class Lab(Base):
     )
     vm_port = Column(Integer, default=lambda: settings.DEFAULT_VM_PORT, nullable=False)
     vm_username = Column(String, nullable=True)
-    vm_password = Column(String, nullable=True)
+    # VM Drive D: Content Configuration
+    # vm_drive_mode: 'default' (uses tools-1001.iso) or 'custom' (uses lab-{id}.iso)
+    vm_drive_mode = Column(String, default='default', server_default='default', nullable=False)
+    # vm_drive_files: list of selected filenames or metadata e.g. ['static.zip', 'malware1.exe']
+    vm_drive_files = Column(JSONB, nullable=False, server_default='[]')
+
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)

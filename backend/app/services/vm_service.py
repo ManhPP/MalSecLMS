@@ -284,6 +284,7 @@ def provision_student_vm(
     protocol: str,
     port: int,
     is_linked_clone: bool = True,
+    iso_filename: str | None = None,
 ) -> Tuple[str, int]:
     """
     1. Kiểm tra xem sinh viên đã có máy ảo cho bài lab này chưa.
@@ -347,10 +348,24 @@ def provision_student_vm(
                 clone_duration = time.perf_counter() - clone_start
                 logger.info(f"[VM_ORCHESTRATION] CLONE_COMPLETE | User: {student_username} | Template: {template_vmid} -> VMID: {new_vmid} | Mode: {clone_type_str} | Duration: {clone_duration:.1f}s")
 
-                proxmox.nodes(node).qemu(new_vmid).config.post(
-                    net0=_net0_with_unique_mac(source_net0),
-                    agent="enabled=1",
-                )
+                post_config = {
+                    "net0": _net0_with_unique_mac(source_net0),
+                    "agent": "enabled=1",
+                }
+                if iso_filename:
+                    post_config["ide2"] = f"local:iso/{iso_filename},media=cdrom"
+
+                proxmox.nodes(node).qemu(new_vmid).config.post(**post_config)
+            else:
+                # Nếu VM đã tồn tại, kiểm tra và đảm bảo mount đúng ISO của bài lab nếu được chỉ định
+                if iso_filename:
+                    try:
+                        current_cfg = proxmox.nodes(node).qemu(new_vmid).config.get()
+                        expected_ide2 = f"local:iso/{iso_filename},media=cdrom"
+                        if current_cfg.get("ide2") != expected_ide2:
+                            proxmox.nodes(node).qemu(new_vmid).config.post(ide2=expected_ide2)
+                    except Exception as e:
+                        logger.warning(f"[VM_ORCHESTRATION] Failed to update ide2 on existing VM {new_vmid}: {e}")
 
             # 1-VM-per-student limit: Tự động tắt bất kỳ VM nào khác đang chạy của sinh viên này
             _stop_other_running_student_vms(proxmox, node, resources, student_username, new_vmid)

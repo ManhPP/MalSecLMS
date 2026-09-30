@@ -194,7 +194,11 @@ export default function InstructorDashboard() {
   const [vmUsername, setVmUsername] = useState('')
   const [vmPassword, setVmPassword] = useState('')
   const [pveTemplates, setPveTemplates] = useState([])
-
+  // Per-Lab VM Drive D: Content Configuration
+  const [vmDriveMode, setVmDriveMode] = useState('default') // 'default' | 'custom'
+  const [vmDriveFiles, setVmDriveFiles] = useState([])
+  const [availableVmTools, setAvailableVmTools] = useState([])
+  const [loadingVmTools, setLoadingVmTools] = useState(false)
 
   // VM Manager Modal State
   const [showVmManagerModal, setShowVmManagerModal] = useState(false)
@@ -220,6 +224,24 @@ export default function InstructorDashboard() {
       }
     } catch (err) {
       console.error("Failed to fetch PVE templates:", err)
+    }
+  }
+
+  const fetchAvailableVmTools = async () => {
+    const token = localStorage.getItem('malsec_token')
+    setLoadingVmTools(true)
+    try {
+      const res = await fetch('/api/labs/vm-tools/available-files', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAvailableVmTools(Array.isArray(data) ? data : [])
+      }
+    } catch (err) {
+      console.error("Failed to fetch available VM tools:", err)
+    } finally {
+      setLoadingVmTools(false)
     }
   }
 
@@ -965,7 +987,9 @@ export default function InstructorDashboard() {
         },
         class_id: parseInt(classId),
         is_active: true,
-        enable_vm: enableVm
+        enable_vm: enableVm,
+        vm_drive_mode: vmDriveMode,
+        vm_drive_files: vmDriveMode === 'custom' ? vmDriveFiles : []
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
@@ -1053,8 +1077,11 @@ export default function InstructorDashboard() {
     setVmPort(defaultPort)
     setVmUsername('')
     setVmPassword('')
+    setVmDriveMode('default')
+    setVmDriveFiles([])
     setModalError('')
     fetchPveTemplates()
+    fetchAvailableVmTools()
     setLabAttachments([])
     setFormFields([])
     setShowLabModal(true)
@@ -1080,6 +1107,8 @@ export default function InstructorDashboard() {
     setLabAttachments(lab.attachment_files || [])
     setEnableVm(lab.enable_vm !== false)
     setIsLinkedClone(lab.is_linked_clone !== false)
+    setVmDriveMode(lab.vm_drive_mode || 'default')
+    setVmDriveFiles(Array.isArray(lab.vm_drive_files) ? lab.vm_drive_files : [])
     const configuredProtocol = lab.vm_protocol || runtimeConfig?.vm?.default_protocol || ''
     setTemplateVmid(lab.template_vmid || runtimeConfig?.vm?.default_template_vmid || '')
     setVmProtocol(configuredProtocol)
@@ -1089,6 +1118,7 @@ export default function InstructorDashboard() {
     setModalError('')
 
     fetchPveTemplates()
+    fetchAvailableVmTools()
     setShowLabModal(true)
   }
 
@@ -4678,6 +4708,125 @@ export default function InstructorDashboard() {
                         />
                       </div>
                     </div>
+                    {/* VM SHARED DRIVE D: CONTENT CONFIGURATION */}
+                    <div style={{ marginTop: '16px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <label className="form-label" style={{ color: 'var(--text-primary)', fontSize: '13px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                        <HardDrive size={15} style={{ color: 'var(--neon-cyan)' }} />
+                        VM Shared Drive (Drive D:\) Content
+                      </label>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+                        Choose whether this lab uses the platform default tools drive (<code>tools-1001.iso</code>) or a custom set of files isolated specifically for this lab.
+                      </p>
+
+                      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: vmDriveMode === 'default' ? 'var(--neon-cyan)' : 'var(--text-secondary)', fontSize: '13px', fontWeight: vmDriveMode === 'default' ? '600' : 'normal' }}>
+                          <input
+                            type="radio"
+                            name="vmDriveModeRadio"
+                            checked={vmDriveMode === 'default'}
+                            onChange={() => setVmDriveMode('default')}
+                            style={{ accentColor: 'var(--neon-cyan)' }}
+                          />
+                          <span><b>Default Tools Drive</b> (All tools in <code>tools-1001.iso</code>)</span>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: vmDriveMode === 'custom' ? 'var(--neon-amber)' : 'var(--text-secondary)', fontSize: '13px', fontWeight: vmDriveMode === 'custom' ? '600' : 'normal' }}>
+                          <input
+                            type="radio"
+                            name="vmDriveModeRadio"
+                            checked={vmDriveMode === 'custom'}
+                            onChange={() => setVmDriveMode('custom')}
+                            style={{ accentColor: 'var(--neon-amber)' }}
+                          />
+                          <span><b>Custom Drive for this Lab</b> (Designated files only)</span>
+                        </label>
+                      </div>
+
+                      {vmDriveMode === 'custom' && (
+                        <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                              Select files to mount on Drive D:\ ({vmDriveFiles.length} selected):
+                            </span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setVmDriveFiles(availableVmTools.map(t => t.filename))}
+                                className="btn btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '11px' }}
+                              >
+                                Select All
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setVmDriveFiles([])}
+                                className="btn btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '11px' }}
+                              >
+                                Clear All
+                              </button>
+                            </div>
+                          </div>
+
+                          {loadingVmTools ? (
+                            <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                              Loading available tools from Proxmox...
+                            </div>
+                          ) : availableVmTools.length === 0 ? (
+                            <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                              No files found in tools repository. Admin can upload tools in Admin &rarr; VM Shared Tools.
+                            </div>
+                          ) : (
+                            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {availableVmTools.map(tool => {
+                                const isChecked = vmDriveFiles.includes(tool.filename)
+                                const sizeMb = (tool.size_bytes / (1024 * 1024)).toFixed(2)
+                                return (
+                                  <label
+                                    key={tool.filename}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '6px 10px',
+                                      borderRadius: '4px',
+                                      background: isChecked ? 'rgba(0, 242, 254, 0.06)' : '#ffffff',
+                                      border: isChecked ? '1px solid rgba(0, 242, 254, 0.3)' : '1px solid #e2e8f0',
+                                      cursor: 'pointer',
+                                      fontSize: '12.5px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setVmDriveFiles([...vmDriveFiles, tool.filename])
+                                          } else {
+                                            setVmDriveFiles(vmDriveFiles.filter(f => f !== tool.filename))
+                                          }
+                                        }}
+                                      />
+                                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '500', color: 'var(--text-primary)' }}>
+                                        {tool.filename}
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                      {tool.size_bytes > 1024 * 1024 ? `${sizeMb} MB` : `${(tool.size_bytes / 1024).toFixed(1)} KB`}
+                                    </span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          )}
+                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', marginBottom: 0 }}>
+                            💡 A custom ISO will be compiled automatically and mounted exclusively to student VMs taking this lab.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                     {runtimeConfig?.vm && (
                       <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px', marginBottom: 0 }}>
                         📌 Template VMs are in VMID range <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Student VMs are in range <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.

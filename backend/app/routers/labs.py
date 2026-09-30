@@ -161,11 +161,21 @@ def create_lab(
         vm_protocol=lab_data.vm_protocol,
         vm_port=lab_data.vm_port,
         vm_username=vm_username,
-        vm_password=vm_password
+        vm_password=vm_password,
+        vm_drive_mode=lab_data.vm_drive_mode or "default",
+        vm_drive_files=lab_data.vm_drive_files or [],
     )
     db.add(new_lab)
     db.commit()
     db.refresh(new_lab)
+
+    # Nếu lab chọn custom drive files, tự động biên dịch lab-{id}.iso trên Proxmox
+    if new_lab.vm_drive_mode == "custom" and new_lab.vm_drive_files:
+        try:
+            from app.services.iso_tool_service import IsoToolService
+            IsoToolService.build_lab_iso(new_lab.id, new_lab.vm_drive_files)
+        except Exception as e:
+            logger.error(f"[LABS] Failed to build custom lab ISO for Lab {new_lab.id}: {e}")
     
     # Ghi log hoạt động
     log = AuditLog(
@@ -238,6 +248,11 @@ def update_lab(
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần mới này")
         lab.class_id = lab_data.class_id
 
+    if lab_data.vm_drive_mode is not None:
+        lab.vm_drive_mode = lab_data.vm_drive_mode
+    if lab_data.vm_drive_files is not None:
+        lab.vm_drive_files = lab_data.vm_drive_files
+
     if lab.enable_vm:
         if lab.template_vmid is None or not (
             settings.TEMPLATE_VMID_MIN
@@ -264,6 +279,17 @@ def update_lab(
         
     db.commit()
     db.refresh(lab)
+
+    # Nếu lab chọn custom drive files, tự động biên dịch lại lab-{id}.iso và sync tới các VM đang chạy của bài lab
+    if lab.vm_drive_mode == "custom" and lab.vm_drive_files:
+        try:
+            from app.services.iso_tool_service import IsoToolService
+            IsoToolService.build_lab_iso(lab.id, lab.vm_drive_files)
+            iso_name = f"labs/{IsoToolService.get_lab_iso_basename(lab.id)}"
+            IsoToolService.sync_to_running_vms(lab_id=lab.id, iso_name=iso_name)
+        except Exception as e:
+            logger.error(f"[LABS] Failed to rebuild custom lab ISO for Lab {lab.id}: {e}")
+
     return lab
 
 @router.delete("/{lab_id}", status_code=status.HTTP_200_OK)
@@ -322,6 +348,13 @@ def delete_lab(
                         pass
         except Exception:
             pass
+
+    # 3. Thu dọn file ISO custom của lab nếu có
+    try:
+        from app.services.iso_tool_service import IsoToolService
+        IsoToolService.build_lab_iso(lab_id, [])
+    except Exception:
+        pass
 
     db.delete(lab)
     db.commit()
@@ -444,6 +477,17 @@ def get_proxmox_templates(
     from app.services.vm_service import get_available_templates
     return get_available_templates()
 
+@router.get("/vm-tools/available-files", response_model=List[Dict[str, Any]])
+def get_available_vm_tool_files(
+    current_user: User = Depends(require_lecturer)
+):
+    """API Liệt kê danh sách các file trong kho công cụ ổ D: để giảng viên chọn cho bài lab"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        return IsoToolService.list_files()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{lab_id}/vm-session")
 def get_or_create_vm_session(
     lab_id: int,
@@ -472,6 +516,12 @@ def get_or_create_vm_session(
     is_linked = getattr(lab, 'is_linked_clone', True)
     if is_linked is None:
         is_linked = True
+    # Xác định file ISO gắn vào ổ D: của máy ảo (Custom Lab ISO vs Default tools-1001.iso)
+    iso_filename = None
+    if getattr(lab, 'vm_drive_mode', 'default') == 'custom' and getattr(lab, 'vm_drive_files', None):
+        from app.services.iso_tool_service import IsoToolService
+        iso_filename = f"labs/{IsoToolService.get_lab_iso_basename(lab.id)}"
+
     try:
         ip_address, vmid = provision_student_vm(
             student_username=current_user.username,
@@ -480,10 +530,11 @@ def get_or_create_vm_session(
             protocol=lab.vm_protocol,
             port=lab.vm_port,
             is_linked_clone=is_linked,
+            iso_filename=iso_filename,
         )
     except VMProvisionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    print(f"[VM-SESSION] user={current_user.username} lab={lab_id} vmid={vmid} ip={ip_address}", flush=True)
+    print(f"[VM-SESSION] user={current_user.username} lab={lab_id} vmid={vmid} ip={ip_address} iso={iso_filename or 'default'}", flush=True)
     
 
     
