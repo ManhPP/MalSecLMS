@@ -157,12 +157,13 @@ def clean_orphaned_vms(
 
 @router.get("/vm-tools/files", response_model=List[Dict[str, Any]])
 def list_vm_tool_files(
+    scope: str = "common",
     current_user: User = Depends(require_admin)
 ):
-    """API Liệt kê danh sách các file trong ổ đĩa chia sẻ D:\ (tools-1001.iso) của máy ảo"""
+    """API Liệt kê danh sách các file trong ổ đĩa chia sẻ D:\ (kho chung hoặc kho riêng giảng viên)"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        return IsoToolService.list_files()
+        return IsoToolService.list_files(scope=scope)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -171,18 +172,19 @@ def list_vm_tool_files(
 def upload_vm_tool_file(
     request: Request,
     file: UploadFile = File(...),
+    scope: str = "common",
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Upload file công cụ/mã độc mới lên ổ đĩa chia sẻ D:\ và tự động đóng gói ISO"""
+    """API Upload file công cụ/mã độc mới lên ổ đĩa chia sẻ D:\ (kho chung hoặc kho riêng)"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        result = IsoToolService.upload_file(file)
+        result = IsoToolService.upload_file(file, scope=scope)
         
         log = AuditLog(
             user_id=current_user.id,
             action="vm_tool_upload",
-            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to Drive D:",
+            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to Drive D: [{result.get('scope', 'common')}]",
             ip_address=get_client_ip(request)
         )
         db.add(log)
@@ -198,23 +200,24 @@ def upload_vm_tool_file(
 def delete_vm_tool_file(
     filename: str,
     request: Request,
+    scope: str = "common",
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Xóa file khỏi ổ đĩa chia sẻ D:\ và tự động đóng gói lại ISO"""
+    """API Xóa file khỏi ổ đĩa chia sẻ D:\ (kho chung hoặc kho riêng)"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        IsoToolService.delete_file(filename)
+        IsoToolService.delete_file(filename, scope=scope)
         
         log = AuditLog(
             user_id=current_user.id,
             action="vm_tool_delete",
-            target=f"Deleted {filename} from Drive D:",
+            target=f"Deleted {filename} from Drive D: [{scope}]",
             ip_address=get_client_ip(request)
         )
         db.add(log)
         db.commit()
-        return {"success": True, "message": f"Successfully deleted {filename} from Drive D:"}
+        return {"success": True, "message": f"Successfully deleted {filename} from Drive D: ({scope})"}
     except HTTPException:
         raise
     except Exception as e:

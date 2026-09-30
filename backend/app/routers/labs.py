@@ -481,10 +481,10 @@ def get_proxmox_templates(
 def get_available_vm_tool_files(
     current_user: User = Depends(require_lecturer)
 ):
-    """API Liệt kê danh sách các file trong kho công cụ ổ D: để giảng viên chọn cho bài lab"""
+    """API Liệt kê danh sách các file trong kho công cụ ổ D: (bao gồm kho chung và các không gian riêng)"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        return IsoToolService.list_files()
+        return IsoToolService.list_all_available_files()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -41,9 +41,30 @@ class IsoToolService:
             raise RuntimeError(f"SSH execution error: {str(e)}")
 
     @staticmethod
-    def list_files() -> List[Dict[str, Any]]:
-        """Lấy danh sách các file trong thư mục tools-content trên Proxmox"""
-        cmd = f"mkdir -p {PVE_TOOLS_DIR} && ls -la --time-style=full-iso {PVE_TOOLS_DIR}"
+    def _sanitize_scope(scope: str | None) -> str:
+        """Kiểm tra và chuẩn hóa phạm vi lưu trữ: 'common' hoặc 'lecturer_<username>'"""
+        if not scope or scope == "common":
+            return "common"
+        # Validate lecturer scope format
+        safe = re.sub(r'[^A-Za-z0-9_.-]', '', scope)
+        if safe.startswith("lecturer_"):
+            return safe
+        return "common"
+
+    @staticmethod
+    def get_target_dir(scope: str | None = "common") -> str:
+        safe_scope = IsoToolService._sanitize_scope(scope)
+        if safe_scope == "common":
+            return PVE_TOOLS_DIR
+        lecturer_name = safe_scope.replace("lecturer_", "", 1)
+        return f"{PVE_TOOLS_DIR}/lecturers/{lecturer_name}"
+
+    @staticmethod
+    def list_files(scope: str | None = "common") -> List[Dict[str, Any]]:
+        """Lấy danh sách các file trong thư mục tools-content (chung hoặc của giảng viên) trên Proxmox"""
+        target_dir = IsoToolService.get_target_dir(scope)
+        safe_scope = IsoToolService._sanitize_scope(scope)
+        cmd = f"mkdir -p '{target_dir}' && ls -la --time-style=full-iso '{target_dir}'"
         raw_output = IsoToolService._run_pve_ssh_command(cmd)
         
         files = []
@@ -54,7 +75,8 @@ class IsoToolService:
             parts = line.split(maxsplit=8)
             if len(parts) >= 9:
                 perms, _, owner, group, size_str, date_str, time_str, tz_str, fname = parts
-                if fname in (".", "..") or perms.startswith("d"):
+                # Bỏ qua directory và thư mục con lecturers nếu đang ở root
+                if fname in (".", "..", "lecturers") or perms.startswith("d"):
                     continue
                 try:
                     size_bytes = int(size_str)
@@ -66,28 +88,71 @@ class IsoToolService:
                 files.append({
                     "filename": fname,
                     "size_bytes": size_bytes,
-                    "updated_at": full_dt
+                    "updated_at": full_dt,
+                    "scope": safe_scope
                 })
         return sorted(files, key=lambda x: x["filename"].lower())
 
     @staticmethod
-    def rebuild_iso() -> None:
-        """Đóng gói lại file ISO tools-1001.iso từ thư mục tools-content"""
+    def list_all_available_files() -> List[Dict[str, Any]]:
+        """Liệt kê toàn bộ file từ kho chung và tất cả không gian riêng của giảng viên (dành cho tạo lab)"""
         cmd = (
-            f"genisoimage -J -r -V 'LAB_TOOLS' -o {PVE_ISO_PATH} {PVE_TOOLS_DIR}"
+            f"mkdir -p '{PVE_TOOLS_DIR}/lecturers' && "
+            f"find '{PVE_TOOLS_DIR}' -maxdepth 2 -type f -printf '%P\t%s\t%TY-%Tm-%Td %TH:%TM:%TS\n'"
+        )
+        raw_output = IsoToolService._run_pve_ssh_command(cmd)
+        files = []
+        for line in raw_output.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                rel_path = parts[0]
+                size_str = parts[1]
+                dt_str = parts[2][:19]
+                try:
+                    size_bytes = int(size_str)
+                except ValueError:
+                    size_bytes = 0
+
+                scope = "common"
+                filename = rel_path
+                if rel_path.startswith("lecturers/"):
+                    subparts = rel_path.split("/", 2)
+                    if len(subparts) == 3:
+                        scope = f"lecturer_{subparts[1]}"
+                        filename = subparts[2]
+                
+                files.append({
+                    "filename": filename,
+                    "rel_path": rel_path,
+                    "size_bytes": size_bytes,
+                    "updated_at": dt_str,
+                    "scope": scope
+                })
+        return sorted(files, key=lambda x: (x["scope"], x["filename"].lower()))
+
+    @staticmethod
+    def rebuild_iso() -> None:
+        """Đóng gói lại file ISO tools-1001.iso từ thư mục tools-content (loại trừ lecturers subfolder khỏi đĩa chung)"""
+        cmd = (
+            f"genisoimage -J -r -m lecturers -V 'LAB_TOOLS' -o {PVE_ISO_PATH} {PVE_TOOLS_DIR}"
         )
         logger.info("[ISO_SERVICE] Rebuilding tools-1001.iso on Proxmox node...")
         IsoToolService._run_pve_ssh_command(cmd)
         logger.info("[ISO_SERVICE] tools-1001.iso rebuild successfully completed.")
 
     @staticmethod
-    def upload_file(upload_file: UploadFile) -> Dict[str, Any]:
-        """Tải file từ Admin lên thư mục tools-content trên Proxmox và đóng gói lại ISO"""
+    def upload_file(upload_file: UploadFile, scope: str | None = "common") -> Dict[str, Any]:
+        """Tải file từ Admin/Lecturer lên thư mục chung hoặc thư mục riêng của giảng viên trên Proxmox"""
         orig_name = os.path.basename(upload_file.filename)
-        # Sanitize filename: chỉ cho phép chữ cái, số, dấu chấm, gạch dưới, gạch ngang
         safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', orig_name)
         if not safe_name or safe_name.startswith('.'):
             raise HTTPException(status_code=400, detail="Invalid filename")
+
+        target_dir = IsoToolService.get_target_dir(scope)
+        safe_scope = IsoToolService._sanitize_scope(scope)
 
         temp_local_path = f"/tmp/upload_{int(time.time())}_{safe_name}"
         try:
@@ -97,6 +162,9 @@ class IsoToolService:
 
             file_size = os.path.getsize(temp_local_path)
 
+            # Đảm bảo target_dir trên Proxmox tồn tại
+            IsoToolService._run_pve_ssh_command(f"mkdir -p '{target_dir}'")
+
             # Copy file sang Proxmox node qua SCP
             scp_cmd = [
                 "scp",
@@ -104,29 +172,41 @@ class IsoToolService:
                 "-o", "StrictHostKeyChecking=accept-new",
                 "-o", "ConnectTimeout=10",
                 temp_local_path,
-                f"{PVE_SSH_USER}@{PVE_SSH_HOST}:{PVE_TOOLS_DIR}/{safe_name}"
+                f"{PVE_SSH_USER}@{PVE_SSH_HOST}:{target_dir}/{safe_name}"
             ]
             res = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=120)
             if res.returncode != 0:
                 raise RuntimeError(f"SCP upload failed: {res.stderr}")
 
-            # Đóng gói lại ISO
-            IsoToolService.rebuild_iso()
-            return {"filename": safe_name, "size_bytes": file_size, "message": f"Successfully added {safe_name} to Drive D:"}
+            # Nếu upload vào common, đóng gói lại tools-1001.iso
+            if safe_scope == "common":
+                IsoToolService.rebuild_iso()
+            
+            return {
+                "filename": safe_name, 
+                "scope": safe_scope, 
+                "size_bytes": file_size, 
+                "message": f"Successfully uploaded {safe_name} to {safe_scope} workspace"
+            }
         finally:
             if os.path.exists(temp_local_path):
                 os.remove(temp_local_path)
 
     @staticmethod
-    def delete_file(filename: str) -> None:
-        """Xóa file khỏi thư mục tools-content và đóng gói lại ISO"""
+    def delete_file(filename: str, scope: str | None = "common") -> None:
+        """Xóa file khỏi kho chung hoặc kho riêng giảng viên"""
         safe_name = re.sub(r'[^A-Za-z0-9_.-]', '', filename)
         if not safe_name or "/" in safe_name or ".." in safe_name:
             raise HTTPException(status_code=400, detail="Invalid filename")
 
-        cmd = f"rm -f '{PVE_TOOLS_DIR}/{safe_name}'"
+        target_dir = IsoToolService.get_target_dir(scope)
+        safe_scope = IsoToolService._sanitize_scope(scope)
+
+        cmd = f"rm -f '{target_dir}/{safe_name}'"
         IsoToolService._run_pve_ssh_command(cmd)
-        IsoToolService.rebuild_iso()
+
+        if safe_scope == "common":
+            IsoToolService.rebuild_iso()
 
     @staticmethod
     def get_lab_iso_basename(lab_id: int) -> str:
@@ -136,36 +216,37 @@ class IsoToolService:
     @staticmethod
     def build_lab_iso(lab_id: int, selected_files: List[str]) -> str:
         """
-        Tạo file ISO riêng cho bài lab lab-{lab_id}.iso chứa các file được chỉ định từ PVE_TOOLS_DIR.
-        Sử dụng symlinks / hardlinks tạm trên Proxmox để tiết kiệm dung lượng và biên dịch tức thì.
+        Tạo file ISO riêng cho bài lab lab-{lab_id}.iso chứa các file được chỉ định.
+        Mỗi file có thể là file trong kho chung (filename) hoặc có prefix (rel_path như 'lecturers/user/filename').
+        Sử dụng symlinks tạm trên Proxmox để tiết kiệm dung lượng.
         """
         lab_iso_dir = f"/var/lib/vz/template/iso/labs/lab-{lab_id}"
         iso_basename = IsoToolService.get_lab_iso_basename(lab_id)
-        # Lưu file ISO trực tiếp tại /var/lib/vz/template/iso/ để khớp chuẩn volume "local:iso/lab-{lab_id}.iso" của Proxmox
         lab_iso_path = f"/var/lib/vz/template/iso/{iso_basename}"
         
         # Lọc danh sách an toàn
-        safe_files = []
+        safe_items = []
         for f in selected_files:
-            sf = re.sub(r'[^A-Za-z0-9_.-]', '', f)
-            if sf and "/" not in sf and ".." not in sf:
-                safe_files.append(sf)
+            sf = re.sub(r'[^A-Za-z0-9_./-]', '', f)
+            if sf and ".." not in sf and not sf.startswith("/"):
+                # Xác định basename khi đưa vào iso
+                base_name = os.path.basename(sf)
+                safe_items.append((sf, base_name))
 
-        if not safe_files:
-            # Nếu không có file nào được chọn, dọn dẹp thư mục và file ISO nếu có
+        if not safe_items:
             cleanup_cmd = f"rm -rf '{lab_iso_dir}' '{lab_iso_path}'"
             IsoToolService._run_pve_ssh_command(cleanup_cmd)
             return ""
 
-        # Tạo thư mục tạm trên Proxmox, tạo symlink tới các file nguồn trong tools-content, rồi chạy genisoimage
-        file_links = " ".join([f"ln -sf '{PVE_TOOLS_DIR}/{f}' '{lab_iso_dir}/{f}';" for f in safe_files])
+        # Tạo thư mục tạm trên Proxmox, tạo symlink tới file nguồn (từ PVE_TOOLS_DIR/<sf>), rồi chạy genisoimage
+        file_links = " ".join([f"ln -sf '{PVE_TOOLS_DIR}/{src}' '{lab_iso_dir}/{dst}';" for src, dst in safe_items])
         build_cmd = (
             f"mkdir -p '{lab_iso_dir}' && "
             f"rm -rf '{lab_iso_dir}'/* && "
             f"{file_links} "
             f"genisoimage -J -r -follow-links -V 'LAB_{lab_id}_TOOLS' -o '{lab_iso_path}' '{lab_iso_dir}'"
         )
-        logger.info(f"[ISO_SERVICE] Building custom ISO for Lab {lab_id} with {len(safe_files)} files...")
+        logger.info(f"[ISO_SERVICE] Building custom ISO for Lab {lab_id} with {len(safe_items)} files...")
         IsoToolService._run_pve_ssh_command(build_cmd)
         logger.info(f"[ISO_SERVICE] Custom ISO for Lab {lab_id} built successfully at {lab_iso_path}")
         return lab_iso_path

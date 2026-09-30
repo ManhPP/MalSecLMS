@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { 
   Users, School, ShieldAlert, FileSpreadsheet, Plus, Edit2, 
   Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check,
-  HardDrive, Disc, FileArchive, Upload, Download, AlertTriangle
+  HardDrive, Disc, FileArchive, Upload, Download, AlertTriangle,
+  Search, ChevronDown, ChevronRight, Folder, FolderPlus
 } from 'lucide-react'
 
 // --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
@@ -85,12 +86,28 @@ export default function AdminDashboard() {
   const [selectedClass, setSelectedClass] = useState(null)
   const [studentIdsInput, setStudentIdsInput] = useState('') // CSV string of IDs/usernames
   const [lecturerIdsInput, setLecturerIdsInput] = useState('') // CSV string of lecturer IDs/usernames
-  const [hideStudentSuggestions, setHideStudentSuggestions] = useState(false)
-  const [hideLecturerSuggestions, setHideLecturerSuggestions] = useState(false)
+  // User directory filter & search state
+  const [userSearchQuery, setUserSearchQuery] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState('all') // all | student | lecturer | admin
+  const [userStatusFilter, setUserStatusFilter] = useState('all') // all | active | locked
 
+  // Class grouping & filter state
+  const [classSearchQuery, setClassSearchQuery] = useState('')
+  const [classSemesterFilter, setClassSemesterFilter] = useState('all')
+  const [collapsedSemesters, setCollapsedSemesters] = useState({})
 
+  // VM Management grouping & filter state
+  const [vmSearchQuery, setVmSearchQuery] = useState('')
+  const [vmSemesterFilter, setVmSemesterFilter] = useState('all')
+  const [vmClassFilter, setVmClassFilter] = useState('all')
+  const [vmLecturerFilter, setVmLecturerFilter] = useState('all')
+  const [vmStatusFilter, setVmStatusFilter] = useState('all') // all | active | closed
+  const [vmGroupingMode, setVmGroupingMode] = useState('semester') // semester | class | lecturer | flat
+  const [collapsedVmGroups, setCollapsedVmGroups] = useState({})
 
-  // Fetch initial data
+  // VM Shared Tools Space state
+  const [vmToolSpace, setVmToolSpace] = useState('common') // 'common' | 'lecturer_<username>'
+
   const fetchData = async () => {
     setLoading(true)
     setError('')
@@ -691,10 +708,10 @@ export default function AdminDashboard() {
   const [vmToolSyncing, setVmToolSyncing] = useState(false)
   const [toolFileToUpload, setToolFileToUpload] = useState(null)
 
-  const fetchVmTools = async () => {
+  const fetchVmTools = async (targetSpace = vmToolSpace) => {
     const token = localStorage.getItem('malsec_token')
     try {
-      const res = await fetch('/api/admin/vm-tools/files', {
+      const res = await fetch(`/api/admin/vm-tools/files?scope=${encodeURIComponent(targetSpace)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) {
@@ -716,19 +733,19 @@ export default function AdminDashboard() {
     formData.append('file', toolFileToUpload)
 
     try {
-      const res = await fetch('/api/admin/vm-tools/files', {
+      const res = await fetch(`/api/admin/vm-tools/files?scope=${encodeURIComponent(vmToolSpace)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Failed to upload tool to Drive D:')
-      setSuccess(`Uploaded ${data.filename} and updated Drive D: successfully!`)
+      if (!res.ok) throw new Error(data.detail || 'Failed to upload tool')
+      setSuccess(`Uploaded ${data.filename} to [${data.scope || vmToolSpace}] workspace successfully!`)
       setToolFileToUpload(null)
       // Reset input element
       const fileInput = document.getElementById('vmToolFileInput')
       if (fileInput) fileInput.value = ''
-      await fetchVmTools()
+      await fetchVmTools(vmToolSpace)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -737,20 +754,21 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteVmTool = async (fname) => {
-    if (!confirm(`Are you sure you want to delete '${fname}' from Drive D:? The ISO will be rebuilt.`)) return
+    const spaceLabel = vmToolSpace === 'common' ? 'Drive D: Common Storage' : `Private Workspace of ${vmToolSpace.replace('lecturer_', '')}`
+    if (!confirm(`Are you sure you want to delete '${fname}' from ${spaceLabel}?`)) return
     setActionLoading(true)
     setError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
     try {
-      const res = await fetch(`/api/admin/vm-tools/files/${encodeURIComponent(fname)}`, {
+      const res = await fetch(`/api/admin/vm-tools/files/${encodeURIComponent(fname)}?scope=${encodeURIComponent(vmToolSpace)}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Failed to delete file')
-      setSuccess(`Deleted ${fname} from Drive D: successfully!`)
-      await fetchVmTools()
+      setSuccess(`Deleted ${fname} from ${spaceLabel} successfully!`)
+      await fetchVmTools(vmToolSpace)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -889,8 +907,13 @@ export default function AdminDashboard() {
       {/* TAB USERS CONTENT */}
       {activeTab === 'users' && (
         <div className="cyber-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '18px' }}>User Accounts Directory</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', margin: 0 }}>User Accounts Directory</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px', margin: '4px 0 0 0' }}>
+                Manage all students, lecturers, and system administrators.
+              </p>
+            </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowImportModal(true)} className="btn btn-secondary">
                 <UploadCloud size={16} /> Bulk Excel/CSV Import
@@ -901,56 +924,158 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="table-container">
-            <table className="cyber-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Username (Student ID)</th>
-                  <th>Full Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td>{u.id}</td>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{u.username}</td>
-                    <td style={{ fontWeight: '500' }}>{u.full_name}</td>
-                    <td>{u.email || '—'}</td>
-                    <td>
-                      <span className={`badge ${u.role === 'admin' ? 'badge-resubmit' : u.role === 'lecturer' ? 'badge-submitted' : 'badge-draft'}`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ 
-                        color: u.is_active ? 'var(--neon-emerald)' : 'var(--neon-ruby)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '13px'
-                      }}>
-                        {u.is_active ? <Unlock size={14} /> : <Lock size={14} />}
-                        {u.is_active ? 'Active' : 'Locked'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button onClick={() => handleOpenUserModal(u)} className="btn btn-secondary" style={{ padding: '6px 10px', marginRight: '6px' }} title="Edit">
-                        <Edit2 size={13} />
-                      </button>
-                      <button onClick={() => handleDeleteUser(u.id)} className="btn btn-danger" style={{ padding: '6px 10px' }} title="Delete">
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* User Filters & Search Bar */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            flexWrap: 'wrap', 
+            alignItems: 'center', 
+            padding: '12px 16px', 
+            background: '#f8fafc', 
+            borderRadius: '10px', 
+            border: '1px solid var(--border-color)',
+            marginBottom: '18px' 
+          }}>
+            {/* Search Input */}
+            <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: '34px', margin: 0, fontSize: '13px', background: '#ffffff' }}
+                placeholder="Search by username, full name, or email..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Filter by Role */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Role:</label>
+              <select
+                className="form-select"
+                style={{ width: '130px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+              >
+                <option value="all">All Roles</option>
+                <option value="student">Student</option>
+                <option value="lecturer">Lecturer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            {/* Filter by Status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Status:</label>
+              <select
+                className="form-select"
+                style={{ width: '130px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={userStatusFilter}
+                onChange={(e) => setUserStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active Only</option>
+                <option value="locked">Locked Only</option>
+              </select>
+            </div>
+
+            {/* Reset Filters button */}
+            {(userSearchQuery || userRoleFilter !== 'all' || userStatusFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUserSearchQuery('')
+                  setUserRoleFilter('all')
+                  setUserStatusFilter('all')
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                Reset Filter
+              </button>
+            )}
           </div>
+
+          {/* Users Table */}
+          {(() => {
+            const filteredUsers = users.filter(u => {
+              if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+              if (userStatusFilter === 'active' && !u.is_active) return false
+              if (userStatusFilter === 'locked' && u.is_active) return false
+              if (userSearchQuery.trim()) {
+                const q = userSearchQuery.trim().toLowerCase()
+                const matchU = u.username && u.username.toLowerCase().includes(q)
+                const matchN = u.full_name && u.full_name.toLowerCase().includes(q)
+                const matchE = u.email && u.email.toLowerCase().includes(q)
+                if (!matchU && !matchN && !matchE) return false
+              }
+              return true
+            })
+
+            return (
+              <div className="table-container">
+                <div style={{ marginBottom: '10px', fontSize: '12.5px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Showing <b>{filteredUsers.length}</b> of <b>{users.length}</b> accounts</span>
+                </div>
+                <table className="cyber-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Username (Student ID)</th>
+                      <th>Full Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map(u => (
+                      <tr key={u.id}>
+                        <td>{u.id}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{u.username}</td>
+                        <td style={{ fontWeight: '500' }}>{u.full_name}</td>
+                        <td>{u.email || '—'}</td>
+                        <td>
+                          <span className={`badge ${u.role === 'admin' ? 'badge-resubmit' : u.role === 'lecturer' ? 'badge-submitted' : 'badge-draft'}`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ 
+                            color: u.is_active ? 'var(--neon-emerald)' : 'var(--neon-ruby)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '13px'
+                          }}>
+                            {u.is_active ? <Unlock size={14} /> : <Lock size={14} />}
+                            {u.is_active ? 'Active' : 'Locked'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button onClick={() => handleOpenUserModal(u)} className="btn btn-secondary" style={{ padding: '6px 10px', marginRight: '6px' }} title="Edit">
+                            <Edit2 size={13} />
+                          </button>
+                          <button onClick={() => handleDeleteUser(u.id)} className="btn btn-danger" style={{ padding: '6px 10px' }} title="Delete">
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px' }}>
+                          No accounts match your search/filter criteria.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -959,74 +1084,199 @@ export default function AdminDashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: '40% 60%', gap: '20px' }}>
           {/* Classes list */}
           <div className="cyber-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px' }}>Classes</h3>
-              <button onClick={() => handleOpenClassModal(null)} className="btn btn-primary" style={{ padding: '8px 12px' }}>
-                <Plus size={16} /> Create Class
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', margin: 0 }}>Classes Directory</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '2px 0 0 0' }}>
+                  Grouped by Academic Semester ({classes.length} total)
+                </p>
+              </div>
+              <button onClick={() => handleOpenClassModal(null)} className="btn btn-primary" style={{ padding: '7px 12px', fontSize: '12.5px' }}>
+                <Plus size={15} /> Create Class
               </button>
             </div>
-            
-            <div className="table-container" style={{ margin: 0 }}>
-              <table className="cyber-table">
-                <thead>
-                  <tr>
-                    <th>Class Name</th>
-                    <th>Description</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes.map(c => (
-                    <tr 
-                      key={c.id} 
-                      onClick={async () => {
-                        const token = localStorage.getItem('malsec_token')
-                        const res = await fetch(`/api/classes/${c.id}`, {
-                          headers: { 'Authorization': `Bearer ${token}` }
-                        })
-                        if (res.ok) setSelectedClass(await res.json())
-                      }}
-                      style={{ cursor: 'pointer', background: selectedClass?.id === c.id ? 'rgba(0, 242, 254, 0.05)' : '' }}
-                    >
-                      <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
-                        <div>{c.name}</div>
-                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10.5px', marginTop: '3px', display: 'inline-block' }}>
-                          📅 {c.semester || 'unknown'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.description}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleOpenClassModal(c)
-                            }} 
-                            className="btn btn-secondary" 
-                            style={{ padding: '4px 8px', fontSize: '11px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
-                            title="Edit Class"
-                          >
-                            <Edit2 size={12} style={{ marginRight: '3px' }} /> Edit
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteClass(c.id, c.name)
-                            }} 
-                            className="btn btn-danger" 
-                            style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                            title="Delete Class"
-                          >
-                            <Trash2 size={12} style={{ marginRight: '3px' }} /> Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
 
-                </tbody>
-              </table>
+            {/* Filter and Search for Classes */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '140px', position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ paddingLeft: '30px', margin: 0, fontSize: '12px', background: '#f8fafc' }}
+                  placeholder="Search class..."
+                  value={classSearchQuery}
+                  onChange={(e) => setClassSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <select
+                className="form-select"
+                style={{ width: '130px', margin: 0, fontSize: '12px', background: '#f8fafc' }}
+                value={classSemesterFilter}
+                onChange={(e) => setClassSemesterFilter(e.target.value)}
+              >
+                <option value="all">All Semesters</option>
+                {semesters.map(s => (
+                  <option key={s.id} value={s.name}>{s.name} {s.is_active ? '🌟' : ''}</option>
+                ))}
+                <option value="unknown">Unknown</option>
+              </select>
             </div>
+            
+            {/* Grouped Classes View */}
+            {(() => {
+              // Group classes by semester
+              const semMap = {}
+              classes.forEach(c => {
+                const sem = c.semester || 'unknown'
+                if (classSemesterFilter !== 'all' && sem !== classSemesterFilter) return
+                if (classSearchQuery.trim()) {
+                  const q = classSearchQuery.trim().toLowerCase()
+                  const matchN = c.name && c.name.toLowerCase().includes(q)
+                  const matchD = c.description && c.description.toLowerCase().includes(q)
+                  if (!matchN && !matchD) return
+                }
+                if (!semMap[sem]) semMap[sem] = []
+                semMap[sem].push(c)
+              })
+
+              const sortedSemesters = Object.keys(semMap).sort((a, b) => {
+                const semA = semesters.find(s => s.name === a)
+                const semB = semesters.find(s => s.name === b)
+                if (semA?.is_active) return -1
+                if (semB?.is_active) return 1
+                if (a === 'unknown') return 1
+                if (b === 'unknown') return -1
+                return b.localeCompare(a)
+              })
+
+              if (sortedSemesters.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No classes found matching filters.
+                  </div>
+                )
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '560px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {sortedSemesters.map(semKey => {
+                    const classList = semMap[semKey]
+                    const isCollapsed = !!collapsedSemesters[semKey]
+                    const semObj = semesters.find(s => s.name === semKey)
+
+                    return (
+                      <div 
+                        key={semKey}
+                        style={{ 
+                          border: '1px solid #e2e8f0', 
+                          borderRadius: '8px', 
+                          background: '#ffffff',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        {/* Semester Header */}
+                        <div
+                          onClick={() => setCollapsedSemesters(prev => ({ ...prev, [semKey]: !prev[semKey] }))}
+                          style={{
+                            padding: '8px 12px',
+                            background: semObj?.is_active ? 'rgba(16, 185, 129, 0.08)' : '#f8fafc',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderBottom: isCollapsed ? 'none' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                            <span style={{ fontWeight: '700', fontSize: '13px', color: 'var(--text-primary)' }}>
+                              📅 {semKey === 'unknown' ? 'Unknown Semester' : `Semester ${semKey}`}
+                            </span>
+                            {semObj?.is_active && (
+                              <span className="badge" style={{ background: '#dcfce7', color: '#15803d', fontSize: '10px', padding: '1px 6px' }}>
+                                Active Term
+                              </span>
+                            )}
+                          </div>
+                          <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                            {classList.length} {classList.length === 1 ? 'class' : 'classes'}
+                          </span>
+                        </div>
+
+                        {/* Classes Table under this semester */}
+                        {!isCollapsed && (
+                          <div className="table-container" style={{ margin: 0 }}>
+                            <table className="cyber-table" style={{ fontSize: '12.5px' }}>
+                              <thead>
+                                <tr>
+                                  <th>Class Name</th>
+                                  <th>Description</th>
+                                  <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {classList.map(c => (
+                                  <tr 
+                                    key={c.id} 
+                                    onClick={async () => {
+                                      const token = localStorage.getItem('malsec_token')
+                                      const res = await fetch(`/api/classes/${c.id}`, {
+                                        headers: { 'Authorization': `Bearer ${token}` }
+                                      })
+                                      if (res.ok) setSelectedClass(await res.json())
+                                    }}
+                                    style={{ 
+                                      cursor: 'pointer', 
+                                      background: selectedClass?.id === c.id ? 'rgba(0, 242, 254, 0.08)' : 'transparent',
+                                      borderLeft: selectedClass?.id === c.id ? '3px solid var(--neon-cyan)' : 'none'
+                                    }}
+                                  >
+                                    <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
+                                      {c.name}
+                                    </td>
+                                    <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                      {c.description || '—'}
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleOpenClassModal(c)
+                                          }} 
+                                          className="btn btn-secondary" 
+                                          style={{ padding: '3px 6px', fontSize: '11px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
+                                          title="Edit Class"
+                                        >
+                                          <Edit2 size={11} />
+                                        </button>
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeleteClass(c.id, c.name)
+                                          }} 
+                                          className="btn btn-danger" 
+                                          style={{ padding: '3px 6px', fontSize: '11px', border: 'none' }}
+                                          title="Delete Class"
+                                        >
+                                          <Trash2 size={11} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Selected class details & user assignment */}
@@ -1446,7 +1696,7 @@ export default function AdminDashboard() {
       {/* TAB VMS CONTENT */}
       {activeTab === 'vms' && (
         <div className="cyber-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h3 style={{ fontSize: '18px', margin: 0 }}>Proxmox VE Cluster VM Management</h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
@@ -1466,59 +1716,384 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="table-container">
-            <table className="cyber-table">
-              <thead>
-                <tr>
-                  <th>Practical Lab Title</th>
-                  <th>Assigned Class</th>
-                  <th>Hạn nộp (Deadline)</th>
-                  <th>Lab Status</th>
-                  <th style={{ textAlign: 'right' }}>Manage VMs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {labs.map(lab => {
-                  const cls = classes.find(c => c.id === lab.class_id)
+          {/* VM Filter and Grouping Bar */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            padding: '12px 16px',
+            background: '#f8fafc',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            marginBottom: '18px'
+          }}>
+            {/* Search Input */}
+            <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: '34px', margin: 0, fontSize: '13px', background: '#ffffff' }}
+                placeholder="Search lab title or ID..."
+                value={vmSearchQuery}
+                onChange={(e) => setVmSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Filter by Semester */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Semester:</label>
+              <select
+                className="form-select"
+                style={{ width: '135px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={vmSemesterFilter}
+                onChange={(e) => setVmSemesterFilter(e.target.value)}
+              >
+                <option value="all">All Semesters</option>
+                {semesters.map(s => (
+                  <option key={s.id} value={s.name}>{s.name} {s.is_active ? '🌟' : ''}</option>
+                ))}
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+
+            {/* Filter by Class */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Class:</label>
+              <select
+                className="form-select"
+                style={{ width: '150px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={vmClassFilter}
+                onChange={(e) => setVmClassFilter(e.target.value)}
+              >
+                <option value="all">All Classes</option>
+                {classes.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter by Lecturer */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Lecturer:</label>
+              <select
+                className="form-select"
+                style={{ width: '150px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={vmLecturerFilter}
+                onChange={(e) => setVmLecturerFilter(e.target.value)}
+              >
+                <option value="all">All Lecturers</option>
+                {users.filter(u => u.role === 'lecturer' || u.role === 'admin').map(u => (
+                  <option key={u.id} value={String(u.id)}>{u.full_name} ({u.username})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter by Status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Status:</label>
+              <select
+                className="form-select"
+                style={{ width: '110px', margin: 0, fontSize: '12.5px', background: '#ffffff' }}
+                value={vmStatusFilter}
+                onChange={(e) => setVmStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+
+            {/* Grouping Mode */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--neon-cyan)' }}>Group by:</label>
+              <select
+                className="form-select"
+                style={{ width: '130px', margin: 0, fontSize: '12.5px', background: '#ffffff', borderColor: 'var(--neon-cyan)' }}
+                value={vmGroupingMode}
+                onChange={(e) => setVmGroupingMode(e.target.value)}
+              >
+                <option value="semester">📅 Semester</option>
+                <option value="class">🏫 Class</option>
+                <option value="lecturer">👨‍🏫 Lecturer</option>
+                <option value="flat">📄 Flat List</option>
+              </select>
+            </div>
+
+            {/* Reset Filters button */}
+            {(vmSearchQuery || vmSemesterFilter !== 'all' || vmClassFilter !== 'all' || vmLecturerFilter !== 'all' || vmStatusFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setVmSearchQuery('')
+                  setVmSemesterFilter('all')
+                  setVmClassFilter('all')
+                  setVmLecturerFilter('all')
+                  setVmStatusFilter('all')
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+
+          {/* Filtered & Grouped Labs VM Table */}
+          {(() => {
+            const filteredLabs = labs.filter(lab => {
+              const cls = classes.find(c => c.id === lab.class_id)
+              const sem = cls?.semester || 'unknown'
+              if (vmSemesterFilter !== 'all' && sem !== vmSemesterFilter) return false
+              if (vmClassFilter !== 'all' && String(lab.class_id) !== vmClassFilter) return false
+              if (vmLecturerFilter !== 'all' && String(lab.created_by_id) !== vmLecturerFilter) return false
+              if (vmStatusFilter === 'active' && !lab.is_active) return false
+              if (vmStatusFilter === 'closed' && lab.is_active) return false
+              if (vmSearchQuery.trim()) {
+                const q = vmSearchQuery.trim().toLowerCase()
+                const matchTitle = lab.title && lab.title.toLowerCase().includes(q)
+                const matchId = String(lab.id).includes(q)
+                const matchClass = cls?.name && cls.name.toLowerCase().includes(q)
+                if (!matchTitle && !matchId && !matchClass) return false
+              }
+              return true
+            })
+
+            if (filteredLabs.length === 0) {
+              return (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                  No practical labs found matching your filters.
+                </div>
+              )
+            }
+
+            // Flat mode
+            if (vmGroupingMode === 'flat') {
+              return (
+                <div className="table-container">
+                  <table className="cyber-table">
+                    <thead>
+                      <tr>
+                        <th>Practical Lab Title</th>
+                        <th>Assigned Class</th>
+                        <th>Lecturer / Author</th>
+                        <th>Hạn nộp (Deadline)</th>
+                        <th>Lab Status</th>
+                        <th style={{ textAlign: 'right' }}>Manage VMs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredLabs.map(lab => {
+                        const cls = classes.find(c => c.id === lab.class_id)
+                        const lecturer = users.find(u => u.id === lab.created_by_id)
+                        return (
+                          <tr key={lab.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
+                                  ID #{lab.id}
+                                </span>
+                                <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div>{cls ? cls.name : `Class ID ${lab.class_id}`}</div>
+                              {cls?.semester && (
+                                <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px' }}>
+                                  📅 {cls.semester}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '12.5px' }}>
+                              {lecturer ? lecturer.full_name : `User ID ${lab.created_by_id}`}
+                            </td>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                              {formatLocalTime(lab.deadline)}
+                            </td>
+                            <td>
+                              <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
+                                {lab.is_active ? 'Active' : 'Closed'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button 
+                                onClick={() => openVmManagerModal(lab)} 
+                                className="btn btn-primary" 
+                                style={{ padding: '6px 12px', fontSize: '12.5px' }}
+                              >
+                                <Monitor size={14} style={{ marginRight: '6px' }} /> Monitor & Purge VMs &rarr;
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            }
+
+            // Grouped Mode: Semester | Class | Lecturer
+            const groupMap = {}
+            filteredLabs.forEach(lab => {
+              const cls = classes.find(c => c.id === lab.class_id)
+              const lecturer = users.find(u => u.id === lab.created_by_id)
+              
+              let groupKey = 'Default'
+              let groupLabel = 'Default'
+              let groupBadge = ''
+
+              if (vmGroupingMode === 'semester') {
+                const sem = cls?.semester || 'unknown'
+                groupKey = sem
+                groupLabel = sem === 'unknown' ? 'Unknown Semester' : `Semester ${sem}`
+                const semObj = semesters.find(s => s.name === sem)
+                if (semObj?.is_active) groupBadge = '🌟 Active Term'
+              } else if (vmGroupingMode === 'class') {
+                groupKey = String(lab.class_id)
+                groupLabel = cls ? cls.name : `Class #${lab.class_id}`
+                if (cls?.semester) groupBadge = `📅 ${cls.semester}`
+              } else if (vmGroupingMode === 'lecturer') {
+                groupKey = String(lab.created_by_id)
+                groupLabel = lecturer ? `${lecturer.full_name} (@${lecturer.username})` : `Lecturer ID ${lab.created_by_id}`
+                if (lecturer?.role) groupBadge = lecturer.role.toUpperCase()
+              }
+
+              if (!groupMap[groupKey]) {
+                groupMap[groupKey] = {
+                  label: groupLabel,
+                  badge: groupBadge,
+                  labs: []
+                }
+              }
+              groupMap[groupKey].labs.push(lab)
+            })
+
+            const groupKeys = Object.keys(groupMap).sort((a, b) => {
+              if (vmGroupingMode === 'semester') {
+                if (a === 'unknown') return 1
+                if (b === 'unknown') return -1
+                return b.localeCompare(a)
+              }
+              return groupMap[a].label.localeCompare(groupMap[b].label)
+            })
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {groupKeys.map(gKey => {
+                  const grp = groupMap[gKey]
+                  const isCollapsed = !!collapsedVmGroups[gKey]
+
                   return (
-                    <tr key={lab.id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
-                            ID #{lab.id}
+                    <div 
+                      key={gKey} 
+                      style={{ 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: '10px', 
+                        background: '#ffffff', 
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* Group Header */}
+                      <div
+                        onClick={() => setCollapsedVmGroups(prev => ({ ...prev, [gKey]: !prev[gKey] }))}
+                        style={{
+                          padding: '10px 16px',
+                          background: '#f8fafc',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: isCollapsed ? 'none' : '1px solid #e2e8f0'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                          <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>
+                            {grp.label}
                           </span>
-                          <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                          {grp.badge && (
+                            <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', padding: '2px 8px' }}>
+                              {grp.badge}
+                            </span>
+                          )}
                         </div>
-                      </td>
-                      <td>{cls ? cls.name : `Class ID ${lab.class_id}`}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                        {formatLocalTime(lab.deadline)}
-                      </td>
-                      <td>
-                        <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
-                          {lab.is_active ? 'Active' : 'Closed'}
+                        <span className="badge badge-submitted" style={{ fontSize: '11.5px' }}>
+                          {grp.labs.length} {grp.labs.length === 1 ? 'lab' : 'labs'}
                         </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button 
-                          onClick={() => openVmManagerModal(lab)} 
-                          className="btn btn-primary" 
-                          style={{ padding: '6px 12px', fontSize: '12.5px' }}
-                        >
-                          <Monitor size={14} style={{ marginRight: '6px' }} /> Monitor & Purge VMs &rarr;
-                        </button>
-                      </td>
-                    </tr>
+                      </div>
+
+                      {/* Group Labs Table */}
+                      {!isCollapsed && (
+                        <div className="table-container" style={{ margin: 0 }}>
+                          <table className="cyber-table">
+                            <thead>
+                              <tr>
+                                <th>Practical Lab Title</th>
+                                <th>Assigned Class</th>
+                                <th>Lecturer / Author</th>
+                                <th>Hạn nộp (Deadline)</th>
+                                <th>Lab Status</th>
+                                <th style={{ textAlign: 'right' }}>Manage VMs</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {grp.labs.map(lab => {
+                                const cls = classes.find(c => c.id === lab.class_id)
+                                const lecturer = users.find(u => u.id === lab.created_by_id)
+                                return (
+                                  <tr key={lab.id}>
+                                    <td>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span className="badge" style={{ background: '#e2e8f0', color: '#334155', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px' }}>
+                                          ID #{lab.id}
+                                        </span>
+                                        <span style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>{lab.title}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div>{cls ? cls.name : `Class ID ${lab.class_id}`}</div>
+                                      {cls?.semester && (
+                                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px' }}>
+                                          📅 {cls.semester}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ fontSize: '12.5px' }}>
+                                      {lecturer ? lecturer.full_name : `User ID ${lab.created_by_id}`}
+                                    </td>
+                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                      {formatLocalTime(lab.deadline)}
+                                    </td>
+                                    <td>
+                                      <span className={`badge ${lab.is_active ? 'badge-graded' : 'badge-draft'}`}>
+                                        {lab.is_active ? 'Active' : 'Closed'}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <button 
+                                        onClick={() => openVmManagerModal(lab)} 
+                                        className="btn btn-primary" 
+                                        style={{ padding: '6px 12px', fontSize: '12.5px' }}
+                                      >
+                                        <Monitor size={14} style={{ marginRight: '6px' }} /> Monitor & Purge VMs &rarr;
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
-                {labs.length === 0 && (
-                  <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No labs found in the system.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -1547,10 +2122,10 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '18px', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    Shared VM Tools Drive (Drive D: ISO Image)
+                    Shared VM Tools Drive (Drive D: ISO & Private Lecturer Spaces)
                   </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px', margin: '4px 0 0 0' }}>
-                    All files below are automatically packaged into the <code>tools-1001.iso</code> virtual optical disk and mounted to <b>Drive D:\</b> on all student lab VMs (Windows VDI).
+                    Manage files in the <b>Common Shared Space</b> (mounted as <code>tools-1001.iso</code>) or individual <b>Private Spaces</b> for each lecturer.
                   </p>
                 </div>
               </div>
@@ -1558,7 +2133,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={fetchVmTools}
+                  onClick={() => fetchVmTools(vmToolSpace)}
                   className="btn btn-secondary"
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px' }}
                 >
@@ -1579,15 +2154,91 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* Workspace Space Selector Switcher */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            flexWrap: 'wrap', 
+            alignItems: 'center', 
+            padding: '12px 18px', 
+            background: '#ffffff', 
+            borderRadius: '10px', 
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Folder size={18} style={{ color: 'var(--neon-cyan)' }} />
+              <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-primary)' }}>Storage Workspace:</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setVmToolSpace('common')
+                  fetchVmTools('common')
+                }}
+                className={`btn ${vmToolSpace === 'common' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🌐 Không gian Chung (Drive D: Global)
+              </button>
+
+              <div style={{ height: '24px', width: '1px', background: '#cbd5e1', margin: '0 4px' }} />
+
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                👨‍🏫 Không gian Giảng viên:
+              </span>
+
+              <select
+                className="form-select"
+                style={{ 
+                  width: '260px', 
+                  margin: 0, 
+                  fontSize: '12.5px', 
+                  background: vmToolSpace.startsWith('lecturer_') ? '#f0f9ff' : '#ffffff',
+                  borderColor: vmToolSpace.startsWith('lecturer_') ? '#38bdf8' : 'var(--border-color)',
+                  fontWeight: vmToolSpace.startsWith('lecturer_') ? '600' : 'normal'
+                }}
+                value={vmToolSpace.startsWith('lecturer_') ? vmToolSpace : ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val) {
+                    setVmToolSpace(val)
+                    fetchVmTools(val)
+                  }
+                }}
+              >
+                <option value="">-- Chọn Giảng viên để mở kho riêng --</option>
+                {users.filter(u => u.role === 'lecturer' || u.role === 'admin').map(u => (
+                  <option key={u.id} value={`lecturer_${u.username}`}>
+                    {u.full_name} (@{u.username})
+                  </option>
+                ))}
+              </select>
+
+              {vmToolSpace.startsWith('lecturer_') && (
+                <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', padding: '4px 8px' }}>
+                  🔒 Không gian riêng của Giảng viên: <b>@{vmToolSpace.replace('lecturer_', '')}</b>
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Upload card & Files table grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px', alignItems: 'start' }}>
             {/* Upload form card */}
             <div className="cyber-card">
               <h4 style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Upload size={16} /> Upload New Tool to Drive D:
+                <Upload size={16} /> 
+                {vmToolSpace === 'common' 
+                  ? 'Upload to Common Drive D:' 
+                  : `Upload to @${vmToolSpace.replace('lecturer_', '')}'s Space`}
               </h4>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5, marginBottom: '16px' }}>
-                Select utility, tool, or sample archive (.zip, .exe, .msi, .pdf, etc.). The file will be transferred to Proxmox and the ISO will be rebuilt automatically.
+                {vmToolSpace === 'common' 
+                  ? 'File tải lên kho chung sẽ tự động đóng gói vào tools-1001.iso cho toàn bộ máy ảo.'
+                  : `File tải lên không gian riêng của giảng viên @${vmToolSpace.replace('lecturer_', '')}. Giảng viên có thể chọn file này khi tạo bài Lab.`}
               </p>
               <form onSubmit={handleUploadVmTool}>
                 <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -1613,18 +2264,26 @@ export default function AdminDashboard() {
                   disabled={!toolFileToUpload || vmToolUploading}
                 >
                   <Upload size={15} />
-                  {vmToolUploading ? 'Uploading & Building ISO...' : 'Upload & Update Drive D:'}
+                  {vmToolUploading ? 'Uploading...' : `Upload to [${vmToolSpace === 'common' ? 'Common' : vmToolSpace.replace('lecturer_', '')}]`}
                 </button>
               </form>
             </div>
 
             {/* Files list table */}
             <div className="cyber-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
-                  Files on Drive D:\ ({vmToolFiles.length} {vmToolFiles.length === 1 ? 'file' : 'files'})
-                </h4>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
+                    {vmToolSpace === 'common' 
+                      ? 'Files on Common Drive D:\\' 
+                      : `Files in Lecturer @${vmToolSpace.replace('lecturer_', '')}'s Private Space`
+                    } ({vmToolFiles.length} {vmToolFiles.length === 1 ? 'file' : 'files'})
+                  </h4>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Storage target: <code>{vmToolSpace === 'common' ? '/var/lib/vz/template/iso/tools-content' : `/var/lib/vz/template/iso/tools-content/lecturers/${vmToolSpace.replace('lecturer_', '')}`}</code>
+                  </span>
+                </div>
                 <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
                   Total: {(vmToolFiles.reduce((acc, f) => acc + (f.size_bytes || 0), 0) / (1024 * 1024)).toFixed(2)} MB
                 </span>
@@ -1675,7 +2334,7 @@ export default function AdminDashboard() {
                               onClick={() => handleDeleteVmTool(file.filename)}
                               className="btn btn-secondary"
                               style={{ padding: '4px 8px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)' }}
-                              title="Delete file from Drive D:"
+                              title="Delete file"
                               disabled={actionLoading}
                             >
                               <Trash2 size={14} /> Delete
@@ -1686,8 +2345,8 @@ export default function AdminDashboard() {
                     })}
                     {vmToolFiles.length === 0 && (
                       <tr>
-                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
-                          No files found on Drive D:\. Upload tools using the form on the left.
+                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '28px' }}>
+                          No files found in {vmToolSpace === 'common' ? 'Common Drive D:\\' : `private workspace of @${vmToolSpace.replace('lecturer_', '')}`}.
                         </td>
                       </tr>
                     )}
