@@ -4406,7 +4406,7 @@ export default function InstructorDashboard() {
                                   padding: '2px 6px'
                                 }}
                               >
-                                👤 {(fileItem.allowed_students || []).length} sinh viên
+                                👤 {(fileItem.allowed_students || []).length} Students
                               </span>
                             ) : (
                               <span 
@@ -4419,7 +4419,7 @@ export default function InstructorDashboard() {
                                   padding: '2px 6px'
                                 }}
                               >
-                                👥 Cả lớp
+                                👥 Whole Class
                               </span>
                             )}
 
@@ -4432,9 +4432,9 @@ export default function InstructorDashboard() {
                               }}
                               className="btn btn-secondary"
                               style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Phân quyền sinh viên được xem file này"
+                              title="Configure student access permissions for this file"
                             >
-                              <Users size={12} /> Phân quyền
+                              <Users size={12} /> Permissions
                             </button>
 
                             <button
@@ -5407,7 +5407,7 @@ export default function InstructorDashboard() {
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={18} style={{ color: 'var(--neon-cyan)' }} />
-                Phân Quyền Hiển Thị Tài Liệu
+                Document Visibility & Permissions
               </h3>
               <button onClick={() => setShowAttachmentPermModal(false)} className="close-btn">&times;</button>
             </div>
@@ -5415,7 +5415,7 @@ export default function InstructorDashboard() {
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* File Info Card */}
               <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>File đính kèm:</span>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>Attached File:</span>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)', wordBreak: 'break-all', marginTop: '2px' }}>
                   {labAttachments[activeAttachmentIdx].original_filename || labAttachments[activeAttachmentIdx].filename}
                 </div>
@@ -5424,7 +5424,7 @@ export default function InstructorDashboard() {
               {/* Mode Selection */}
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
-                  Đối tượng được phép xem và tải file này:
+                  Who can view and download this file?
                 </label>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <label style={{ 
@@ -5452,8 +5452,8 @@ export default function InstructorDashboard() {
                       }}
                     />
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👥 Cả lớp</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mọi sinh viên trong lớp</div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👥 Whole Class</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>All enrolled students</div>
                     </div>
                   </label>
 
@@ -5483,8 +5483,8 @@ export default function InstructorDashboard() {
                       }}
                     />
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👤 Chỉ định sinh viên</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Chỉ sinh viên được tick chọn</div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👤 Specific Students</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Designated students only</div>
                     </div>
                   </label>
                 </div>
@@ -5495,7 +5495,7 @@ export default function InstructorDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                      Chọn sinh viên được xem ({((labAttachments[activeAttachmentIdx].allowed_students || []).length)} đã chọn):
+                      Select Permitted Students ({((labAttachments[activeAttachmentIdx].allowed_students || []).length)} selected):
                     </span>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
@@ -5513,7 +5513,7 @@ export default function InstructorDashboard() {
                         className="btn btn-secondary"
                         style={{ padding: '2px 8px', fontSize: '11px' }}
                       >
-                        Chọn tất cả
+                        Select All
                       </button>
                       <button
                         type="button"
@@ -5528,7 +5528,7 @@ export default function InstructorDashboard() {
                         className="btn btn-secondary"
                         style={{ padding: '2px 8px', fontSize: '11px' }}
                       >
-                        Bỏ chọn
+                        Clear All
                       </button>
                     </div>
                   </div>
@@ -5537,7 +5537,7 @@ export default function InstructorDashboard() {
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Tìm theo MSSV hoặc Tên sinh viên..."
+                    placeholder="Search by student ID or name..."
                     value={permSearchTerm}
                     onChange={(e) => setPermSearchTerm(e.target.value)}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
@@ -5568,7 +5568,7 @@ export default function InstructorDashboard() {
                       if (classStudents.length === 0) {
                         return (
                           <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                            Lớp học phần này chưa có sinh viên nào.
+                            No students enrolled in this class yet.
                           </div>
                         )
                       }
@@ -5576,7 +5576,7 @@ export default function InstructorDashboard() {
                       if (filtered.length === 0) {
                         return (
                           <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                            Không tìm thấy sinh viên phù hợp từ khóa.
+                            No students matching search criteria.
                           </div>
                         )
                       }
@@ -5641,7 +5641,7 @@ export default function InstructorDashboard() {
                 className="btn btn-primary"
                 style={{ padding: '6px 18px' }}
               >
-                XÁC NHẬN & ĐÓNG
+                APPLY & CLOSE
               </button>
             </div>
           </div>

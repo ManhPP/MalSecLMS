@@ -865,7 +865,7 @@ export default function AdminDashboard() {
           className={`btn ${activeTab === 'vm-tools' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <HardDrive size={15} /> VM Shared Drive (Ổ D:)
+          <HardDrive size={15} /> VM Shared Tools (Drive D:)
         </button>
         <button 
           onClick={() => setActiveTab('logs')} 
@@ -1522,7 +1522,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB VM SHARED DRIVE (Ổ D:) CONTENT */}
+      {/* TAB VM SHARED DRIVE (DRIVE D:) CONTENT */}
       {activeTab === 'vm-tools' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Header Banner */}
@@ -1547,10 +1547,10 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '18px', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    Quản lý Ổ D:\ Dùng Chung (VM Shared Tools ISO)
+                    Shared VM Tools Drive (Drive D: ISO Image)
                   </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px', margin: '4px 0 0 0' }}>
-                    Tất cả các file dưới đây được tự động đóng gói vào đĩa ảo <code>tools-1001.iso</code> và gắn sẵn vào ổ <b>D:\</b> của mọi máy ảo thực hành sinh viên (VDI Windows).
+                    All files below are automatically packaged into the <code>tools-1001.iso</code> virtual optical disk and mounted to <b>Drive D:\</b> on all student lab VMs (Windows VDI).
                   </p>
                 </div>
               </div>
@@ -1562,7 +1562,7 @@ export default function AdminDashboard() {
                   className="btn btn-secondary"
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px' }}
                 >
-                  <RefreshCw size={14} /> Tải lại
+                  <RefreshCw size={14} /> Refresh
                 </button>
                 <button
                   type="button"
@@ -1570,10 +1570,10 @@ export default function AdminDashboard() {
                   className="btn btn-primary"
                   disabled={vmToolSyncing}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
-                  title="Gắn lại đĩa CD-ROM cho các máy ảo sinh viên đang hoạt động"
+                  title="Remount CD-ROM drive on all active student VMs"
                 >
                   <RefreshCw size={14} className={vmToolSyncing ? 'animate-spin' : ''} />
-                  {vmToolSyncing ? 'Đang đồng bộ...' : 'Đồng bộ tới máy ảo đang chạy 🔄'}
+                  {vmToolSyncing ? 'Syncing...' : 'Sync to Running VMs 🔄'}
                 </button>
               </div>
             </div>
@@ -1584,10 +1584,10 @@ export default function AdminDashboard() {
             {/* Upload form card */}
             <div className="cyber-card">
               <h4 style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Upload size={16} /> Thêm File Mới Lên Ổ D:
+                <Upload size={16} /> Upload New Tool to Drive D:
               </h4>
               <p style={{ color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5, marginBottom: '16px' }}>
-                Chọn file công cụ (.zip, .exe, .msi, .pdf, v.v.). Hệ thống sẽ lưu lên Proxmox và tự động biên dịch lại đĩa ISO trong vài giây.
+                Select utility, tool, or sample archive (.zip, .exe, .msi, .pdf, etc.). The file will be transferred to Proxmox and the ISO will be rebuilt automatically.
               </p>
               <form onSubmit={handleUploadVmTool}>
                 <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -1601,7 +1601,7 @@ export default function AdminDashboard() {
                   />
                   {toolFileToUpload && (
                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--neon-emerald)' }}>
-                      ✓ Đã chọn: <b>{toolFileToUpload.name}</b> ({(toolFileToUpload.size / (1024 * 1024)).toFixed(2)} MB)
+                      ✓ Selected: <b>{toolFileToUpload.name}</b> ({(toolFileToUpload.size / (1024 * 1024)).toFixed(2)} MB)
                     </div>
                   )}
                 </div>
@@ -1613,7 +1613,7 @@ export default function AdminDashboard() {
                   disabled={!toolFileToUpload || vmToolUploading}
                 >
                   <Upload size={15} />
-                  {vmToolUploading ? 'Đang tải & Đóng gói ISO...' : 'Tải lên & Cập nhật Ổ D:'}
+                  {vmToolUploading ? 'Uploading & Building ISO...' : 'Upload & Update Drive D:'}
                 </button>
               </form>
             </div>
@@ -1623,10 +1623,10 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
-                  Danh sách file hiện có trên ổ D:\ ({vmToolFiles.length} file)
+                  Files on Drive D:\ ({vmToolFiles.length} {vmToolFiles.length === 1 ? 'file' : 'files'})
                 </h4>
                 <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                  Tổng: {(vmToolFiles.reduce((acc, f) => acc + (f.size_bytes || 0), 0) / (1024 * 1024)).toFixed(2)} MB
+                  Total: {(vmToolFiles.reduce((acc, f) => acc + (f.size_bytes || 0), 0) / (1024 * 1024)).toFixed(2)} MB
                 </span>
               </div>
 
@@ -1634,10 +1634,10 @@ export default function AdminDashboard() {
                 <table className="cyber-table">
                   <thead>
                     <tr>
-                      <th>Tên File (Filename)</th>
-                      <th>Dung lượng</th>
-                      <th>Thời gian sửa đổi</th>
-                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                      <th>Filename</th>
+                      <th>Size</th>
+                      <th>Last Modified</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1675,10 +1675,10 @@ export default function AdminDashboard() {
                               onClick={() => handleDeleteVmTool(file.filename)}
                               className="btn btn-secondary"
                               style={{ padding: '4px 8px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)' }}
-                              title="Xóa file khỏi ổ D:"
+                              title="Delete file from Drive D:"
                               disabled={actionLoading}
                             >
-                              <Trash2 size={14} /> Xóa
+                              <Trash2 size={14} /> Delete
                             </button>
                           </td>
                         </tr>
@@ -1687,7 +1687,7 @@ export default function AdminDashboard() {
                     {vmToolFiles.length === 0 && (
                       <tr>
                         <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
-                          Chưa có file nào trong ổ D:\. Hãy tải file lên bằng khung bên trái.
+                          No files found on Drive D:\. Upload tools using the form on the left.
                         </td>
                       </tr>
                     )}

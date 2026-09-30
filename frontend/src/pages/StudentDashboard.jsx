@@ -1747,7 +1747,7 @@ export default function StudentDashboard() {
                         className="btn btn-secondary"
                         style={{ padding: '6px 12px', fontSize: '12px' }}
                         disabled={!guacamoleUrl}
-                        title="Direct keyboard focus to virtual machine"
+                        title="Click to focus keyboard on VM (switch IME/Unikey/EVKey to English [E] mode to prevent sticking keys)"
                       >
                         Capture Keyboard
                       </button>
@@ -1792,41 +1792,7 @@ export default function StudentDashboard() {
                       cursor: guacamoleUrl ? 'crosshair' : 'default'
                     }}
                   >
-                    {/* Keyboard Tip Banner: Hướng dẫn chuyển Unikey/EVKey sang English để không kẹt phím */}
-                    {guacamoleUrl && !vmLoading && !vmError && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        zIndex: 10,
-                        background: 'rgba(15, 23, 42, 0.88)',
-                        backdropFilter: 'blur(4px)',
-                        borderBottom: '1px solid rgba(0, 242, 254, 0.25)',
-                        padding: '4px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: '11px',
-                        color: 'var(--text-secondary)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: 'var(--neon-amber)', fontWeight: 'bold' }}>⌨️ Mẹo gõ phím:</span>
-                          <span>Chuyển <b>EVKey / Unikey</b> sang <b>Tiếng Anh [E]</b> trên máy thật để tránh bị kẹt phím. Nếu không gõ được, bấm <b>Capture Keyboard</b> hoặc click vào màn hình.</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            focusIframe()
-                          }}
-                          className="btn btn-secondary"
-                          style={{ padding: '2px 8px', fontSize: '10.5px', background: 'rgba(0, 242, 254, 0.15)', color: 'var(--neon-cyan)', border: '1px solid rgba(0, 242, 254, 0.3)' }}
-                        >
-                          Focus Bàn phím 🎯
-                        </button>
-                      </div>
-                    )}
+
 
                     {vmLoading ? (
                       <div style={{ textAlign: 'center', color: 'var(--neon-cyan)', padding: '24px' }}>
