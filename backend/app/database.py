@@ -3,9 +3,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
+# Chuẩn hóa DATABASE_URL nếu bắt đầu bằng postgresql:// để dùng psycopg2
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
 # Tạo engine CSDL
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     pool_pre_ping=True
 )
 

@@ -153,3 +153,93 @@ def clean_orphaned_vms(
     db.commit()
 
     return result
+
+
+@router.get("/vm-tools/files", response_model=List[Dict[str, Any]])
+def list_vm_tool_files(
+    current_user: User = Depends(require_admin)
+):
+    """API Liệt kê danh sách các file trong ổ đĩa chia sẻ D:\ (tools-1001.iso) của máy ảo"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        return IsoToolService.list_files()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vm-tools/files")
+def upload_vm_tool_file(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Upload file công cụ/mã độc mới lên ổ đĩa chia sẻ D:\ và tự động đóng gói ISO"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        result = IsoToolService.upload_file(file)
+        
+        log = AuditLog(
+            user_id=current_user.id,
+            action="vm_tool_upload",
+            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to Drive D:",
+            ip_address=get_client_ip(request)
+        )
+        db.add(log)
+        db.commit()
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/vm-tools/files/{filename}")
+def delete_vm_tool_file(
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Xóa file khỏi ổ đĩa chia sẻ D:\ và tự động đóng gói lại ISO"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        IsoToolService.delete_file(filename)
+        
+        log = AuditLog(
+            user_id=current_user.id,
+            action="vm_tool_delete",
+            target=f"Deleted {filename} from Drive D:",
+            ip_address=get_client_ip(request)
+        )
+        db.add(log)
+        db.commit()
+        return {"success": True, "message": f"Successfully deleted {filename} from Drive D:"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vm-tools/sync-vms")
+def sync_vm_tools_to_active_vms(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Đồng bộ remount ổ đĩa D:\ cho tất cả các máy ảo sinh viên đang hoạt động"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        result = IsoToolService.sync_to_running_vms()
+        
+        log = AuditLog(
+            user_id=current_user.id,
+            action="vm_tool_sync",
+            target=f"Synced Drive D: to {result.get('synced_count', 0)} active student VMs",
+            ip_address=get_client_ip(request)
+        )
+        db.add(log)
+        db.commit()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

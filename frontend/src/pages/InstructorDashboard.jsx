@@ -246,6 +246,11 @@ export default function InstructorDashboard() {
   const [extensionStudent, setExtensionStudent] = useState('')
   const [extensionDeadline, setExtensionDeadline] = useState('')
 
+  // Attachment Access Control State (Phân quyền hiển thị tài liệu đính kèm cho từng sinh viên)
+  const [showAttachmentPermModal, setShowAttachmentPermModal] = useState(false)
+  const [activeAttachmentIdx, setActiveAttachmentIdx] = useState(null)
+  const [permSearchTerm, setPermSearchTerm] = useState('')
+
   // Clone Lab State
   const [showCloneModal, setShowCloneModal] = useState(false)
   const [cloneSourceLab, setCloneSourceLab] = useState(null)
@@ -4389,6 +4394,49 @@ export default function InstructorDashboard() {
                             )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            {/* Visibility Badge */}
+                            {fileItem.visibility_mode === 'specific' ? (
+                              <span 
+                                className="badge" 
+                                style={{ 
+                                  background: 'rgba(242, 112, 36, 0.1)', 
+                                  color: 'var(--neon-amber)', 
+                                  border: '1px solid rgba(242, 112, 36, 0.3)',
+                                  fontSize: '11px',
+                                  padding: '2px 6px'
+                                }}
+                              >
+                                👤 {(fileItem.allowed_students || []).length} sinh viên
+                              </span>
+                            ) : (
+                              <span 
+                                className="badge" 
+                                style={{ 
+                                  background: 'rgba(16, 185, 129, 0.1)', 
+                                  color: 'var(--neon-emerald)', 
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  fontSize: '11px',
+                                  padding: '2px 6px'
+                                }}
+                              >
+                                👥 Cả lớp
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveAttachmentIdx(idx)
+                                setPermSearchTerm('')
+                                setShowAttachmentPermModal(true)
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Phân quyền sinh viên được xem file này"
+                            >
+                              <Users size={12} /> Phân quyền
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => handleOpenDocPreview({ filepath: fileItem.filepath, original_filename: fileItem.original_filename || fileItem.filename })}
@@ -5349,6 +5397,253 @@ export default function InstructorDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: PHÂN QUYỀN HIỂN THỊ TÀI LIỆU ĐÍNH KÈM CHO TỪNG SINH VIÊN */}
+      {showAttachmentPermModal && activeAttachmentIdx !== null && labAttachments[activeAttachmentIdx] && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={18} style={{ color: 'var(--neon-cyan)' }} />
+                Phân Quyền Hiển Thị Tài Liệu
+              </h3>
+              <button onClick={() => setShowAttachmentPermModal(false)} className="close-btn">&times;</button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* File Info Card */}
+              <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>File đính kèm:</span>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)', wordBreak: 'break-all', marginTop: '2px' }}>
+                  {labAttachments[activeAttachmentIdx].original_filename || labAttachments[activeAttachmentIdx].filename}
+                </div>
+              </div>
+
+              {/* Mode Selection */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                  Đối tượng được phép xem và tải file này:
+                </label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <label style={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    padding: '10px 14px', 
+                    background: (labAttachments[activeAttachmentIdx].visibility_mode || 'all') === 'all' ? 'rgba(0, 242, 254, 0.08)' : '#ffffff',
+                    border: (labAttachments[activeAttachmentIdx].visibility_mode || 'all') === 'all' ? '1px solid var(--neon-cyan)' : '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}>
+                    <input 
+                      type="radio" 
+                      name="visMode"
+                      checked={(labAttachments[activeAttachmentIdx].visibility_mode || 'all') === 'all'}
+                      onChange={() => {
+                        const updated = [...labAttachments]
+                        updated[activeAttachmentIdx] = {
+                          ...updated[activeAttachmentIdx],
+                          visibility_mode: 'all'
+                        }
+                        setLabAttachments(updated)
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👥 Cả lớp</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mọi sinh viên trong lớp</div>
+                    </div>
+                  </label>
+
+                  <label style={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    padding: '10px 14px', 
+                    background: labAttachments[activeAttachmentIdx].visibility_mode === 'specific' ? 'rgba(242, 112, 36, 0.08)' : '#ffffff',
+                    border: labAttachments[activeAttachmentIdx].visibility_mode === 'specific' ? '1px solid var(--neon-amber)' : '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}>
+                    <input 
+                      type="radio" 
+                      name="visMode"
+                      checked={labAttachments[activeAttachmentIdx].visibility_mode === 'specific'}
+                      onChange={() => {
+                        const updated = [...labAttachments]
+                        updated[activeAttachmentIdx] = {
+                          ...updated[activeAttachmentIdx],
+                          visibility_mode: 'specific',
+                          allowed_students: updated[activeAttachmentIdx].allowed_students || []
+                        }
+                        setLabAttachments(updated)
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>👤 Chỉ định sinh viên</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Chỉ sinh viên được tick chọn</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Student Selector when specific */}
+              {labAttachments[activeAttachmentIdx].visibility_mode === 'specific' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      Chọn sinh viên được xem ({((labAttachments[activeAttachmentIdx].allowed_students || []).length)} đã chọn):
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentClass = classes.find(c => c.id === parseInt(classId))
+                          const allUsernames = (currentClass?.users || []).filter(u => u.role === 'student').map(u => u.username)
+                          const updated = [...labAttachments]
+                          updated[activeAttachmentIdx] = {
+                            ...updated[activeAttachmentIdx],
+                            allowed_students: allUsernames
+                          }
+                          setLabAttachments(updated)
+                        }}
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        Chọn tất cả
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...labAttachments]
+                          updated[activeAttachmentIdx] = {
+                            ...updated[activeAttachmentIdx],
+                            allowed_students: []
+                          }
+                          setLabAttachments(updated)
+                        }}
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search box */}
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Tìm theo MSSV hoặc Tên sinh viên..."
+                    value={permSearchTerm}
+                    onChange={(e) => setPermSearchTerm(e.target.value)}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                  />
+
+                  {/* Students checklist */}
+                  <div style={{ 
+                    maxHeight: '220px', 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '8px', 
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    background: '#ffffff'
+                  }}>
+                    {(() => {
+                      const currentClass = classes.find(c => c.id === parseInt(classId))
+                      const classStudents = (currentClass?.users || []).filter(u => u.role === 'student')
+                      const allowedList = labAttachments[activeAttachmentIdx].allowed_students || []
+                      const filtered = classStudents.filter(s => 
+                        !permSearchTerm || 
+                        s.username.toLowerCase().includes(permSearchTerm.toLowerCase()) || 
+                        (s.full_name && s.full_name.toLowerCase().includes(permSearchTerm.toLowerCase()))
+                      )
+
+                      if (classStudents.length === 0) {
+                        return (
+                          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+                            Lớp học phần này chưa có sinh viên nào.
+                          </div>
+                        )
+                      }
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+                            Không tìm thấy sinh viên phù hợp từ khóa.
+                          </div>
+                        )
+                      }
+
+                      return filtered.map(student => {
+                        const isChecked = allowedList.includes(student.username)
+                        return (
+                          <label 
+                            key={student.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '10px', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px',
+                              background: isChecked ? 'rgba(0, 242, 254, 0.05)' : 'transparent',
+                              cursor: 'pointer',
+                              fontSize: '13px'
+                            }}
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const updated = [...labAttachments]
+                                let currentAllowed = [...(updated[activeAttachmentIdx].allowed_students || [])]
+                                if (e.target.checked) {
+                                  if (!currentAllowed.includes(student.username)) {
+                                    currentAllowed.push(student.username)
+                                  }
+                                } else {
+                                  currentAllowed = currentAllowed.filter(u => u !== student.username)
+                                }
+                                updated[activeAttachmentIdx] = {
+                                  ...updated[activeAttachmentIdx],
+                                  allowed_students: currentAllowed
+                                }
+                                setLabAttachments(updated)
+                              }}
+                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)', color: 'var(--neon-cyan)', fontSize: '12px' }}>
+                                {student.username}
+                              </span>
+                              <span style={{ color: 'var(--text-primary)' }}>
+                                {student.full_name || '—'}
+                              </span>
+                            </div>
+                          </label>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                onClick={() => setShowAttachmentPermModal(false)} 
+                className="btn btn-primary"
+                style={{ padding: '6px 18px' }}
+              >
+                XÁC NHẬN & ĐÓNG
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Cài đặt các gói hệ thống cần thiết cho psycopg2 và nén/giải nén
+# Cài đặt các gói hệ thống cần thiết cho psycopg2, nén/giải nén, genisoimage và ssh client
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     unzip \
+    openssh-client \
+    genisoimage \
     && rm -rf /var/lib/apt/lists/*
 
 # Sao chép và cài đặt các thư viện Python

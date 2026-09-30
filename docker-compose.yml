@@ -38,7 +38,7 @@ services:
       - "127.0.0.1:${BACKEND_HOST_PORT:?BACKEND_HOST_PORT is required}:${BACKEND_PORT:?BACKEND_PORT is required}"
     environment:
       TZ: "Asia/Ho_Chi_Minh"
-      DATABASE_URL: "postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:?DB_NAME is required}"
+      DATABASE_URL: "postgresql+psycopg2://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:?DB_NAME is required}"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
       JWT_ALGORITHM: "${JWT_ALGORITHM:?JWT_ALGORITHM is required}"
       ACCESS_TOKEN_EXPIRE_MINUTES: "${ACCESS_TOKEN_EXPIRE_MINUTES:?ACCESS_TOKEN_EXPIRE_MINUTES is required}"
@@ -86,6 +86,7 @@ services:
       GUAC_SSH_IGNORE_HOST_KEY: "${GUAC_SSH_IGNORE_HOST_KEY:?GUAC_SSH_IGNORE_HOST_KEY is required}"
     volumes:
       - student_uploads:/app/uploads
+      - /home/iahn/.ssh:/root/.ssh:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     depends_on:

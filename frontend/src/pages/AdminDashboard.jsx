@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Users, School, ShieldAlert, FileSpreadsheet, Plus, Edit2, 
-  Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check 
+  Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check,
+  HardDrive, Disc, FileArchive, Upload, Download, AlertTriangle
 } from 'lucide-react'
 
 // --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
@@ -684,6 +685,99 @@ export default function AdminDashboard() {
     }
   }
 
+  // --- VM SHARED DRIVE (Ổ D:) HANDLERS ---
+  const [vmToolFiles, setVmToolFiles] = useState([])
+  const [vmToolUploading, setVmToolUploading] = useState(false)
+  const [vmToolSyncing, setVmToolSyncing] = useState(false)
+  const [toolFileToUpload, setToolFileToUpload] = useState(null)
+
+  const fetchVmTools = async () => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/admin/vm-tools/files', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setVmToolFiles(await res.json())
+      }
+    } catch (e) {
+      console.error('Failed to fetch VM tool files:', e)
+    }
+  }
+
+  const handleUploadVmTool = async (e) => {
+    e.preventDefault()
+    if (!toolFileToUpload) return
+    setVmToolUploading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    const formData = new FormData()
+    formData.append('file', toolFileToUpload)
+
+    try {
+      const res = await fetch('/api/admin/vm-tools/files', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to upload tool to Drive D:')
+      setSuccess(`Uploaded ${data.filename} and updated Drive D: successfully!`)
+      setToolFileToUpload(null)
+      // Reset input element
+      const fileInput = document.getElementById('vmToolFileInput')
+      if (fileInput) fileInput.value = ''
+      await fetchVmTools()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setVmToolUploading(false)
+    }
+  }
+
+  const handleDeleteVmTool = async (fname) => {
+    if (!confirm(`Are you sure you want to delete '${fname}' from Drive D:? The ISO will be rebuilt.`)) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/admin/vm-tools/files/${encodeURIComponent(fname)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete file')
+      setSuccess(`Deleted ${fname} from Drive D: successfully!`)
+      await fetchVmTools()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleSyncVmTools = async () => {
+    setVmToolSyncing(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/admin/vm-tools/sync-vms', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to sync Drive D: to active VMs')
+      setSuccess(data.message || `Drive D: synchronized to ${data.synced_count} active student VMs!`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setVmToolSyncing(false)
+    }
+  }
+
   return (
     <div>
       {/* 1. Stats row */}
@@ -762,6 +856,16 @@ export default function AdminDashboard() {
           style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           <Monitor size={15} /> Proxmox VM Management
+        </button>
+        <button 
+          onClick={() => {
+            setActiveTab('vm-tools')
+            fetchVmTools()
+          }} 
+          className={`btn ${activeTab === 'vm-tools' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <HardDrive size={15} /> VM Shared Drive (Ổ D:)
         </button>
         <button 
           onClick={() => setActiveTab('logs')} 
@@ -1418,7 +1522,182 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB AUDIT LOGS CONTENT */}
+      {/* TAB VM SHARED DRIVE (Ổ D:) CONTENT */}
+      {activeTab === 'vm-tools' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Header Banner */}
+          <div className="cyber-card" style={{ 
+            background: 'linear-gradient(135deg, rgba(0, 242, 254, 0.04) 0%, rgba(79, 172, 254, 0.08) 100%)',
+            border: '1px solid rgba(0, 242, 254, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ 
+                  width: '46px', 
+                  height: '46px', 
+                  borderRadius: '10px', 
+                  background: 'rgba(0, 242, 254, 0.1)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: 'var(--neon-cyan)',
+                  border: '1px solid rgba(0, 242, 254, 0.3)'
+                }}>
+                  <Disc size={26} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Quản lý Ổ D:\ Dùng Chung (VM Shared Tools ISO)
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px', margin: '4px 0 0 0' }}>
+                    Tất cả các file dưới đây được tự động đóng gói vào đĩa ảo <code>tools-1001.iso</code> và gắn sẵn vào ổ <b>D:\</b> của mọi máy ảo thực hành sinh viên (VDI Windows).
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={fetchVmTools}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px' }}
+                >
+                  <RefreshCw size={14} /> Tải lại
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncVmTools}
+                  className="btn btn-primary"
+                  disabled={vmToolSyncing}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
+                  title="Gắn lại đĩa CD-ROM cho các máy ảo sinh viên đang hoạt động"
+                >
+                  <RefreshCw size={14} className={vmToolSyncing ? 'animate-spin' : ''} />
+                  {vmToolSyncing ? 'Đang đồng bộ...' : 'Đồng bộ tới máy ảo đang chạy 🔄'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Upload card & Files table grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px', alignItems: 'start' }}>
+            {/* Upload form card */}
+            <div className="cyber-card">
+              <h4 style={{ fontSize: '15px', color: 'var(--neon-cyan)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Upload size={16} /> Thêm File Mới Lên Ổ D:
+              </h4>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5, marginBottom: '16px' }}>
+                Chọn file công cụ (.zip, .exe, .msi, .pdf, v.v.). Hệ thống sẽ lưu lên Proxmox và tự động biên dịch lại đĩa ISO trong vài giây.
+              </p>
+              <form onSubmit={handleUploadVmTool}>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <input
+                    type="file"
+                    id="vmToolFileInput"
+                    className="form-input"
+                    onChange={(e) => setToolFileToUpload(e.target.files?.[0] || null)}
+                    disabled={vmToolUploading}
+                    style={{ padding: '8px', fontSize: '12.5px' }}
+                  />
+                  {toolFileToUpload && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--neon-emerald)' }}>
+                      ✓ Đã chọn: <b>{toolFileToUpload.name}</b> ({(toolFileToUpload.size / (1024 * 1024)).toFixed(2)} MB)
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  disabled={!toolFileToUpload || vmToolUploading}
+                >
+                  <Upload size={15} />
+                  {vmToolUploading ? 'Đang tải & Đóng gói ISO...' : 'Tải lên & Cập nhật Ổ D:'}
+                </button>
+              </form>
+            </div>
+
+            {/* Files list table */}
+            <div className="cyber-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
+                  Danh sách file hiện có trên ổ D:\ ({vmToolFiles.length} file)
+                </h4>
+                <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                  Tổng: {(vmToolFiles.reduce((acc, f) => acc + (f.size_bytes || 0), 0) / (1024 * 1024)).toFixed(2)} MB
+                </span>
+              </div>
+
+              <div className="table-container">
+                <table className="cyber-table">
+                  <thead>
+                    <tr>
+                      <th>Tên File (Filename)</th>
+                      <th>Dung lượng</th>
+                      <th>Thời gian sửa đổi</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vmToolFiles.map((file, idx) => {
+                      const isZip = file.filename.endsWith('.zip') || file.filename.endsWith('.rar') || file.filename.endsWith('.7z')
+                      const isExe = file.filename.endsWith('.exe') || file.filename.endsWith('.msi')
+                      const sizeMb = (file.size_bytes / (1024 * 1024)).toFixed(2)
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {isZip ? (
+                                <FileArchive size={18} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                              ) : isExe ? (
+                                <Disc size={18} style={{ color: 'var(--neon-ruby)', flexShrink: 0 }} />
+                              ) : (
+                                <HardDrive size={18} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                              )}
+                              <span style={{ fontWeight: '500', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                {file.filename}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px' }}>
+                            {file.size_bytes > 1024 * 1024 
+                              ? `${sizeMb} MB` 
+                              : `${(file.size_bytes / 1024).toFixed(1)} KB`}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                            {file.updated_at || '—'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteVmTool(file.filename)}
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)' }}
+                              title="Xóa file khỏi ổ D:"
+                              disabled={actionLoading}
+                            >
+                              <Trash2 size={14} /> Xóa
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {vmToolFiles.length === 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                          Chưa có file nào trong ổ D:\. Hãy tải file lên bằng khung bên trái.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {activeTab === 'logs' && (
 
         <div className="cyber-card">

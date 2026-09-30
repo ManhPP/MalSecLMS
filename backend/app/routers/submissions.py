@@ -675,8 +675,14 @@ def get_submission_file(
         student_labs = db.query(Lab).filter(Lab.class_id.in_(student_class_ids), Lab.is_active == True).all()
         for l in student_labs:
             lab_files = l.attachment_files or []
-            if any(att.get("filepath") == path for att in lab_files):
-                allowed = True
+            for att in lab_files:
+                if att.get("filepath") == path:
+                    vis_mode = att.get("visibility_mode", "all")
+                    allowed_users = att.get("allowed_students", [])
+                    if vis_mode == "all" or current_user.username in allowed_users:
+                        allowed = True
+                        break
+            if allowed:
                 break
 
         if not allowed:

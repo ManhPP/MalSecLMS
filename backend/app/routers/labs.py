@@ -11,6 +11,20 @@ from app.services.file_service import FileService
 
 router = APIRouter(prefix="/labs", tags=["Labs"])
 
+def _filter_lab_attachments_for_user(lab: Lab, user: User) -> LabOut:
+    """Nếu là sinh viên, lọc chỉ hiển thị các attachment_files mà sinh viên này được phép xem"""
+    lab_out = LabOut.model_validate(lab)
+    if user.role == "student":
+        filtered_files = []
+        for att in (lab.attachment_files or []):
+            vis_mode = att.get("visibility_mode", "all")
+            allowed_students = att.get("allowed_students", [])
+            if vis_mode == "all" or user.username in allowed_students:
+                filtered_files.append(att)
+        lab_out.attachment_files = filtered_files
+    return lab_out
+
+
 @router.get("/", response_model=List[LabOut])
 def get_all_labs(
     db: Session = Depends(get_db), 
@@ -36,7 +50,8 @@ def get_labs_by_class(
         ).first()
         if not belongs:
             raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần này")
-        return db.query(Lab).filter(Lab.class_id == class_id, Lab.is_active == True).order_by(Lab.id.desc()).all()
+        labs = db.query(Lab).filter(Lab.class_id == class_id, Lab.is_active == True).order_by(Lab.id.desc()).all()
+        return [_filter_lab_attachments_for_user(l, current_user) for l in labs]
     elif current_user.role == "lecturer":
         belongs = db.query(Class).filter(
             Class.id == class_id,
@@ -57,10 +72,11 @@ def get_active_student_labs(
     class_ids = [c.id for c in current_user.classes]
     if not class_ids:
         return []
-    return db.query(Lab).filter(
+    labs = db.query(Lab).filter(
         Lab.class_id.in_(class_ids), 
         Lab.is_active == True
     ).order_by(Lab.deadline.asc()).all()
+    return [_filter_lab_attachments_for_user(l, current_user) for l in labs]
 
 @router.get("/{lab_id}", response_model=LabOut)
 def get_lab_detail(
@@ -81,6 +97,7 @@ def get_lab_detail(
         ).first()
         if not belongs:
             raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
+        return _filter_lab_attachments_for_user(lab, current_user)
             
     return lab
 
