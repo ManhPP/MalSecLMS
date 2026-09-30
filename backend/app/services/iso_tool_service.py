@@ -140,7 +140,9 @@ class IsoToolService:
         Sử dụng symlinks / hardlinks tạm trên Proxmox để tiết kiệm dung lượng và biên dịch tức thì.
         """
         lab_iso_dir = f"/var/lib/vz/template/iso/labs/lab-{lab_id}"
-        lab_iso_path = f"/var/lib/vz/template/iso/labs/{IsoToolService.get_lab_iso_basename(lab_id)}"
+        iso_basename = IsoToolService.get_lab_iso_basename(lab_id)
+        # Lưu file ISO trực tiếp tại /var/lib/vz/template/iso/ để khớp chuẩn volume "local:iso/lab-{lab_id}.iso" của Proxmox
+        lab_iso_path = f"/var/lib/vz/template/iso/{iso_basename}"
         
         # Lọc danh sách an toàn
         safe_files = []

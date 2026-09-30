@@ -285,7 +285,7 @@ def update_lab(
         try:
             from app.services.iso_tool_service import IsoToolService
             IsoToolService.build_lab_iso(lab.id, lab.vm_drive_files)
-            iso_name = f"labs/{IsoToolService.get_lab_iso_basename(lab.id)}"
+            iso_name = IsoToolService.get_lab_iso_basename(lab.id)
             IsoToolService.sync_to_running_vms(lab_id=lab.id, iso_name=iso_name)
         except Exception as e:
             logger.error(f"[LABS] Failed to rebuild custom lab ISO for Lab {lab.id}: {e}")
@@ -520,7 +520,7 @@ def get_or_create_vm_session(
     iso_filename = None
     if getattr(lab, 'vm_drive_mode', 'default') == 'custom' and getattr(lab, 'vm_drive_files', None):
         from app.services.iso_tool_service import IsoToolService
-        iso_filename = f"labs/{IsoToolService.get_lab_iso_basename(lab.id)}"
+        iso_filename = IsoToolService.get_lab_iso_basename(lab.id)
 
     try:
         ip_address, vmid = provision_student_vm(
