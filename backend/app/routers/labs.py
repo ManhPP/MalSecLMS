@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Query, Form
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.database import get_db
 from app.config import settings
 from app.models import Lab, User, Class, AuditLog, VmToolFile

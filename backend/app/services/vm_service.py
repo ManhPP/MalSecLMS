@@ -10,7 +10,7 @@ import secrets
 import re
 import threading
 from collections import defaultdict
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any, List, Optional
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from app.config import settings
