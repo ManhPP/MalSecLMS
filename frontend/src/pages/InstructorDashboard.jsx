@@ -5688,42 +5688,56 @@ export default function InstructorDashboard() {
                               No files found in tools repository. Admin can upload tools in Admin &rarr; VM Shared Tools.
                             </div>
                           ) : (
-                            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {availableVmTools.map(tool => {
-                                const isChecked = vmDriveFiles.includes(tool.filename)
+                                const toolKey = tool.rel_path || tool.filename
+                                const isChecked = vmDriveFiles.includes(toolKey) || vmDriveFiles.includes(tool.filename)
                                 const sizeMb = (tool.size_bytes / (1024 * 1024)).toFixed(2)
+                                const isPrivate = tool.scope && tool.scope.startsWith('lecturer_')
+                                const lecturerOwner = isPrivate ? tool.scope.replace('lecturer_', '') : null
+
                                 return (
                                   <label
-                                    key={tool.filename}
+                                    key={toolKey}
                                     style={{
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
-                                      padding: '6px 10px',
-                                      borderRadius: '4px',
+                                      padding: '7px 10px',
+                                      borderRadius: '6px',
                                       background: isChecked ? 'rgba(0, 242, 254, 0.06)' : '#ffffff',
-                                      border: isChecked ? '1px solid rgba(0, 242, 254, 0.3)' : '1px solid #e2e8f0',
+                                      border: isChecked ? '1px solid rgba(0, 242, 254, 0.4)' : '1px solid #e2e8f0',
                                       cursor: 'pointer',
-                                      fontSize: '12.5px'
+                                      fontSize: '12.5px',
+                                      transition: 'all 0.15s ease'
                                     }}
                                   >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                                       <input
                                         type="checkbox"
                                         checked={isChecked}
                                         onChange={(e) => {
                                           if (e.target.checked) {
-                                            setVmDriveFiles([...vmDriveFiles, tool.filename])
+                                            setVmDriveFiles([...vmDriveFiles.filter(f => f !== tool.filename && f !== toolKey), toolKey])
                                           } else {
-                                            setVmDriveFiles(vmDriveFiles.filter(f => f !== tool.filename))
+                                            setVmDriveFiles(vmDriveFiles.filter(f => f !== toolKey && f !== tool.filename))
                                           }
                                         }}
                                       />
-                                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '500', color: 'var(--text-primary)' }}>
+                                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '500', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {tool.filename}
                                       </span>
+                                      {isPrivate ? (
+                                        <span className="badge" style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', padding: '1px 6px', fontWeight: 'bold' }}>
+                                          🔒 @{lecturerOwner}
+                                        </span>
+                                      ) : (
+                                        <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', padding: '1px 6px' }}>
+                                          🌐 Common
+                                        </span>
+                                      )}
                                     </div>
-                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginLeft: '8px', flexShrink: 0 }}>
                                       {tool.size_bytes > 1024 * 1024 ? `${sizeMb} MB` : `${(tool.size_bytes / 1024).toFixed(1)} KB`}
                                     </span>
                                   </label>
