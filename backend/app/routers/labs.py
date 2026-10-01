@@ -1,8 +1,13 @@
+import os
+import shutil
+import zipfile
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Query, Form
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from app.database import get_db
 from app.config import settings
+from app.logging_config import logger
 from app.models import Lab, User, Class, AuditLog, VmToolFile
 from app.request_utils import get_client_ip
 from app.schemas import LabOut, LabCreate, LabUpdate, LabClone
@@ -802,8 +807,10 @@ def submit_exam_from_vm(
 
     return {
         "success": True,
+        "status": submission.status,
         "message": f"Exam report submitted successfully from VM! ({docx_found['original_filename'] if docx_found else official_filename})",
         "filename": docx_found["original_filename"] if docx_found else official_filename,
+        "file_attachments": submission.file_attachments,
         "submission_id": submission.id,
         "submitted_at": now.isoformat()
     }

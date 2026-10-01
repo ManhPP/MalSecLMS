@@ -967,22 +967,43 @@ export default function StudentDashboard() {
     const token = localStorage.getItem('malsec_token')
 
     try {
-      await triggerServerSideAutoSave(answers)
-      const res = await fetch(`/api/submissions/lab/${selectedLab.id}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ answers })
-      })
+      if (selectedLab?.is_exam_mode) {
+        // If Exam Mode is active, collect Word docx / workspace from VM Desktop
+        const res = await fetch(`/api/labs/${selectedLab.id}/vm-exam-submit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error submitting exam from VM')
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Error submitting report')
+        setSuccess(data.message || 'Your exam report has been submitted successfully from VM!')
+        setSubmissionStatus(data.status || 'submitted')
+        if (data.file_attachments) {
+          setFileAttachments(data.file_attachments)
+        }
+        fetchStudentLabs()
+      } else {
+        // Regular Lab submission
+        await triggerServerSideAutoSave(answers)
+        const res = await fetch(`/api/submissions/lab/${selectedLab.id}/submit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ answers })
+        })
 
-      setSuccess('Your lab report has been submitted successfully!')
-      setSubmissionStatus(data.status)
-      fetchStudentLabs()
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error submitting report')
+
+        setSuccess('Your lab report has been submitted successfully!')
+        setSubmissionStatus(data.status)
+        fetchStudentLabs()
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -2108,17 +2129,6 @@ export default function StudentDashboard() {
                         </a>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={handleSubmitExamFromVm}
-                        className="btn-icon"
-                        style={{ width: '30px', height: '30px', background: '#059669', border: '1px solid #10b981', color: '#ffffff' }}
-                        disabled={!guacamoleUrl || examSubmitting}
-                        title="Submit Exam Report (Collect Word .docx report from Desktop Exam_Workspace)"
-                      >
-                        <FileCheck size={15} className={examSubmitting ? 'spin-animation' : ''} />
-                      </button>
-
                       <button 
                         type="button" 
                         onClick={handleRollbackVm} 
@@ -2135,7 +2145,7 @@ export default function StudentDashboard() {
                   {selectedLab?.is_exam_mode && (
                     <div style={{ background: 'rgba(236, 72, 153, 0.1)', color: '#f472b6', borderBottom: '1px solid rgba(236, 72, 153, 0.3)', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>
-                        🎓 <b>Exam Mode Active:</b> Write your report in Microsoft Word (<b>.docx</b>) and save it inside <b>Exam_Workspace</b> on your VM Desktop. Click the green <b>FileCheck icon</b> on the toolbar to submit. Clean VM rollbacks safely preserve your work.
+                        🎓 <b>Exam Mode Active:</b> Write your report in Microsoft Word (<b>.docx</b>) and save it inside <b>Exam_Workspace</b> on your VM Desktop. Click <b>"Submit Final Report"</b> on the top bar to finish. Clean VM rollbacks safely preserve your work.
                       </span>
                     </div>
                   )}
