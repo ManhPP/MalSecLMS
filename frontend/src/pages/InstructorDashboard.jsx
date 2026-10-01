@@ -4890,18 +4890,108 @@ export default function InstructorDashboard() {
                     </div>
                   )}
 
-                  {/* Render answers dynamically based on design form fields */}
-                  {(!selectedLab.form_fields || selectedLab.form_fields.length === 0) && (
-                    <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed var(--border-color)', marginBottom: '20px' }}>
-                      <FileText size={32} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
-                      <h4 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
-                        {selectedLab.is_exam_mode ? 'In-VM Exam Report (Word .docx)' : 'No Form Question Fields'}
-                      </h4>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                        {selectedLab.is_exam_mode 
-                          ? 'This exam is configured for In-VM Word submission. Student submitted their report as a .docx document in attachments below.' 
-                          : 'This lab has no questionnaire fields.'}
-                      </p>
+                  {/* In-VM Exam Report & Attachments Display (Especially when lab has 0 form fields) */}
+                  {(selectedLab.is_exam_mode || (!selectedLab.form_fields || selectedLab.form_fields.length === 0)) && (
+                    <div style={{ marginBottom: '24px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <FileText size={18} style={{ color: 'var(--neon-cyan)' }} />
+                          <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, fontWeight: '600' }}>
+                            {selectedLab.is_exam_mode ? 'In-VM Exam Report & Workspace Submissions' : 'Student Submission Attachments'}
+                          </h4>
+                        </div>
+                        {activeSubmission.file_attachments && activeSubmission.file_attachments.length > 0 && (
+                          <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                            {activeSubmission.file_attachments.length} File(s)
+                          </span>
+                        )}
+                      </div>
+
+                      {activeSubmission.file_attachments && activeSubmission.file_attachments.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {activeSubmission.file_attachments.map((attachment, attIdx) => {
+                            const fname = attachment.original_filename || 'Attachment'
+                            const ext = (fname || '').split('.').pop().toLowerCase()
+                            const isDocx = ext === 'docx'
+                            const isZip = ext === 'zip'
+                            const isCode = ['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log'].includes(ext)
+                            const canPreview = ['pdf', 'docx', 'png', 'jpg', 'jpeg', ...['c', 'cpp', 'h', 'hpp', 'py', 'java', 'asm', 's', 'js', 'ts', 'html', 'css', 'json', 'sql', 'sh', 'ps1', 'rs', 'go', 'txt', 'log']].includes(ext)
+
+                            return (
+                              <div 
+                                key={attIdx} 
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'space-between', 
+                                  padding: '12px 14px', 
+                                  background: isDocx ? '#eff6ff' : '#ffffff', 
+                                  borderRadius: '6px', 
+                                  border: isDocx ? '1.5px solid #3b82f6' : '1px solid var(--border-color)' 
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+                                  {isDocx ? (
+                                    <FileText size={20} style={{ color: '#2563eb', flexShrink: 0 }} />
+                                  ) : isZip ? (
+                                    <Archive size={18} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                                  ) : (
+                                    <FileText size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                                  )}
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ fontWeight: '600', color: isDocx ? '#1d4ed8' : 'var(--text-primary)', wordBreak: 'break-all', fontSize: '13.5px' }}>
+                                        {fname}
+                                      </span>
+                                      {isDocx && (
+                                        <span className="badge" style={{ background: '#2563eb', color: '#ffffff', fontSize: '10px', padding: '1px 6px' }}>
+                                          WORD REPORT
+                                        </span>
+                                      )}
+                                      {isZip && (
+                                        <span className="badge" style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', padding: '1px 6px' }}>
+                                          WORKSPACE ZIP
+                                        </span>
+                                      )}
+                                    </div>
+                                    {attachment.uploaded_at && (
+                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        Received: {formatLocalTime(attachment.uploaded_at)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
+                                  {canPreview && (
+                                    <button 
+                                      type="button" 
+                                      onClick={() => handleOpenDocPreview(attachment)} 
+                                      className="btn btn-primary" 
+                                      style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}
+                                    >
+                                      <Eye size={14} /> Preview
+                                    </button>
+                                  )}
+                                  <a 
+                                    href={`/api/submissions/file?path=${encodeURIComponent(attachment.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                  >
+                                    <Download size={13} /> Download
+                                  </a>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                          No files received from student VM workspace yet.
+                        </div>
+                      )}
                     </div>
                   )}
 

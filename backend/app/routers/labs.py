@@ -353,6 +353,21 @@ def delete_lab(
                 except Exception:
                     pass
 
+    # Xóa toàn bộ thư mục bài nộp và workspace của sinh viên cho lab này
+    try:
+        lab_sub_dir = os.path.join(settings.UPLOAD_DIR, "submissions", f"lab_{lab_id}")
+        if os.path.exists(lab_sub_dir):
+            shutil.rmtree(lab_sub_dir, ignore_errors=True)
+    except Exception as e:
+        logger.warning(f"Error removing submissions folder for lab {lab_id}: {e}")
+
+    try:
+        lab_ws_dir = os.path.join(settings.UPLOAD_DIR, "exam_workspaces", f"lab_{lab_id}")
+        if os.path.exists(lab_ws_dir):
+            shutil.rmtree(lab_ws_dir, ignore_errors=True)
+    except Exception as e:
+        logger.warning(f"Error removing exam workspace folder for lab {lab_id}: {e}")
+
     # 2. Thu dọn và xóa hoàn toàn các máy ảo (VM) sinh viên thuộc lab này trên Proxmox
     proxmox = get_pve_client()
     if proxmox:
