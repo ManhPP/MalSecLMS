@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { 
   BookOpen, Plus, Calendar, FileSpreadsheet, Download, 
   CheckSquare, Award, ArrowRight, ShieldCheck, ShieldAlert,
-  ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw,
+  ArrowLeft, Clock, Code, FileText, Image as ImageIcon, CheckCircle, RefreshCw, RotateCcw,
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
   ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
@@ -207,6 +207,88 @@ export default function InstructorDashboard() {
   const [selectedLabForVm, setSelectedLabForVm] = useState(null)
   const [studentVms, setStudentVms] = useState([])
   const [vmActionLoading, setVmActionLoading] = useState(false)
+
+  // Instructor Lab Preview State (Test lab environment, VM, guide, and dynamic questions before or after publishing)
+  const [showLabPreviewModal, setShowLabPreviewModal] = useState(false)
+  const [previewLabData, setPreviewLabData] = useState(null)
+  const [previewLabTab, setPreviewLabTab] = useState('vm') // 'vm' | 'guide' | 'form'
+  const [previewVmLoading, setPreviewVmLoading] = useState(false)
+  const [previewVmError, setPreviewVmError] = useState('')
+  const [previewGuacamoleUrl, setPreviewGuacamoleUrl] = useState('')
+  const [previewVmInfo, setPreviewVmInfo] = useState(null)
+  const [previewAnswers, setPreviewAnswers] = useState({})
+  const previewGuacRef = useRef(null)
+
+  const openLabPreview = async (lab) => {
+    setPreviewLabData(lab)
+    setPreviewLabTab(lab.enable_vm !== false ? 'vm' : 'guide')
+    setPreviewVmError('')
+    setPreviewGuacamoleUrl('')
+    setPreviewVmInfo(null)
+    setPreviewAnswers({})
+    setShowLabPreviewModal(true)
+
+    // Automatically initialize VM session if VM is enabled for this lab
+    if (lab.enable_vm !== false) {
+      launchPreviewVmSession(lab.id)
+    }
+  }
+
+  const launchPreviewVmSession = async (labId) => {
+    setPreviewVmLoading(true)
+    setPreviewVmError('')
+    setPreviewGuacamoleUrl('')
+    setPreviewVmInfo(null)
+    localStorage.removeItem('GUAC_AUTH_TOKEN')
+    sessionStorage.removeItem('GUAC_AUTH_TOKEN')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${labId}/vm-session`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const contentType = res.headers.get('content-type') || ''
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = await res.json()
+      } else {
+        const rawText = await res.text()
+        if (!res.ok) {
+          throw new Error(`VM is being prepared on Proxmox (HTTP ${res.status}). Please wait 15-30s and click retry.`)
+        }
+      }
+      if (!res.ok) throw new Error(data.detail || 'Failed to establish instructor preview VM session')
+      setPreviewGuacamoleUrl(data.guacamole_url)
+      setPreviewVmInfo(data)
+    } catch (err) {
+      setPreviewVmError(err.message)
+    } finally {
+      setPreviewVmLoading(false)
+    }
+  }
+
+  const handlePreviewVmRollback = async () => {
+    if (!previewLabData) return
+    if (!window.confirm('Reset this instructor preview VM back to clean template state?')) return
+    setPreviewVmLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${previewLabData.id}/vm-rollback`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Unable to reset preview VM')
+      }
+      setPreviewGuacamoleUrl('')
+      setPreviewVmInfo(null)
+      await launchPreviewVmSession(previewLabData.id)
+    } catch (err) {
+      alert('VM Reset error: ' + err.message)
+      setPreviewVmLoading(false)
+    }
+  }
 
 
 
@@ -2475,10 +2557,10 @@ export default function InstructorDashboard() {
                                 <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)' }}>
                                   {formatLocalTime(lab.deadline)}
                                 </td>
-                                <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                                   {lab.late_policy?.allow_late 
-                                    ? `Penalty ${lab.late_policy.penalty_per_hour_percent}% / hr (Max ${lab.late_policy.max_penalty_percent}%)` 
-                                    : 'No late submissions'}
+                                    ? `${lab.late_policy.penalty_per_hour_percent}%/h (max ${lab.late_policy.max_penalty_percent}%)` 
+                                    : <span style={{ color: 'var(--text-muted)' }}>No late</span>}
                                 </td>
                                 <td>
                                   {lab.enable_vm !== false ? (
@@ -2495,43 +2577,60 @@ export default function InstructorDashboard() {
                                   </span>
                                 </td>
                                 <td style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <button 
+                                      type="button"
+                                      onClick={() => openLabPreview(lab)} 
+                                      className="btn-icon btn-secondary" 
+                                      style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a' }}
+                                      title="Preview Lab as Student (Test VM & Questions)"
+                                    >
+                                      <Eye size={15} />
+                                    </button>
                                     {lab.enable_vm !== false && (
                                       <button 
+                                        type="button"
                                         onClick={() => openVmManagerModal(lab)} 
-                                        className="btn btn-secondary" 
-                                        style={{ padding: '5px 10px', fontSize: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
+                                        className="btn-icon btn-secondary" 
+                                        style={{ background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
                                         title="Manage & Purge Student VMs"
                                       >
-                                        <Monitor size={13} style={{ marginRight: '4px' }} /> VMs
+                                        <Monitor size={15} />
                                       </button>
                                     )}
                                     <button 
+                                      type="button"
                                       onClick={() => openCloneModal(lab)} 
-                                      className="btn btn-secondary" 
-                                      style={{ padding: '5px 10px', fontSize: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
+                                      className="btn-icon btn-secondary" 
+                                      style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857' }}
                                       title="Clone lab assignment to another class"
                                     >
-                                      <Copy size={13} style={{ marginRight: '4px' }} /> Clone
+                                      <Copy size={15} />
                                     </button>
                                     <button 
+                                      type="button"
                                       onClick={() => openEditLabModal(lab)} 
-                                      className="btn btn-secondary" 
-                                      style={{ padding: '5px 10px', fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
+                                      className="btn-icon btn-secondary" 
+                                      style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155' }}
                                       title="Edit Lab"
                                     >
-                                      <Edit2 size={13} style={{ marginRight: '4px', color: '#475569' }} /> Edit
+                                      <Edit2 size={15} />
                                     </button>
                                     <button 
+                                      type="button"
                                       onClick={() => handleDeleteLab(lab.id, lab.title)} 
-                                      className="btn btn-danger" 
-                                      style={{ padding: '5px 10px', fontSize: '12px' }}
+                                      className="btn-icon btn-danger" 
                                       title="Delete Lab"
                                     >
-                                      <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                                      <Trash2 size={15} />
                                     </button>
-                                    <button onClick={() => fetchSubmissions(lab)} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '12px' }}>
-                                      Grade &rarr;
+                                    <button 
+                                      type="button"
+                                      onClick={() => fetchSubmissions(lab)} 
+                                      className="btn-icon btn-primary" 
+                                      title="Grade Student Submissions"
+                                    >
+                                      <FileCheck size={15} />
                                     </button>
                                   </div>
                                 </td>
@@ -2677,34 +2776,30 @@ export default function InstructorDashboard() {
                                       </span>
                                     </td>
                                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px' }}>
                                         <button 
                                           type="button"
                                           onClick={() => openStudentGrading(selectedClass, student)} 
-                                          className="btn btn-primary" 
-                                          style={{ padding: '5px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+                                          className="btn-icon btn-primary" 
                                           title="Grade all labs for this student"
                                         >
-                                          <FileCheck size={13} />
-                                          Grade Labs
+                                          <FileCheck size={14} />
                                         </button>
                                         <button 
                                           type="button"
                                           onClick={() => handleOpenStudentModal(student)} 
-                                          className="btn btn-secondary" 
-                                          style={{ padding: '5px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                          className="btn-icon btn-secondary" 
                                           title="Edit details"
                                         >
-                                          <Edit2 size={13} />
+                                          <Edit2 size={14} />
                                         </button>
                                         <button 
                                           type="button"
                                           onClick={() => handleRemoveStudentFromClass(student.id)} 
-                                          className="btn btn-danger" 
-                                          style={{ padding: '5px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                          className="btn-icon btn-danger" 
                                           title="Remove from class"
                                         >
-                                          <Trash2 size={13} />
+                                          <Trash2 size={14} />
                                         </button>
                                       </div>
                                     </td>
@@ -3700,12 +3795,10 @@ export default function InstructorDashboard() {
                                     openStudentGrading(matchedClass, studentObj)
                                   }
                                 }}
-                                className="btn btn-primary"
-                                style={{ padding: '4px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                className="btn-icon btn-primary"
                                 title={`Grade all labs for ${st.full_name}`}
                               >
-                                <FileCheck size={12} />
-                                Grade
+                                <FileCheck size={14} />
                               </button>
                             </td>
                           </tr>
@@ -4150,12 +4243,10 @@ export default function InstructorDashboard() {
                                       openStudentGrading(matchedClass, studentObj)
                                     }
                                   }}
-                                  className="btn btn-secondary"
-                                  style={{ padding: '2px 6px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                  className="btn-icon-sm btn-secondary"
                                   title={`Grade all labs for ${row.full_name}`}
                                 >
-                                  <FileCheck size={12} style={{ color: 'var(--neon-cyan)' }} />
-                                  Grade
+                                  <FileCheck size={13} style={{ color: 'var(--neon-cyan)' }} />
                                 </button>
                               </div>
                             </td>
@@ -5761,12 +5852,47 @@ export default function InstructorDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setShowLabModal(false)} className="btn btn-secondary">CLOSE</button>
-                <button type="submit" className="btn btn-primary" disabled={actionLoading}>
-                  {actionLoading ? 'SAVING...' : editingLab ? 'SAVE CHANGES' : 'CONFIGURE & PUBLISH LAB'}
-                </button>
-
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  {editingLab && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const tempLabObj = {
+                          ...editingLab,
+                          title: labTitle,
+                          description: labDesc,
+                          class_id: parseInt(classId),
+                          deadline: deadline,
+                          late_policy: {
+                            allow_late: allowLate,
+                            penalty_per_hour_percent: parseFloat(penaltyPerHour) || 0,
+                            max_penalty_percent: parseFloat(maxPenalty) || 0
+                          },
+                          form_schema: formFields,
+                          attachments: labAttachments,
+                          enable_vm: enableVm,
+                          template_vmid: templateVmid ? parseInt(templateVmid) : null,
+                          is_linked_clone: isLinkedClone,
+                          vm_protocol: vmProtocol,
+                          vm_port: vmPort ? parseInt(vmPort) : null
+                        }
+                        openLabPreview(tempLabObj)
+                      }} 
+                      className="btn btn-secondary" 
+                      style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      title="Preview this lab and test VM environment"
+                    >
+                      <Eye size={15} /> Preview Lab
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" onClick={() => setShowLabModal(false)} className="btn btn-secondary">CLOSE</button>
+                  <button type="submit" className="btn btn-primary" disabled={actionLoading}>
+                    {actionLoading ? 'SAVING...' : editingLab ? 'SAVE CHANGES' : 'CONFIGURE & PUBLISH LAB'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -6616,7 +6742,324 @@ export default function InstructorDashboard() {
           </div>
         </div>
       )}
+      {/* INSTRUCTOR LAB PREVIEW MODAL */}
+      {showLabPreviewModal && previewLabData && (
+        <div className="modal-overlay" style={{ zIndex: 1050 }}>
+          <div className="modal-content" style={{ maxWidth: '1200px', width: '96vw', height: '92vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div className="modal-header" style={{ padding: '14px 20px', background: '#090d16', borderBottom: '1px solid rgba(0, 242, 254, 0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 'bold' }}>
+                  <Eye size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> INSTRUCTOR PREVIEW MODE
+                </span>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#ffffff', fontWeight: '600' }}>
+                  {previewLabData.title}
+                </h3>
+                <span className="badge badge-draft" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+                  ID #{previewLabData.id}
+                </span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowLabPreviewModal(false)
+                  setPreviewGuacamoleUrl('')
+                  setPreviewVmInfo(null)
+                }} 
+                className="btn-icon btn-secondary" 
+                style={{ width: '30px', height: '30px', color: '#94a3b8' }}
+                title="Close Preview"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Sub-header Tabs & Banner */}
+            <div style={{ background: '#0f172a', padding: '8px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {previewLabData.enable_vm !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewLabTab('vm')}
+                    className={`btn ${previewLabTab === 'vm' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '5px 14px', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Monitor size={14} /> VDI Lab Desktop {previewVmInfo ? `(VMID ${previewVmInfo.vmid})` : ''}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewLabTab('guide')}
+                  className={`btn ${previewLabTab === 'guide' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '5px 14px', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <BookOpen size={14} /> Lab Instructions & Guide
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewLabTab('form')}
+                  className={`btn ${previewLabTab === 'form' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '5px 14px', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <FileCheck size={14} /> Questions Form ({(previewLabData.form_schema || []).length})
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {previewLabData.enable_vm !== false && previewLabTab === 'vm' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => launchPreviewVmSession(previewLabData.id)}
+                      disabled={previewVmLoading}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      title="Reconnect VM Session"
+                    >
+                      <RefreshCw size={13} className={previewVmLoading ? 'animate-spin' : ''} /> Reconnect
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePreviewVmRollback}
+                      disabled={previewVmLoading}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--neon-ruby)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      title="Rollback VM to clean template snapshot"
+                    >
+                      <RotateCcw size={13} /> Reset VM
+                    </button>
+                  </>
+                )}
+                <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                  ⚡ Mock preview environment — No student grades or submissions affected
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Body: Active Tab View */}
+            <div style={{ flex: 1, overflowY: 'auto', background: '#090d16', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+              
+              {/* TAB 1: Guacamole VDI VM View */}
+              {previewLabTab === 'vm' && previewLabData.enable_vm !== false && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+                  {previewVmLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#a5f3fc', gap: '14px' }}>
+                      <RefreshCw size={36} className="animate-spin" style={{ color: 'var(--neon-cyan)' }} />
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: '600', fontSize: '15px' }}>Provisioning & Connecting Instructor Preview VM...</div>
+                        <div style={{ fontSize: '12.5px', color: '#94a3b8', marginTop: '4px' }}>Communicating with Proxmox VE hypervisor and Guacamole gateway</div>
+                      </div>
+                    </div>
+                  ) : previewVmError ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '30px', textAlign: 'center' }}>
+                      <AlertCircle size={42} style={{ color: 'var(--neon-ruby)', marginBottom: '12px' }} />
+                      <h4 style={{ color: '#fff', marginBottom: '8px' }}>VM Connection Notice</h4>
+                      <p style={{ color: '#94a3b8', maxWidth: '480px', fontSize: '13px', marginBottom: '18px' }}>{previewVmError}</p>
+                      <button
+                        type="button"
+                        onClick={() => launchPreviewVmSession(previewLabData.id)}
+                        className="btn btn-primary"
+                        style={{ padding: '8px 20px' }}
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
+                  ) : previewGuacamoleUrl ? (
+                    <iframe
+                      ref={previewGuacRef}
+                      key={previewGuacamoleUrl}
+                      src={previewGuacamoleUrl}
+                      title="Instructor Preview Apache Guacamole VDI"
+                      style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
+                      allow="clipboard-read; clipboard-write; fullscreen; keyboard-map"
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                      <Monitor size={48} style={{ color: 'var(--neon-cyan)', marginBottom: '16px', opacity: 0.8 }} />
+                      <h4 style={{ color: '#fff', marginBottom: '8px' }}>Preview VM is ready to start</h4>
+                      <button
+                        type="button"
+                        onClick={() => launchPreviewVmSession(previewLabData.id)}
+                        className="btn btn-primary"
+                        style={{ padding: '8px 24px' }}
+                      >
+                        Launch VM Connection
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: Lab Instructions & Guide View */}
+              {previewLabTab === 'guide' && (
+                <div style={{ padding: '28px', maxWidth: '900px', margin: '0 auto', width: '100%' }}>
+                  <div className="cyber-card" style={{ background: '#0f172a', border: '1px solid #1e293b', padding: '24px', borderRadius: '10px' }}>
+                    <h3 style={{ fontSize: '18px', color: 'var(--neon-cyan)', marginBottom: '14px', borderBottom: '1px solid #1e293b', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <BookOpen size={18} /> Lab Instructions & Guide
+                    </h3>
+                    <div style={{ fontSize: '14px', lineHeight: '1.7', color: '#e2e8f0' }}>
+                      {parseMarkdown(previewLabData.description)}
+                    </div>
+                  </div>
+
+                  {/* Attachments Section if present */}
+                  {Array.isArray(previewLabData.attachments) && previewLabData.attachments.length > 0 && (
+                    <div className="cyber-card" style={{ background: '#0f172a', border: '1px solid #1e293b', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
+                      <h4 style={{ fontSize: '15px', color: '#ffffff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Paperclip size={16} style={{ color: 'var(--neon-cyan)' }} /> Attached Reference Files & Docs ({previewLabData.attachments.length})
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {previewLabData.attachments.map((att, aIdx) => (
+                          <div key={aIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e293b', borderRadius: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <FileText size={16} style={{ color: 'var(--neon-cyan)' }} />
+                              <div>
+                                <span style={{ fontWeight: '500', color: '#f8fafc', fontSize: '13.5px' }}>{att.filename}</span>
+                                {att.file_size && (
+                                  <span style={{ fontSize: '11.5px', color: '#94a3b8', marginLeft: '8px' }}>
+                                    ({(att.file_size / 1024).toFixed(1)} KB)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => openAttachmentPreview(att.download_url, att.filename)}
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '12px' }}
+                              >
+                                <Eye size={13} style={{ marginRight: '4px' }} /> View
+                              </button>
+                              <a
+                                href={`${att.download_url}&download=true`}
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '12px' }}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <Download size={13} style={{ marginRight: '4px' }} /> Download
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: Dynamic Questions Form Mock */}
+              {previewLabTab === 'form' && (
+                <div style={{ padding: '28px', maxWidth: '850px', margin: '0 auto', width: '100%' }}>
+                  <div className="cyber-card" style={{ background: '#0f172a', border: '1px solid #1e293b', padding: '24px', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #1e293b', paddingBottom: '10px' }}>
+                      <h3 style={{ fontSize: '17px', color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FileCheck size={18} style={{ color: 'var(--neon-cyan)' }} /> Student Submission Form Preview
+                      </h3>
+                      <span className="badge badge-submitted" style={{ fontSize: '11px' }}>
+                        {(previewLabData.form_schema || []).length} Questions
+                      </span>
+                    </div>
+
+                    {(!previewLabData.form_schema || previewLabData.form_schema.length === 0) ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', border: '1px dashed #334155', borderRadius: '8px' }}>
+                        This lab currently has no dynamic questions configured. Students submit standard report files.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {previewLabData.form_schema.map((field, fIdx) => (
+                          <div key={field.id || fIdx} style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#f1f5f9', fontSize: '14px' }}>
+                              <span style={{ color: 'var(--neon-cyan)', marginRight: '6px' }}>Q{fIdx + 1}.</span>
+                              {field.label}
+                              {field.required && <span style={{ color: 'var(--neon-ruby)', marginLeft: '4px' }}>*</span>}
+                              {field.max_score && (
+                                <span className="badge badge-draft" style={{ marginLeft: '8px', fontSize: '10px' }}>
+                                  {field.max_score} pts
+                                </span>
+                              )}
+                            </label>
+
+                            {field.type === 'text' && (
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Short text answer..."
+                                style={{ background: '#090d16', color: '#fff', borderColor: '#475569' }}
+                                value={previewAnswers[field.id] || ''}
+                                onChange={(e) => setPreviewAnswers({ ...previewAnswers, [field.id]: e.target.value })}
+                              />
+                            )}
+
+                            {field.type === 'textarea' && (
+                              <textarea
+                                className="form-input"
+                                rows={3}
+                                placeholder="Detailed response / analysis findings..."
+                                style={{ background: '#090d16', color: '#fff', borderColor: '#475569' }}
+                                value={previewAnswers[field.id] || ''}
+                                onChange={(e) => setPreviewAnswers({ ...previewAnswers, [field.id]: e.target.value })}
+                              />
+                            )}
+
+                            {field.type === 'multiple_choice' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                                {(field.options || []).map((opt, oIdx) => (
+                                  <label key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1', cursor: 'pointer', fontSize: '13.5px' }}>
+                                    <input
+                                      type="radio"
+                                      name={`preview_q_${field.id}`}
+                                      checked={previewAnswers[field.id] === opt}
+                                      onChange={() => setPreviewAnswers({ ...previewAnswers, [field.id]: opt })}
+                                    />
+                                    <span>{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+
+                            {field.type === 'file' && (
+                              <div style={{ padding: '16px', border: '1px dashed #475569', borderRadius: '6px', textAlign: 'center', background: '#090d16', color: '#94a3b8', fontSize: '13px' }}>
+                                <Upload size={20} style={{ color: 'var(--neon-cyan)', marginBottom: '6px' }} />
+                                <div>Student file upload field ({field.allowed_types || 'PDF, DOCX, ZIP, PNG'})</div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="modal-footer" style={{ padding: '12px 20px', background: '#090d16', borderTop: '1px solid rgba(0, 242, 254, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                Previewing as Instructor — Close when finished testing
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLabPreviewModal(false)
+                  setPreviewGuacamoleUrl('')
+                  setPreviewVmInfo(null)
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '6px 20px' }}
+              >
+                CLOSE PREVIEW
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
 

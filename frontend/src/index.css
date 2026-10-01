@@ -224,6 +224,50 @@ h1, h2, h3, h4, h5, h6 {
   cursor: not-allowed;
 }
 
+/* Compact Icon-Only Action Buttons */
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+.btn-icon-sm {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.btn-icon-sm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-icon-sm:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+
 /* Headers & Navigation */
 .cyber-header {
   background: #ffffff;
@@ -707,3 +751,168 @@ section.docx,
   background: #fef2f2;
   border-color: #fecaca;
 }
+
+/* --- REVERSE & MALWARE ANALYSIS LOGIN ANIMATIONS --- */
+@keyframes pulseRadarRing {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+@keyframes spinRadarScanner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes borderScannerGlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes floatOpcode {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes subtleBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.login-page-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+}
+
+.login-card-interactive {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(242, 112, 36, 0.22);
+  border-radius: 16px;
+  padding: 36px 32px;
+  box-shadow: 0 12px 35px -8px rgba(0, 0, 0, 0.08), 0 0 25px rgba(242, 112, 36, 0.12);
+  transition: all 0.3s ease;
+}
+
+.login-card-interactive:hover {
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.1), 0 0 35px rgba(242, 112, 36, 0.2);
+  border-color: rgba(242, 112, 36, 0.45);
+}
+
+.radar-logo-wrapper {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(242, 112, 36, 0.5);
+  animation: spinRadarScanner 14s linear infinite;
+  pointer-events: none;
+}
+
+.radar-sweep-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(242, 112, 36, 0.28) 0deg, transparent 75deg, transparent 360deg);
+  animation: spinRadarScanner 3.5s linear infinite;
+  pointer-events: none;
+}
+
+.radar-inner-icon {
+  position: relative;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(242, 112, 36, 0.14), rgba(255, 140, 66, 0.06));
+  border: 1px solid rgba(242, 112, 36, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neon-cyan);
+  box-shadow: 0 4px 14px rgba(242, 112, 36, 0.2);
+}
+
+.opcode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(242, 112, 36, 0.08);
+  border: 1px solid rgba(242, 112, 36, 0.25);
+  color: #c2410c;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.opcode-badge.blue {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1d4ed8;
+}
+
+.opcode-badge.green {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #047857;
+}
+
+.asm-ticker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+
+
+
+
