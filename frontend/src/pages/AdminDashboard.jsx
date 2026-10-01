@@ -86,6 +86,8 @@ export default function AdminDashboard() {
   const [selectedClass, setSelectedClass] = useState(null)
   const [studentIdsInput, setStudentIdsInput] = useState('') // CSV string of IDs/usernames
   const [lecturerIdsInput, setLecturerIdsInput] = useState('') // CSV string of lecturer IDs/usernames
+  const [hideLecturerSuggestions, setHideLecturerSuggestions] = useState(false)
+  const [hideStudentSuggestions, setHideStudentSuggestions] = useState(false)
   // User directory filter & search state
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [userRoleFilter, setUserRoleFilter] = useState('all') // all | student | lecturer | admin

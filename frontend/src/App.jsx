@@ -389,7 +389,22 @@ const Layout = ({ children }) => {
           
           <div className="nav-links">
             {user.role === 'admin' && (
-              <span className="badge badge-draft">Admin Portal</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Link 
+                  to="/admin" 
+                  className={`badge ${window.location.hash.startsWith('#/admin') ? 'badge-submitted' : 'badge-draft'}`}
+                  style={{ textDecoration: 'none', cursor: 'pointer', padding: '5px 12px', fontWeight: 'bold' }}
+                >
+                  🛡️ Admin Portal
+                </Link>
+                <Link 
+                  to="/lecturer" 
+                  className={`badge ${window.location.hash.startsWith('#/lecturer') ? 'badge-submitted' : 'badge-draft'}`}
+                  style={{ textDecoration: 'none', cursor: 'pointer', padding: '5px 12px' }}
+                >
+                  👨‍🏫 Instructor View
+                </Link>
+              </div>
             )}
             {user.role === 'lecturer' && (
               <span className="badge badge-submitted">Instructor Portal</span>
