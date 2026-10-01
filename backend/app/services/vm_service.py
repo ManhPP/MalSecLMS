@@ -844,13 +844,14 @@ def save_vm_screenshot_to_desktop(vmid: int, is_windows: bool = True) -> Dict[st
     b64_str = base64.b64encode(jpg_bytes).decode("ascii")
 
     if is_windows:
-        # Lưu vào Desktop Windows (C:\Users\admin\Desktop\ hoặc Desktop mặc định)
+        # Lưu vào Desktop của user đang đăng nhập (hoặc C:\Users\admin\Desktop)
         ps_script = f"""
-$d = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('Desktop'), '{filename}')
-if (-not (Test-Path [System.IO.Path]::GetDirectoryName($d))) {{
-    $d = 'C:\\Users\\admin\\Desktop\\{filename}'
-}}
-[System.IO.File]::WriteAllBytes($d, [System.Convert]::FromBase64String([Console]::In.ReadToEnd()))
+$u = (Get-Process explorer -IncludeUserName -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty UserName)
+if ($u -and $u -match '\\\\(.+)') {{ $name = $matches[1] }} else {{ $name = 'admin' }}
+$desk = Join-Path 'C:\\Users' (Join-Path $name 'Desktop')
+if (-not (Test-Path -LiteralPath $desk)) {{ $desk = 'C:\\Users\\admin\\Desktop' }}
+$dest = Join-Path $desk '{filename}'
+[System.IO.File]::WriteAllBytes($dest, [System.Convert]::FromBase64String([Console]::In.ReadToEnd()))
 """
         ps_b64 = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
         pve_exec_cmd = f"qm guest exec {vmid} --pass-stdin 1 powershell -- -NoProfile -EncodedCommand {ps_b64}"
