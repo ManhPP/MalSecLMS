@@ -4934,7 +4934,7 @@ export default function InstructorDashboard() {
                                   {isDocx ? (
                                     <FileText size={20} style={{ color: '#2563eb', flexShrink: 0 }} />
                                   ) : isZip ? (
-                                    <Archive size={18} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                                    <FileArchive size={18} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
                                   ) : (
                                     <FileText size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                                   )}

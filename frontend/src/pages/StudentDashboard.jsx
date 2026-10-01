@@ -2142,14 +2142,6 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  {selectedLab?.is_exam_mode && (
-                    <div style={{ background: 'rgba(236, 72, 153, 0.1)', color: '#f472b6', borderBottom: '1px solid rgba(236, 72, 153, 0.3)', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>
-                        🎓 <b>Exam Mode Active:</b> Write your report in Microsoft Word (<b>.docx</b>) and save it inside <b>Exam_Workspace</b> on your VM Desktop. Click <b>"Submit Final Report"</b> on the top bar to finish. Clean VM rollbacks safely preserve your work.
-                      </span>
-                    </div>
-                  )}
-
                   {screenshotNotice && (
                     <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #059669' }}>
                       <span>{screenshotNotice}</span>
@@ -2355,9 +2347,82 @@ export default function StudentDashboard() {
                 </div>
               )}
 
+              {/* Exam Mode Instruction Banner & Submitted Files (Right Panel) */}
+              {selectedLab.is_exam_mode && (
+                <div className="cyber-card" style={{ 
+                  background: 'rgba(236, 72, 153, 0.05)', 
+                  border: '1.5px solid #ec4899', 
+                  padding: '18px', 
+                  borderRadius: '10px', 
+                  marginBottom: '20px' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '18px' }}>🎓</span>
+                    <h4 style={{ fontSize: '15px', color: '#be185d', fontWeight: '700', margin: 0 }}>
+                      Exam / Test Mode Active
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.55', margin: '0 0 12px 0' }}>
+                    Write your report in Microsoft Word (<b>.docx</b>) and save it inside the <b>Exam_Workspace</b> folder on your VM Desktop. Click <b>"Submit Final Report"</b> on the top bar to finish. Clean VM rollbacks safely preserve your work.
+                  </p>
+
+                  {/* If student has already submitted, show current attached files */}
+                  {fileAttachments && fileAttachments.length > 0 && (
+                    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed #fbcfe8' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#be185d', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>📎 Submitted Documents ({fileAttachments.length}):</span>
+                        <span className="badge" style={{ background: '#059669', color: '#fff', fontSize: '10.5px' }}>Submitted</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {fileAttachments.map((att, aIdx) => {
+                          const fname = att.original_filename || 'Attachment'
+                          const ext = (fname || '').split('.').pop().toLowerCase()
+                          const isDocx = ext === 'docx'
+                          const isZip = ext === 'zip'
+                          return (
+                            <div key={aIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#ffffff', borderRadius: '6px', border: '1px solid #fbcfe8', fontSize: '12.5px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                                <FileText size={16} style={{ color: isDocx ? '#2563eb' : isZip ? '#d97706' : '#64748b', flexShrink: 0 }} />
+                                <span style={{ fontWeight: '500', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{fname}</span>
+                                {isDocx && <span className="badge" style={{ background: '#2563eb', color: '#fff', fontSize: '9.5px', padding: '1px 5px' }}>WORD</span>}
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
+                                {['pdf', 'docx', 'png', 'jpg'].includes(ext) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDocPreview(att)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '3px 8px', fontSize: '11px' }}
+                                  >
+                                    <Eye size={12} /> View
+                                  </button>
+                                )}
+                                <a
+                                  href={`/api/submissions/file?path=${encodeURIComponent(att.filepath)}&download=true&token=${localStorage.getItem('malsec_token')}`}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: '11px' }}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <Download size={12} />
+                                </a>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Lab Report Submission</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>Answer questions and attach evidence files below.</p>
+                <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  {selectedLab.is_exam_mode ? 'Exam Report Submission' : 'Lab Report Submission'}
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>
+                  {selectedLab.is_exam_mode ? 'Author your report in Microsoft Word inside the VM Desktop.' : 'Answer questions and attach evidence files below.'}
+                </p>
               </div>
 
 
@@ -2416,17 +2481,17 @@ export default function StudentDashboard() {
                 </div>
               )}
 
+
+
               {/* Render dynamic Form fields based on selectedLab layout */}
-              {(!selectedLab.form_fields || selectedLab.form_fields.length === 0) && (
+              {!selectedLab.is_exam_mode && (!selectedLab.form_fields || selectedLab.form_fields.length === 0) && (
                 <div className="cyber-card" style={{ background: '#f8fafc', border: '1px dashed var(--border-color)', padding: '24px', textAlign: 'center', marginBottom: '20px' }}>
                   <FileText size={32} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
                   <h4 style={{ fontSize: '14.5px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
-                    {selectedLab.is_exam_mode ? 'In-VM Exam Report' : 'No Additional Form Questions'}
+                    No Additional Form Questions
                   </h4>
                   <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: 0 }}>
-                    {selectedLab.is_exam_mode 
-                      ? 'This exam does not require manual form inputs. Write your complete report in Microsoft Word inside the VM Desktop folder "Exam_Workspace" and submit via the green toolbar button.' 
-                      : 'This lab does not have custom form fields.'}
+                    This lab does not have custom form fields.
                   </p>
                 </div>
               )}
