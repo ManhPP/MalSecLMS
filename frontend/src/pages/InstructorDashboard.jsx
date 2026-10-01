@@ -1206,8 +1206,8 @@ export default function InstructorDashboard() {
 
   const handleSaveLab = async (e) => {
     e.preventDefault()
-    if (formFields.length === 0) {
-      setModalError('Please create at least one question field for the lab report!')
+    if (!isExamMode && formFields.length === 0) {
+      setModalError('Please create at least one question field for the lab report (or enable Exam / Test Mode for in-VM Word report)!')
       return
     }
     if (enableVm && !editingLab && !vmPassword) {
@@ -4891,7 +4891,21 @@ export default function InstructorDashboard() {
                   )}
 
                   {/* Render answers dynamically based on design form fields */}
-                  {selectedLab.form_fields.map((field) => {
+                  {(!selectedLab.form_fields || selectedLab.form_fields.length === 0) && (
+                    <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed var(--border-color)', marginBottom: '20px' }}>
+                      <FileText size={32} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
+                      <h4 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
+                        {selectedLab.is_exam_mode ? 'In-VM Exam Report (Word .docx)' : 'No Form Question Fields'}
+                      </h4>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                        {selectedLab.is_exam_mode 
+                          ? 'This exam is configured for In-VM Word submission. Student submitted their report as a .docx document in attachments below.' 
+                          : 'This lab has no questionnaire fields.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {(selectedLab.form_fields || []).map((field) => {
                     const ans = (activeSubmission.answers || {})[field.id] || ''
                     const fieldAttachments = (activeSubmission.file_attachments || []).filter(a => a.field_id === field.id)
 

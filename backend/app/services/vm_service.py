@@ -337,17 +337,39 @@ def provision_student_vm(
                     raise VMProvisionError(f"Source VM {template_vmid} has no net0 adapter")
 
                 clone_start = time.perf_counter()
-                clone_upid = proxmox.nodes(node).qemu(template_vmid).clone.post(
-                    newid=new_vmid,
-                    name=_student_vm_name(student_username, lab_id),
-                    full=0 if is_linked_clone else 1,
-                )
-                _wait_for_pve_task(
-                    proxmox,
-                    node,
-                    clone_upid,
-                    f"cloning source VM {template_vmid} to VM {new_vmid}",
-                )
+                try:
+                    clone_upid = proxmox.nodes(node).qemu(template_vmid).clone.post(
+                        newid=new_vmid,
+                        name=_student_vm_name(student_username, lab_id),
+                        full=0 if is_linked_clone else 1,
+                    )
+                    _wait_for_pve_task(
+                        proxmox,
+                        node,
+                        clone_upid,
+                        f"cloning source VM {template_vmid} to VM {new_vmid}",
+                    )
+                except Exception as clone_err:
+                    err_msg = str(clone_err)
+                    if is_linked_clone and ("Linked clone feature is not supported" in err_msg or "efidisk" in err_msg):
+                        logger.warning(
+                            f"[VM_ORCHESTRATION] Linked clone unsupported for template {template_vmid} (efidisk/storage limitation). "
+                            f"Falling back to Full Clone (full=1)... Error: {err_msg}"
+                        )
+                        clone_type_str = "Full Clone (fallback full=1)"
+                        clone_upid = proxmox.nodes(node).qemu(template_vmid).clone.post(
+                            newid=new_vmid,
+                            name=_student_vm_name(student_username, lab_id),
+                            full=1,
+                        )
+                        _wait_for_pve_task(
+                            proxmox,
+                            node,
+                            clone_upid,
+                            f"cloning source VM {template_vmid} to VM {new_vmid} (fallback full clone)",
+                        )
+                    else:
+                        raise
                 clone_duration = time.perf_counter() - clone_start
                 logger.info(f"[VM_ORCHESTRATION] CLONE_COMPLETE | User: {student_username} | Template: {template_vmid} -> VMID: {new_vmid} | Mode: {clone_type_str} | Duration: {clone_duration:.1f}s")
 

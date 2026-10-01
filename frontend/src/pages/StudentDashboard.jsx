@@ -931,7 +931,7 @@ export default function StudentDashboard() {
   // Final submission handler
   const handleSubmitSubmission = async () => {
     // Check required fields
-    const missingFields = selectedLab.form_fields.filter(
+    const missingFields = (selectedLab.form_fields || []).filter(
       f => f.required && !answers[f.id]
     )
 
@@ -2407,7 +2407,21 @@ export default function StudentDashboard() {
               )}
 
               {/* Render dynamic Form fields based on selectedLab layout */}
-              {selectedLab.form_fields.map((field) => {
+              {(!selectedLab.form_fields || selectedLab.form_fields.length === 0) && (
+                <div className="cyber-card" style={{ background: '#f8fafc', border: '1px dashed var(--border-color)', padding: '24px', textAlign: 'center', marginBottom: '20px' }}>
+                  <FileText size={32} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
+                  <h4 style={{ fontSize: '14.5px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
+                    {selectedLab.is_exam_mode ? 'In-VM Exam Report' : 'No Additional Form Questions'}
+                  </h4>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: 0 }}>
+                    {selectedLab.is_exam_mode 
+                      ? 'This exam does not require manual form inputs. Write your complete report in Microsoft Word inside the VM Desktop folder "Exam_Workspace" and submit via the green toolbar button.' 
+                      : 'This lab does not have custom form fields.'}
+                  </p>
+                </div>
+              )}
+
+              {(selectedLab.form_fields || []).map((field) => {
                 const isReadOnly = !canEditSubmission()
                 const ans = answers[field.id] || ''
                 const fieldAttachments = (fileAttachments || []).filter(a => a.field_id === field.id)
