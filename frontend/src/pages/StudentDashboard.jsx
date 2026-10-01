@@ -5,7 +5,7 @@ import {
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
   School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock,
   Download, Eye, Paperclip, X, RefreshCw, ArrowLeft, ArrowRight, Camera,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, Keyboard, ExternalLink
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 import { useAuth } from '../App.jsx'
@@ -2011,67 +2011,73 @@ export default function StudentDashboard() {
                       <Monitor size={15} />
                       <span>{vmOs} {isVmFullscreen && '(Full Screen)'}</span>
                     </div>
-                    <div className="vm-actions">
+                    <div className="vm-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <button 
                         type="button" 
                         onClick={() => fetchVmSession(selectedLab.id)} 
-                        className="btn btn-secondary" 
+                        className="btn-icon" 
                         disabled={vmLoading}
-                        style={{ padding: '4px 8px', fontSize: '11px', background: '#374151', border: 'none', color: '#fff' }}
+                        style={{ width: '30px', height: '30px', background: '#334155', border: '1px solid #475569', color: '#f8fafc' }}
+                        title={vmLoading ? 'Initializing VM...' : 'Reload VM Session'}
                       >
-                        {vmLoading ? 'Initializing VM...' : 'Reload VM Session'}
+                        <RefreshCw size={14} className={vmLoading ? 'spin-animation' : ''} />
                       </button>
+
                       <button
                         type="button"
                         onClick={focusIframe}
-                        className="btn btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
+                        className="btn-icon"
+                        style={{ width: '30px', height: '30px', background: '#3b82f6', border: '1px solid #60a5fa', color: '#ffffff' }}
                         disabled={!guacamoleUrl}
-                        title="Click to focus keyboard on VM (switch IME/Unikey/EVKey to English [E] mode to prevent sticking keys)"
+                        title="Capture Keyboard (Focus typing into VM)"
                       >
-                        Capture Keyboard
+                        <Keyboard size={15} />
                       </button>
+
                       <button
                         type="button"
                         onClick={handleTakeScreenshot}
-                        className="btn btn-secondary"
-                        style={{ padding: '4px 9px', fontSize: '11px', background: '#0284c7', border: 'none', color: '#fff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        className="btn-icon"
+                        style={{ width: '30px', height: '30px', background: '#0284c7', border: '1px solid #38bdf8', color: '#ffffff' }}
                         disabled={!guacamoleUrl || screenshotLoading}
-                        title="Capture VM Screen and save directly to Desktop inside your VM (Sandbox safe)"
+                        title="Capture to VM Desktop (Save screenshot directly inside VM)"
                       >
-                        <Camera size={12} /> {screenshotLoading ? 'Capturing...' : 'Capture to VM Desktop'}
+                        <Camera size={15} className={screenshotLoading ? 'spin-animation' : ''} />
                       </button>
+
                       <button
                         type="button"
                         onClick={toggleVmFullscreen}
-                        className="btn btn-secondary"
-                        style={{ padding: '4px 9px', fontSize: '11px', background: '#059669', border: 'none', color: '#fff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        className="btn-icon"
+                        style={{ width: '30px', height: '30px', background: isVmFullscreen ? '#d97706' : '#059669', border: isVmFullscreen ? '1px solid #f59e0b' : '1px solid #10b981', color: '#ffffff' }}
                         disabled={!guacamoleUrl}
-                        title={isVmFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen Mode (Keeping Toolbar & Screenshot)'}
+                        title={isVmFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen Mode (Keeping Toolbar)'}
                       >
-                        {isVmFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                        {isVmFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+                        {isVmFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                       </button>
+
                       {guacamoleUrl && !isVmFullscreen && (
                         <a 
                           href={guacamoleUrl} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="btn btn-secondary" 
-                          style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--neon-cyan)', border: 'none', color: '#000', fontWeight: 'bold', textDecoration: 'none' }}
+                          className="btn-icon" 
+                          style={{ width: '30px', height: '30px', background: '#f59e0b', border: '1px solid #fbbf24', color: '#000' }}
+                          title="Open VM in New Window / Tab"
                         >
-                          New Window ↗
+                          <ExternalLink size={14} />
                         </a>
                       )}
+
                       <button 
                         type="button" 
                         onClick={handleRollbackVm} 
-                        className="btn btn-danger" 
+                        className="btn-icon" 
                         disabled={vmLoading}
-                        style={{ padding: '4px 8px', fontSize: '11px', border: 'none' }}
-                        title="Revert VM to initial clean state on Proxmox"
+                        style={{ width: '30px', height: '30px', background: '#dc2626', border: '1px solid #ef4444', color: '#ffffff' }}
+                        title="Rollback Clean VM (Revert to initial state on Proxmox)"
                       >
-                        <RotateCcw size={11} /> Rollback Clean VM (Proxmox)
+                        <RotateCcw size={14} />
                       </button>
                     </div>
                   </div>
