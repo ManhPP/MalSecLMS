@@ -787,3 +787,99 @@ def clean_orphaned_student_vms(active_lab_ids: List[int]) -> Dict[str, Any]:
         return {"success": False, "message": f"Lỗi quét máy ảo: {str(e)}", "purged_count": 0, "details": []}
 
 
+def capture_vm_screenshot(vmid: int) -> bytes:
+    """
+    Chụp ảnh màn hình máy ảo (QEMU screendump) trực tiếp từ Proxmox node và nén thành JPEG.
+    """
+    import subprocess
+    import io
+    from PIL import Image
+
+    # Validate VMID boundary
+    if not ((settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX) or (settings.TEMPLATE_VMID_MIN <= vmid <= settings.TEMPLATE_VMID_MAX) or (2100 <= vmid <= 2199)):
+        raise ValueError(f"VMID {vmid} is outside allowed screenshot range")
+
+    pve_cmd = f"TMP=$(mktemp /tmp/sc_XXXXXX.ppm); echo screendump $TMP | qm monitor {vmid} >/dev/null 2>&1; cat $TMP; rm -f $TMP"
+    ssh_cmd = [
+        "ssh", "-i", "/root/.ssh/id_pve_sync",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=8",
+        f"root@{settings.PVE_API_HOST}",
+        pve_cmd
+    ]
+    try:
+        res = subprocess.run(ssh_cmd, capture_output=True, timeout=15)
+        raw = res.stdout
+        ppm_idx = raw.find(b"P6")
+        if ppm_idx == -1:
+            err_msg = res.stderr.decode("utf-8", errors="ignore")
+            logger.error(f"[SCREENSHOT] PPM magic P6 not found for VM {vmid}. Stderr: {err_msg}")
+            raise RuntimeError("Máy ảo chưa khởi động hoặc không thể chụp ảnh màn hình từ Proxmox.")
+        
+        ppm_data = raw[ppm_idx:]
+        img = Image.open(io.BytesIO(ppm_data))
+        out_buf = io.BytesIO()
+        img.save(out_buf, format="JPEG", quality=88)
+        return out_buf.getvalue()
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Yêu cầu chụp ảnh màn hình máy ảo quá thời gian chờ (15s)")
+    except Exception as exc:
+        logger.error(f"[SCREENSHOT] Error capturing screenshot for VM {vmid}: {exc}")
+        raise RuntimeError(f"Lỗi chụp ảnh màn hình máy ảo: {str(exc)}")
+
+
+def save_vm_screenshot_to_desktop(vmid: int, is_windows: bool = True) -> Dict[str, Any]:
+    """
+    Chụp ảnh màn hình máy ảo và lưu trực tiếp file ảnh vào Desktop bên trong máy ảo.
+    - Không tải file ra ngoài máy thật.
+    - Giữ trọn vẹn an toàn sandbox khi chế độ chặn copy (disable_vm_copy) được bật.
+    """
+    import subprocess
+    import base64
+    import time
+
+    jpg_bytes = capture_vm_screenshot(vmid)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    filename = f"Screenshot_{timestamp}.jpg"
+    b64_str = base64.b64encode(jpg_bytes).decode("ascii")
+
+    if is_windows:
+        # Lưu vào Desktop Windows (C:\Users\admin\Desktop\ hoặc Desktop mặc định)
+        ps_script = f"""
+$d = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('Desktop'), '{filename}')
+if (-not (Test-Path [System.IO.Path]::GetDirectoryName($d))) {{
+    $d = 'C:\\Users\\admin\\Desktop\\{filename}'
+}}
+[System.IO.File]::WriteAllBytes($d, [System.Convert]::FromBase64String([Console]::In.ReadToEnd()))
+"""
+        ps_b64 = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
+        pve_exec_cmd = f"qm guest exec {vmid} --pass-stdin 1 powershell -- -NoProfile -EncodedCommand {ps_b64}"
+    else:
+        # Lưu vào Desktop Linux (/home/*/Desktop hoặc /root/Desktop)
+        sh_cmd = f"cat - | base64 -d > ~/Desktop/{filename} 2>/dev/null || cat - | base64 -d > /tmp/{filename}"
+        pve_exec_cmd = f"qm guest exec {vmid} --pass-stdin 1 -- sh -c \"{sh_cmd}\""
+
+    remote_ssh = [
+        "ssh", "-i", "/root/.ssh/id_pve_sync",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=10",
+        f"root@{settings.PVE_API_HOST}",
+        pve_exec_cmd
+    ]
+    try:
+        res = subprocess.run(remote_ssh, input=b64_str, capture_output=True, text=True, timeout=20)
+        logger.info(f"[SCREENSHOT] Saved {filename} to VM {vmid} Desktop. Output: {res.stdout.strip()}")
+        return {
+            "success": True,
+            "filename": filename,
+            "saved_location": f"Desktop\\{filename}",
+            "size_bytes": len(jpg_bytes),
+            "message": f"Đã chụp và lưu ảnh vào Desktop của máy ảo ({filename})"
+        }
+    except Exception as exc:
+        logger.error(f"[SCREENSHOT] Failed to save screenshot into VM {vmid}: {exc}")
+        raise RuntimeError(f"Lỗi ghi ảnh vào máy ảo: {str(exc)}")
+
+
+
+

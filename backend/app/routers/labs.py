@@ -587,6 +587,46 @@ def rollback_vm_session(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"message": "Đã gửi yêu cầu khôi phục máy ảo về bản sạch thành công", "success": success}
 
+@router.post("/{lab_id}/vm-screenshot")
+def take_vm_screenshot(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_user)
+):
+    """
+    API Chụp ảnh màn hình máy ảo và lưu trực tiếp vào Desktop bên trong máy ảo.
+    - Không tải file ra ngoài máy thật.
+    - Nếu lab cấu hình disable_vm_copy (chặn copy), ảnh được bảo toàn lưu trữ an toàn trong VM.
+    """
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+    if not lab.enable_vm:
+        raise HTTPException(status_code=400, detail="Bài lab này không kích hoạt máy ảo")
+
+    from app.services.vm_service import get_pve_client, _find_student_vm, save_vm_screenshot_to_desktop
+    proxmox = get_pve_client()
+    if not proxmox:
+        raise HTTPException(status_code=503, detail="Không thể kết nối máy chủ Proxmox VE")
+
+    try:
+        resources = proxmox.cluster.resources.get(type="vm")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Lỗi kiểm tra máy ảo Proxmox: {str(exc)}")
+
+    existing_vm = _find_student_vm(resources, current_user.username, lab.id)
+    if not existing_vm or existing_vm.get("status") != "running":
+        raise HTTPException(status_code=400, detail="Máy ảo của bạn chưa được khởi động hoặc đang tắt")
+
+    vmid = int(existing_vm["vmid"])
+    is_windows = (lab.vm_protocol == "rdp")
+
+    try:
+        result = save_vm_screenshot_to_desktop(vmid=vmid, is_windows=is_windows)
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 @router.get("/{lab_id}/vms")
 def get_lab_student_vms(
     lab_id: int,

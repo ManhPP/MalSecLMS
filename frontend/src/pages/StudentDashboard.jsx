@@ -4,7 +4,7 @@ import {
   BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
   School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock,
-  Download, Eye, Paperclip, X, RefreshCw, ArrowLeft, ArrowRight
+  Download, Eye, Paperclip, X, RefreshCw, ArrowLeft, ArrowRight, Camera
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 import { useAuth } from '../App.jsx'
@@ -326,6 +326,8 @@ export default function StudentDashboard() {
   const [vmLoading, setVmLoading] = useState(false)
   const [vmError, setVmError] = useState('')
   const [vmInfo, setVmInfo] = useState(null)
+  const [screenshotLoading, setScreenshotLoading] = useState(false)
+  const [screenshotNotice, setScreenshotNotice] = useState('')
   const guacamoleFrameRef = useRef(null)
 
   const focusIframe = () => {
@@ -406,6 +408,27 @@ export default function StudentDashboard() {
     } catch (err) {
       alert('VM rollback error: ' + err.message)
       setVmLoading(false)
+    }
+  }
+
+  const handleTakeScreenshot = async () => {
+    if (!selectedLab || !guacamoleUrl) return
+    setScreenshotLoading(true)
+    setScreenshotNotice('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${selectedLab.id}/vm-screenshot`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Could not capture VM screenshot')
+      setScreenshotNotice(`📸 ${data.message || 'Screenshot saved to Desktop inside your VM!'}`)
+      setTimeout(() => setScreenshotNotice(''), 6000)
+    } catch (err) {
+      alert('Screenshot error: ' + err.message)
+    } finally {
+      setScreenshotLoading(false)
     }
   }
 
@@ -1986,6 +2009,16 @@ export default function StudentDashboard() {
                           New Window ↗
                         </a>
                       )}
+                      <button
+                        type="button"
+                        onClick={handleTakeScreenshot}
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 9px', fontSize: '11px', background: '#0284c7', border: 'none', color: '#fff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        disabled={!guacamoleUrl || screenshotLoading}
+                        title="Capture VM Screen and save directly to Desktop inside your VM (Sandbox safe)"
+                      >
+                        <Camera size={12} /> {screenshotLoading ? 'Capturing...' : 'Capture to VM Desktop'}
+                      </button>
                       <button 
                         type="button" 
                         onClick={handleRollbackVm} 
@@ -1998,6 +2031,13 @@ export default function StudentDashboard() {
                       </button>
                     </div>
                   </div>
+
+                  {screenshotNotice && (
+                    <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #059669' }}>
+                      <span>{screenshotNotice}</span>
+                      <button type="button" onClick={() => setScreenshotNotice('')} style={{ background: 'transparent', border: 'none', color: '#6ee7b7', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                    </div>
+                  )}
 
                   {/* Real Guacamole RDP / Proxmox VM Display */}
                   <div 
