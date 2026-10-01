@@ -1941,7 +1941,7 @@ export default function InstructorDashboard() {
         </div>
       )}
 
-      {error && !showLabModal && !showCloneModal && !showExtensionModal && !showStudentModal && !showVmManagerModal && !editClassModal && (
+      {error && !showLabModal && !showCloneModal && !showExtensionModal && !showStudentModal && !showVmManagerModal && (
         <div className="plag-alert-banner" style={{ marginBottom: '20px' }}>
           <ShieldAlert size={18} />
           <span>{error}</span>
@@ -2265,30 +2265,6 @@ export default function InstructorDashboard() {
                                           {cls.description || 'Cybersecurity Practice Lab'}
                                         </span>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          openEditClassModal(cls)
-                                        }}
-                                        style={{
-                                          background: 'rgba(255,255,255,0.2)',
-                                          border: 'none',
-                                          color: '#ffffff',
-                                          borderRadius: '6px',
-                                          padding: '5px 8px',
-                                          cursor: 'pointer',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          transition: 'background 0.15s ease'
-                                        }}
-                                        title="Edit Class details"
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                                      >
-                                        <Edit2 size={13} />
-                                      </button>
                                     </div>
 
                                     {/* Semester Badge inside banner */}
@@ -2488,14 +2464,6 @@ export default function InstructorDashboard() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => openEditClassModal(selectedClass)}
-                      className="btn btn-secondary"
-                      style={{ padding: '8px 14px', fontSize: '12.5px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <Edit2 size={13} /> Edit Class Semester
-                    </button>
                     <button
                       type="button"
                       onClick={() => {
