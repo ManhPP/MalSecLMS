@@ -55,9 +55,21 @@ for i in range(5):
                 if active_count == 0:
                     first_id = conn.execute(text("SELECT id FROM semesters ORDER BY id ASC LIMIT 1;")).scalar()
                     if first_id:
-                        conn.execute(text("UPDATE semesters SET is_active = TRUE WHERE id = :id;"), {"id": first_id})
-                    else:
                         conn.execute(text("INSERT INTO semesters (name, is_active, description, created_at) VALUES ('FA26', TRUE, 'Default Semester', CURRENT_TIMESTAMP);"))
+
+            # Create vm_tool_files table for file ownership tracking
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS vm_tool_files (
+                    id SERIAL PRIMARY KEY,
+                    filename VARCHAR NOT NULL,
+                    scope VARCHAR NOT NULL DEFAULT 'common',
+                    uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    size_bytes INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_vm_tool_files_scope ON vm_tool_files(scope);
+                CREATE INDEX IF NOT EXISTS idx_vm_tool_files_filename ON vm_tool_files(filename);
+            """))
             conn.commit()
         break
     except Exception as e:

@@ -2297,6 +2297,7 @@ export default function AdminDashboard() {
                     <tr>
                       <th>Filename</th>
                       <th>Size</th>
+                      {vmToolSpace === 'common' && <th>Uploaded By (Owner)</th>}
                       <th>Last Modified</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
@@ -2327,6 +2328,25 @@ export default function AdminDashboard() {
                               ? `${sizeMb} MB` 
                               : `${(file.size_bytes / 1024).toFixed(1)} KB`}
                           </td>
+                          {vmToolSpace === 'common' && (
+                            <td>
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                fontSize: '12px',
+                                color: file.owner_username === 'system' ? 'var(--text-muted)' : 'var(--neon-cyan)',
+                                fontWeight: '500'
+                              }}>
+                                👤 {file.owner_name || file.owner_username || 'System'}
+                                {file.owner_username && file.owner_username !== 'system' && (
+                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                                    (@{file.owner_username})
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                          )}
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                             {file.updated_at || '—'}
                           </td>
@@ -2347,7 +2367,7 @@ export default function AdminDashboard() {
                     })}
                     {vmToolFiles.length === 0 && (
                       <tr>
-                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '28px' }}>
+                        <td colSpan={vmToolSpace === 'common' ? 5 : 4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '28px' }}>
                           No files found in {vmToolSpace === 'common' ? 'Common Drive D:\\' : `private workspace of @${vmToolSpace.replace('lecturer_', '')}`}.
                         </td>
                       </tr>

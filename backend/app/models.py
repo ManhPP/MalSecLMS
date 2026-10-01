@@ -150,3 +150,17 @@ class AuditLog(Base):
 
     # Relationships
     user = relationship('User', back_populates='audit_logs')
+
+
+class VmToolFile(Base):
+    __tablename__ = 'vm_tool_files'
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, nullable=False, index=True)
+    scope = Column(String, nullable=False, default='common', index=True)  # 'common' hoặc 'lecturer_<username>'
+    uploaded_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    size_bytes = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # Relationships
+    uploaded_by = relationship('User')

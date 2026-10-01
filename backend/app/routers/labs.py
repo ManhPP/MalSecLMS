@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.database import get_db
 from app.config import settings
-from app.models import Lab, User, Class, AuditLog
+from app.models import Lab, User, Class, AuditLog, VmToolFile
 from app.request_utils import get_client_ip
 from app.schemas import LabOut, LabCreate, LabUpdate, LabClone
 from app.security import require_lecturer, require_student, get_current_user, require_any_user
@@ -720,13 +720,45 @@ def upload_lab_attachment(
 @router.get("/vm-tools/my-files", response_model=List[Dict[str, Any]])
 def list_my_vm_tool_files(
     scope: str = Query("private", description="'private' for lecturer private drive, 'common' for global drive D:"),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Liệt kê danh sách các file trong không gian riêng hoặc không gian chung của Giảng viên"""
+    """API Liệt kê danh sách các file trong không gian riêng hoặc không gian chung của Giảng viên (kèm thông tin người sở hữu)"""
     from app.services.iso_tool_service import IsoToolService
     try:
         resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
-        return IsoToolService.list_files(scope=resolved_scope)
+        files = IsoToolService.list_files(scope=resolved_scope)
+        
+        # Lấy thông tin owner từ CSDL
+        records = db.query(VmToolFile).filter(VmToolFile.scope == resolved_scope).all()
+        owner_map = {}
+        for rec in records:
+            owner_map[rec.filename] = {
+                "owner_id": rec.uploaded_by_id,
+                "owner_username": rec.uploaded_by.username if rec.uploaded_by else "admin",
+                "owner_name": rec.uploaded_by.full_name if rec.uploaded_by else "Administrator"
+            }
+
+        enriched_files = []
+        for f in files:
+            fname = f["filename"]
+            info = owner_map.get(fname)
+            if info:
+                f["owner_id"] = info["owner_id"]
+                f["owner_username"] = info["owner_username"]
+                f["owner_name"] = info["owner_name"]
+            else:
+                # Nếu file có sẵn từ trước hoặc do admin đặt trực tiếp trên host
+                f["owner_id"] = None
+                f["owner_username"] = "system"
+                f["owner_name"] = "System / Admin"
+            
+            # Giảng viên chỉ có quyền xóa nếu là Admin hoặc là chính chủ nhân upload file
+            can_delete = (current_user.role == "admin") or (resolved_scope != "common") or (f["owner_username"] == current_user.username)
+            f["can_delete"] = can_delete
+            enriched_files.append(f)
+
+        return enriched_files
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -744,6 +776,24 @@ def upload_my_vm_tool_file(
     try:
         resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
         result = IsoToolService.upload_file(file, scope=resolved_scope)
+        
+        # Lưu hoặc cập nhật record người sở hữu trong CSDL
+        existing_rec = db.query(VmToolFile).filter(
+            VmToolFile.filename == result['filename'],
+            VmToolFile.scope == resolved_scope
+        ).first()
+
+        if existing_rec:
+            existing_rec.uploaded_by_id = current_user.id
+            existing_rec.size_bytes = result['size_bytes']
+        else:
+            new_rec = VmToolFile(
+                filename=result['filename'],
+                scope=resolved_scope,
+                uploaded_by_id=current_user.id,
+                size_bytes=result['size_bytes']
+            )
+            db.add(new_rec)
         
         target_desc = f"Common Drive D: (Global)" if resolved_scope == "common" else f"Private Drive D: [{resolved_scope}]"
         log = AuditLog(
@@ -769,12 +819,31 @@ def delete_my_vm_tool_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Xóa file khỏi không gian riêng hoặc không gian chung của Giảng viên"""
+    """API Xóa file khỏi không gian riêng hoặc không gian chung (chỉ chủ sở hữu hoặc admin mới được xóa)"""
     from app.services.iso_tool_service import IsoToolService
     try:
         resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
+        
+        # Kiểm tra quyền: nếu là không gian chung và user không phải admin
+        if resolved_scope == "common" and current_user.role != "admin":
+            rec = db.query(VmToolFile).filter(
+                VmToolFile.filename == filename,
+                VmToolFile.scope == "common"
+            ).first()
+            if not rec or rec.uploaded_by_id != current_user.id:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Permission denied: You can only delete files that you uploaded in Common Drive D:. Other instructors' or system files can only be deleted by an Administrator."
+                )
+
         IsoToolService.delete_file(filename, scope=resolved_scope)
         
+        # Xóa record CSDL nếu có
+        db.query(VmToolFile).filter(
+            VmToolFile.filename == filename,
+            VmToolFile.scope == resolved_scope
+        ).delete(synchronize_session=False)
+
         target_desc = f"Common Drive D: (Global)" if resolved_scope == "common" else f"Private Drive D: [{resolved_scope}]"
         log = AuditLog(
             user_id=current_user.id,

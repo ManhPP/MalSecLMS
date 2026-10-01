@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 from io import StringIO
 import csv
 from app.database import get_db
-from app.models import User, Class, AuditLog, user_class_association
+from app.models import User, Class, AuditLog, user_class_association, VmToolFile
 from app.schemas import AuditLogOut, UserOut
 from app.security import require_admin, get_password_hash
 from app.config import settings
@@ -158,12 +158,37 @@ def clean_orphaned_vms(
 @router.get("/vm-tools/files", response_model=List[Dict[str, Any]])
 def list_vm_tool_files(
     scope: str = "common",
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """API Liệt kê danh sách các file trong ổ đĩa chia sẻ D:\ (kho chung hoặc kho riêng giảng viên)"""
+    """API Liệt kê danh sách các file trong ổ đĩa chia sẻ D:\ (kho chung hoặc kho riêng giảng viên) kèm thông tin owner"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        return IsoToolService.list_files(scope=scope)
+        files = IsoToolService.list_files(scope=scope)
+        records = db.query(VmToolFile).filter(VmToolFile.scope == scope).all()
+        owner_map = {}
+        for rec in records:
+            owner_map[rec.filename] = {
+                "owner_id": rec.uploaded_by_id,
+                "owner_username": rec.uploaded_by.username if rec.uploaded_by else "admin",
+                "owner_name": rec.uploaded_by.full_name if rec.uploaded_by else "Administrator"
+            }
+
+        enriched_files = []
+        for f in files:
+            fname = f["filename"]
+            info = owner_map.get(fname)
+            if info:
+                f["owner_id"] = info["owner_id"]
+                f["owner_username"] = info["owner_username"]
+                f["owner_name"] = info["owner_name"]
+            else:
+                f["owner_id"] = None
+                f["owner_username"] = "system"
+                f["owner_name"] = "System / Admin"
+            f["can_delete"] = True  # Admin có quyền xóa tất cả file
+            enriched_files.append(f)
+        return enriched_files
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -181,6 +206,24 @@ def upload_vm_tool_file(
     try:
         result = IsoToolService.upload_file(file, scope=scope)
         
+        # Cập nhật record owner trong CSDL
+        existing_rec = db.query(VmToolFile).filter(
+            VmToolFile.filename == result['filename'],
+            VmToolFile.scope == scope
+        ).first()
+
+        if existing_rec:
+            existing_rec.uploaded_by_id = current_user.id
+            existing_rec.size_bytes = result['size_bytes']
+        else:
+            new_rec = VmToolFile(
+                filename=result['filename'],
+                scope=scope,
+                uploaded_by_id=current_user.id,
+                size_bytes=result['size_bytes']
+            )
+            db.add(new_rec)
+
         log = AuditLog(
             user_id=current_user.id,
             action="vm_tool_upload",
@@ -209,6 +252,11 @@ def delete_vm_tool_file(
     try:
         IsoToolService.delete_file(filename, scope=scope)
         
+        db.query(VmToolFile).filter(
+            VmToolFile.filename == filename,
+            VmToolFile.scope == scope
+        ).delete(synchronize_session=False)
+
         log = AuditLog(
             user_id=current_user.id,
             action="vm_tool_delete",

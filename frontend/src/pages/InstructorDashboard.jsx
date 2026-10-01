@@ -4622,6 +4622,7 @@ export default function InstructorDashboard() {
                     <tr>
                       <th>Filename</th>
                       <th>Size</th>
+                      {myVmToolScope === 'common' && <th>Uploaded By (Owner)</th>}
                       <th>Last Modified</th>
                       <th style={{ textAlign: 'right' }}>Action</th>
                     </tr>
@@ -4631,6 +4632,7 @@ export default function InstructorDashboard() {
                       const isZip = file.filename.endsWith('.zip') || file.filename.endsWith('.rar') || file.filename.endsWith('.7z')
                       const isExe = file.filename.endsWith('.exe') || file.filename.endsWith('.msi')
                       const sizeMb = (file.size_bytes / (1024 * 1024)).toFixed(2)
+                      const canDel = file.can_delete !== false
                       return (
                         <tr key={idx}>
                           <td>
@@ -4652,27 +4654,55 @@ export default function InstructorDashboard() {
                               ? `${sizeMb} MB` 
                               : `${(file.size_bytes / 1024).toFixed(1)} KB`}
                           </td>
+                          {myVmToolScope === 'common' && (
+                            <td>
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                fontSize: '12px',
+                                color: file.owner_username === 'system' ? 'var(--text-muted)' : 'var(--neon-cyan)',
+                                fontWeight: '500'
+                              }}>
+                                👤 {file.owner_name || file.owner_username || 'System'}
+                                {file.owner_username && file.owner_username !== 'system' && (
+                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                                    (@{file.owner_username})
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                          )}
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                             {file.updated_at || '—'}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMyVmTool(file.filename)}
-                              className="btn btn-secondary"
-                              style={{ padding: '5px 10px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)', fontSize: '12px' }}
-                              title={`Delete file from ${myVmToolScope === 'private' ? 'private drive' : 'common drive'}`}
-                              disabled={actionLoading}
-                            >
-                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
-                            </button>
+                            {canDel ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMyVmTool(file.filename)}
+                                className="btn btn-secondary"
+                                style={{ padding: '5px 10px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)', fontSize: '12px' }}
+                                title={`Delete file from ${myVmToolScope === 'private' ? 'private drive' : 'common drive'}`}
+                                disabled={actionLoading}
+                              >
+                                <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                              </button>
+                            ) : (
+                              <span 
+                                title="You cannot delete files uploaded by other instructors or administrators" 
+                                style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'not-allowed' }}
+                              >
+                                <Lock size={12} /> Protected
+                              </span>
+                            )}
                           </td>
                         </tr>
                       )
                     })}
                     {myVmTools.length === 0 && (
                       <tr>
-                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '36px 16px' }}>
+                        <td colSpan={myVmToolScope === 'common' ? 5 : 4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '36px 16px' }}>
                           <HardDrive size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
                           <div>No files found in {myVmToolScope === 'private' ? 'your private drive' : 'Common Drive D:'}.</div>
                           <div style={{ fontSize: '12px', marginTop: '4px' }}>Upload your custom tools or malware samples using the panel on the left.</div>
