@@ -98,6 +98,13 @@ class Lab(Base):
     vm_drive_files = Column(JSONB, nullable=False, server_default='[]')
     # VM Clipboard Isolation: Chặn copy từ trong máy ảo ra ngoài máy thật
     disable_vm_copy = Column(Boolean, default=False, server_default='false', nullable=False)
+    # Chặn dán từ máy thật vào trong máy ảo
+    disable_vm_paste = Column(Boolean, default=False, server_default='false', nullable=False)
+    # Chế độ kiểm tra / thi (Exam Mode)
+    is_exam_mode = Column(Boolean, default=False, server_default='false', nullable=False)
+    # Tùy chỉnh phần cứng VM (Cores, RAM MB)
+    cpu_cores = Column(Integer, nullable=True)
+    ram_mb = Column(Integer, nullable=True)
 
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 

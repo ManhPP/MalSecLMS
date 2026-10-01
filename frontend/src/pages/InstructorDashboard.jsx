@@ -189,6 +189,10 @@ export default function InstructorDashboard() {
   const [uploadingLabAttachment, setUploadingLabAttachment] = useState(false)
   const [enableVm, setEnableVm] = useState(false)
   const [disableVmCopy, setDisableVmCopy] = useState(false)
+  const [disableVmPaste, setDisableVmPaste] = useState(false)
+  const [isExamMode, setIsExamMode] = useState(false)
+  const [cpuCores, setCpuCores] = useState('')
+  const [ramGb, setRamGb] = useState('')
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
   const [isLinkedClone, setIsLinkedClone] = useState(true)
@@ -1243,7 +1247,11 @@ export default function InstructorDashboard() {
         enable_vm: enableVm,
         vm_drive_mode: vmDriveMode,
         vm_drive_files: vmDriveMode === 'custom' ? vmDriveFiles : [],
-        disable_vm_copy: disableVmCopy
+        disable_vm_copy: disableVmCopy,
+        disable_vm_paste: disableVmPaste,
+        is_exam_mode: isExamMode,
+        cpu_cores: cpuCores ? parseInt(cpuCores) : null,
+        ram_mb: ramGb ? Math.round(parseFloat(ramGb) * 1024) : null
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
@@ -1253,6 +1261,10 @@ export default function InstructorDashboard() {
         payload.vm_username = vmUsername.trim()
         if (vmPassword) payload.vm_password = vmPassword
         payload.disable_vm_copy = disableVmCopy
+        payload.disable_vm_paste = disableVmPaste
+        payload.is_exam_mode = isExamMode
+        payload.cpu_cores = cpuCores ? parseInt(cpuCores) : null
+        payload.ram_mb = ramGb ? Math.round(parseFloat(ramGb) * 1024) : null
       }
 
       let res
@@ -1322,6 +1334,10 @@ export default function InstructorDashboard() {
     setMaxPenalty('')
     setEnableVm(false)
     setDisableVmCopy(false)
+    setDisableVmPaste(false)
+    setIsExamMode(false)
+    setCpuCores('')
+    setRamGb('')
     setIsLinkedClone(true)
 
     const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
@@ -1363,6 +1379,10 @@ export default function InstructorDashboard() {
     setLabAttachments(lab.attachment_files || [])
     setEnableVm(lab.enable_vm !== false)
     setDisableVmCopy(Boolean(lab.disable_vm_copy))
+    setDisableVmPaste(Boolean(lab.disable_vm_paste))
+    setIsExamMode(Boolean(lab.is_exam_mode))
+    setCpuCores(lab.cpu_cores ? String(lab.cpu_cores) : '')
+    setRamGb(lab.ram_mb ? String(Math.round(lab.ram_mb / 1024)) : '')
     setIsLinkedClone(lab.is_linked_clone !== false)
     setVmDriveMode(lab.vm_drive_mode || 'default')
     setVmDriveFiles(Array.isArray(lab.vm_drive_files) ? lab.vm_drive_files : [])
@@ -2645,12 +2665,24 @@ export default function InstructorDashboard() {
                                 <td>
                                   {lab.enable_vm !== false ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                      <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
-                                        {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
-                                      </span>
-                                      {lab.disable_vm_copy && (
-                                        <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '2px' }} title="Clipboard Isolation: Copying from VM to host is blocked">
-                                          🔒 No Copy
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
+                                          {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
+                                        </span>
+                                        {(lab.cpu_cores || lab.ram_mb) && (
+                                          <span style={{ fontSize: '10.5px', background: '#f1f5f9', color: '#475569', padding: '1px 4px', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>
+                                            {lab.cpu_cores ? `${lab.cpu_cores}C` : ''}{lab.cpu_cores && lab.ram_mb ? ' / ' : ''}{lab.ram_mb ? `${Math.round(lab.ram_mb / 1024)}GB` : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {lab.is_exam_mode && (
+                                        <span style={{ fontSize: '11px', color: '#be185d', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                                          🎓 Exam Mode
+                                        </span>
+                                      )}
+                                      {!lab.is_exam_mode && (lab.disable_vm_copy || lab.disable_vm_paste) && (
+                                        <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                                          🔒 {lab.disable_vm_copy && lab.disable_vm_paste ? 'No Copy/Paste' : lab.disable_vm_copy ? 'No Copy' : 'No Paste'}
                                         </span>
                                       )}
                                     </div>
@@ -6090,25 +6122,132 @@ export default function InstructorDashboard() {
                       )}
                     </div>
 
-                    {/* Clipboard Security Option */}
-                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    {/* Hardware Specifications */}
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ⚡ VM Hardware Allocation (Custom Specifications)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '12px' }}>CPU Cores (vCPU)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="32"
+                            className="form-input"
+                            placeholder="Template default (e.g. 2, 4)"
+                            value={cpuCores}
+                            onChange={(e) => setCpuCores(e.target.value)}
+                            style={{ fontSize: '13px' }}
+                          />
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Leave blank to inherit cores from base template VM</span>
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '12px' }}>RAM (GB)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="128"
+                            step="1"
+                            className="form-input"
+                            placeholder="Template default (e.g. 4, 8, 16)"
+                            value={ramGb}
+                            onChange={(e) => setRamGb(e.target.value)}
+                            style={{ fontSize: '13px' }}
+                          />
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Leave blank to inherit RAM from base template VM</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Exam / Test Mode Switch */}
+                    <div style={{ 
+                      marginTop: '14px', 
+                      marginBottom: '14px', 
+                      padding: '16px', 
+                      background: isExamMode ? 'rgba(236, 72, 153, 0.05)' : '#ffffff', 
+                      borderRadius: '8px', 
+                      border: isExamMode ? '1.5px solid #ec4899' : '1px solid var(--border-color)', 
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      transition: 'all 0.2s ease'
+                    }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
-                          id="disableVmCopyCheck"
-                          checked={disableVmCopy}
-                          onChange={(e) => setDisableVmCopy(e.target.checked)}
-                          style={{ marginTop: '3px', accentColor: 'var(--neon-ruby)' }}
+                          id="isExamModeCheck"
+                          checked={isExamMode}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setIsExamMode(checked)
+                            if (checked) {
+                              setDisableVmCopy(true)
+                              setDisableVmPaste(true)
+                            }
+                          }}
+                          style={{ marginTop: '3px', accentColor: '#ec4899', width: '16px', height: '16px' }}
                         />
-                        <div>
-                          <span style={{ fontSize: '13.5px', fontWeight: '600', color: disableVmCopy ? '#dc2626' : 'var(--text-primary)', display: 'block' }}>
-                            🔒 Block Copy from VM to Host (Clipboard Isolation)
-                          </span>
-                          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0', lineHeight: '1.4' }}>
-                            When enabled, students cannot copy code, text, or malicious artifacts from inside the virtual machine to their physical computer. Copy & paste <b>inside the VM</b> remains completely functional.
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '700', color: isExamMode ? '#be185d' : 'var(--text-primary)' }}>
+                              🎓 Exam / Test Mode (Anti-Cheating Sandbox & In-VM Word Submission)
+                            </span>
+                            {isExamMode && (
+                              <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', fontSize: '11px', fontWeight: '600' }}>
+                                EXAM ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0', lineHeight: '1.45' }}>
+                            When enabled: Students perform analysis and author their Word report (<b>.docx</b>) completely inside the VM. Automatically enforces <b>two-way clipboard isolation</b> (blocks copy from VM to host, and blocks paste from host to VM). Students can <b>Rollback clean VMs anytime without losing their report or analysis files</b> in the Exam_Workspace folder, and submit their final Word report directly from the VM for instructor speed grading.
                           </p>
                         </div>
                       </label>
+                    </div>
+
+                    {/* Clipboard Isolation Options */}
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                        🔒 Clipboard Isolation Policy
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: isExamMode ? 'not-allowed' : 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            id="disableVmCopyCheck"
+                            checked={isExamMode || disableVmCopy}
+                            disabled={isExamMode}
+                            onChange={(e) => setDisableVmCopy(e.target.checked)}
+                            style={{ marginTop: '3px', accentColor: 'var(--neon-ruby)' }}
+                          />
+                          <div>
+                            <span style={{ fontSize: '13px', fontWeight: '600', color: (isExamMode || disableVmCopy) ? '#dc2626' : 'var(--text-primary)' }}>
+                              Block Copy from VM to Host (VM &rarr; Physical Host)
+                            </span>
+                            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '2px 0 0 0', lineHeight: '1.35' }}>
+                              Prevents students from copying text, code, or malware artifacts out of the VM to their physical computer. Internal VM copy/paste remains functional.
+                            </p>
+                          </div>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: isExamMode ? 'not-allowed' : 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            id="disableVmPasteCheck"
+                            checked={isExamMode || disableVmPaste}
+                            disabled={isExamMode}
+                            onChange={(e) => setDisableVmPaste(e.target.checked)}
+                            style={{ marginTop: '3px', accentColor: 'var(--neon-ruby)' }}
+                          />
+                          <div>
+                            <span style={{ fontSize: '13px', fontWeight: '600', color: (isExamMode || disableVmPaste) ? '#dc2626' : 'var(--text-primary)' }}>
+                              Block Paste from Host to VM (Physical Host &rarr; VM)
+                            </span>
+                            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '2px 0 0 0', lineHeight: '1.35' }}>
+                              Prevents students from pasting external solutions, code, or pre-made reports into the VM from outside.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
                     </div>
 
                     {runtimeConfig?.vm && (

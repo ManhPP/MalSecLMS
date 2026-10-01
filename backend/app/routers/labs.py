@@ -165,6 +165,10 @@ def create_lab(
         vm_drive_mode=lab_data.vm_drive_mode or "default",
         vm_drive_files=lab_data.vm_drive_files or [],
         disable_vm_copy=bool(lab_data.disable_vm_copy) if lab_data.disable_vm_copy is not None else False,
+        disable_vm_paste=bool(lab_data.disable_vm_paste) if lab_data.disable_vm_paste is not None else False,
+        is_exam_mode=bool(lab_data.is_exam_mode) if lab_data.is_exam_mode is not None else False,
+        cpu_cores=lab_data.cpu_cores,
+        ram_mb=lab_data.ram_mb,
     )
     db.add(new_lab)
     db.commit()
@@ -255,6 +259,14 @@ def update_lab(
         lab.vm_drive_files = lab_data.vm_drive_files
     if lab_data.disable_vm_copy is not None:
         lab.disable_vm_copy = bool(lab_data.disable_vm_copy)
+    if lab_data.disable_vm_paste is not None:
+        lab.disable_vm_paste = bool(lab_data.disable_vm_paste)
+    if lab_data.is_exam_mode is not None:
+        lab.is_exam_mode = bool(lab_data.is_exam_mode)
+    if lab_data.cpu_cores is not None:
+        lab.cpu_cores = lab_data.cpu_cores
+    if lab_data.ram_mb is not None:
+        lab.ram_mb = lab_data.ram_mb
 
     if lab.enable_vm:
         if lab.template_vmid is None or not (
@@ -414,7 +426,11 @@ def clone_lab(
         vm_password=source_lab.vm_password,
         vm_drive_mode=source_lab.vm_drive_mode,
         vm_drive_files=source_lab.vm_drive_files or [],
-        disable_vm_copy=getattr(source_lab, 'disable_vm_copy', False)
+        disable_vm_copy=getattr(source_lab, 'disable_vm_copy', False),
+        disable_vm_paste=getattr(source_lab, 'disable_vm_paste', False),
+        is_exam_mode=getattr(source_lab, 'is_exam_mode', False),
+        cpu_cores=getattr(source_lab, 'cpu_cores', None),
+        ram_mb=getattr(source_lab, 'ram_mb', None),
     )
     db.add(cloned_lab)
     db.commit()
@@ -537,12 +553,13 @@ def get_or_create_vm_session(
             port=lab.vm_port,
             is_linked_clone=is_linked,
             iso_filename=iso_filename,
+            cpu_cores=getattr(lab, 'cpu_cores', None),
+            ram_mb=getattr(lab, 'ram_mb', None),
+            is_exam_mode=getattr(lab, 'is_exam_mode', False),
         )
     except VMProvisionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     print(f"[VM-SESSION] user={current_user.username} lab={lab_id} vmid={vmid} ip={ip_address} iso={iso_filename or 'default'}", flush=True)
-    
-
     
     guacamole_url = generate_guacamole_auth_json_url(
         ip_address=ip_address,
@@ -551,7 +568,9 @@ def get_or_create_vm_session(
         port=lab.vm_port,
         username=lab.vm_username,
         password=lab.vm_password,
-        disable_vm_copy=getattr(lab, 'disable_vm_copy', False)
+        disable_vm_copy=getattr(lab, 'disable_vm_copy', False),
+        disable_vm_paste=getattr(lab, 'disable_vm_paste', False),
+        is_exam_mode=getattr(lab, 'is_exam_mode', False),
     )
 
 
@@ -626,6 +645,168 @@ def take_vm_screenshot(
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+@router.post("/{lab_id}/vm-exam-submit")
+def submit_exam_from_vm(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student)
+):
+    """
+    API Nộp bài kiểm tra trực tiếp từ Workspace bên trong VM:
+    1. Kiểm tra VM của sinh viên đang chạy trên Proxmox.
+    2. Thu gom toàn bộ tài liệu/báo cáo từ C:\\Users\\<Student>\\Desktop\\Exam_Workspace.
+    3. Đóng gói thành file zip lưu vào storage hệ thống MalSec.
+    4. Tạo hoặc cập nhật bản ghi Submission (status = 'submitted', submitted_at = now).
+    """
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+    if not lab.enable_vm:
+        raise HTTPException(status_code=400, detail="This lab does not have a virtual machine enabled")
+
+    from app.services.vm_service import get_pve_client, _find_student_vm, backup_vm_workspace
+    from app.models import Submission, AuditLog
+    import shutil
+
+    proxmox = get_pve_client()
+    if not proxmox:
+        raise HTTPException(status_code=503, detail="Cannot connect to Proxmox VE hypervisor")
+
+    try:
+        resources = proxmox.cluster.resources.get(type="vm")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed checking Proxmox virtual machines: {str(exc)}")
+
+    existing_vm = _find_student_vm(resources, current_user.username, lab.id)
+    if not existing_vm or existing_vm.get("status") != "running":
+        raise HTTPException(
+            status_code=400,
+            detail="Your virtual machine is not running or is powered off. Please launch your VM before submitting."
+        )
+
+    vmid = int(existing_vm["vmid"])
+    backup_file = backup_vm_workspace(vmid, current_user.username, lab.id)
+    if not backup_file or not os.path.exists(backup_file):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The 'Exam_Workspace' folder on your VM Desktop is empty! "
+                "Please save your Word report (.docx) and practical analysis files into Exam_Workspace before submitting."
+            )
+        )
+
+    # Đưa file vào thư mục uploads chính thức của Submissions
+    sub_dir = os.path.join(settings.UPLOAD_DIR, "submissions", f"lab_{lab.id}")
+    os.makedirs(sub_dir, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    official_filename = f"Exam_Submission_{current_user.username}_{ts}.zip"
+    official_filepath = os.path.join(sub_dir, official_filename)
+    shutil.copy2(backup_file, official_filepath)
+
+    new_attachments = []
+    docx_found = None
+
+    # Tự động trích xuất file Word .docx nếu sinh viên có để trong workspace
+    try:
+        import zipfile
+        with zipfile.ZipFile(backup_file, 'r') as zf:
+            docx_candidates = [f for f in zf.namelist() if f.lower().endswith('.docx') and not os.path.basename(f).startswith('~$')]
+            if docx_candidates:
+                target_docx = docx_candidates[0]
+                docx_name = os.path.basename(target_docx)
+                extracted_docx_name = f"Report_{current_user.username}_{ts}_{docx_name}"
+                extracted_docx_path = os.path.join(sub_dir, extracted_docx_name)
+                with zf.open(target_docx) as source, open(extracted_docx_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
+
+                docx_found = {
+                    "field_id": "exam_report_docx",
+                    "original_filename": docx_name,
+                    "saved_filename": extracted_docx_name,
+                    "filepath": extracted_docx_path,
+                    "uploaded_at": datetime.now().isoformat()
+                }
+                new_attachments.append(docx_found)
+    except Exception as zerr:
+        logger.warning(f"[EXAM_SUBMIT] Failed extracting docx from zip: {zerr}")
+
+    # File zip toàn bộ workspace
+    new_attachments.append({
+        "field_id": "exam_workspace",
+        "original_filename": official_filename,
+        "saved_filename": official_filename,
+        "filepath": official_filepath,
+        "uploaded_at": datetime.now().isoformat()
+    })
+
+    now = datetime.now()
+    submission = db.query(Submission).filter(
+        Submission.lab_id == lab.id,
+        Submission.student_id == current_user.id
+    ).first()
+
+    report_desc = f"Word Report: {docx_found['original_filename']}" if docx_found else "Submitted directly from VM Exam Workspace"
+
+    if not submission:
+        submission = Submission(
+            lab_id=lab.id,
+            student_id=current_user.id,
+            answers={"exam_workspace": report_desc},
+            file_attachments=new_attachments,
+            status="submitted",
+            submitted_at=now
+        )
+        db.add(submission)
+    else:
+        current_attachments = list(submission.file_attachments or [])
+        merged_attachments = new_attachments + [a for a in current_attachments if a.get("field_id") not in ("exam_report_docx", "exam_workspace")]
+        submission.file_attachments = merged_attachments
+        current_answers = dict(submission.answers or {})
+        current_answers["exam_workspace"] = report_desc
+        submission.answers = current_answers
+        submission.status = "submitted"
+        submission.submitted_at = now
+        submission.updated_at = now
+
+    # Tính phạt muộn nếu quá hạn
+    effective_deadline = lab.deadline
+    individual_deadline_str = (lab.individual_extensions or {}).get(current_user.username)
+    if individual_deadline_str:
+        try:
+            effective_deadline = datetime.fromisoformat(individual_deadline_str)
+        except Exception:
+            pass
+
+    if now > effective_deadline:
+        policy = lab.late_policy or {}
+        allow_late = policy.get("allow_late", True)
+        if not allow_late:
+            raise HTTPException(status_code=400, detail="This lab deadline has passed and does not accept late submissions")
+        penalty_per_hour = policy.get("penalty_per_hour_percent", 0.0)
+        max_penalty = policy.get("max_penalty_percent", 0.0)
+        hours_late = (now - effective_deadline).total_seconds() / 3600.0
+        calculated_penalty = min(hours_late * penalty_per_hour, max_penalty)
+        submission.late_penalty = calculated_penalty
+
+    db.commit()
+    db.refresh(submission)
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="EXAM_SUBMIT",
+        target=f"Submitted exam report from VM for lab '{lab.title}' (ID {lab.id})"
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Exam report submitted successfully from VM! ({docx_found['original_filename'] if docx_found else official_filename})",
+        "filename": docx_found["original_filename"] if docx_found else official_filename,
+        "submission_id": submission.id,
+        "submitted_at": now.isoformat()
+    }
 
 @router.get("/{lab_id}/vms")
 def get_lab_student_vms(

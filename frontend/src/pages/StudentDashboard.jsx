@@ -329,6 +329,7 @@ export default function StudentDashboard() {
   const [vmInfo, setVmInfo] = useState(null)
   const [screenshotLoading, setScreenshotLoading] = useState(false)
   const [screenshotNotice, setScreenshotNotice] = useState('')
+  const [examSubmitting, setExamSubmitting] = useState(false)
   const [isVmFullscreen, setIsVmFullscreen] = useState(false)
   const guacamoleFrameRef = useRef(null)
   const vmWrapperRef = useRef(null)
@@ -453,6 +454,34 @@ export default function StudentDashboard() {
       alert('Screenshot error: ' + err.message)
     } finally {
       setScreenshotLoading(false)
+    }
+  }
+
+  const handleSubmitExamFromVm = async () => {
+    if (!selectedLab || !guacamoleUrl) return
+    const confirmSubmit = window.confirm(
+      'Are you sure you want to submit your exam report?\n\n' +
+      'The system will automatically scan and collect your Word report (.docx) and files from your Desktop\'s "Exam_Workspace" folder inside the VM and submit them to your instructor.'
+    )
+    if (!confirmSubmit) return
+
+    setExamSubmitting(true)
+    setScreenshotNotice('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${selectedLab.id}/vm-exam-submit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Could not submit exam from VM')
+
+      setScreenshotNotice(`🎓 Exam report submitted successfully! File: ${data.filename}`)
+      await fetchMySubmission(selectedLab.id)
+    } catch (err) {
+      alert('Exam Submission Error: ' + err.message)
+    } finally {
+      setExamSubmitting(false)
     }
   }
 
@@ -1766,6 +1795,11 @@ export default function StudentDashboard() {
                                       <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
                                         🏷️ {lab.grade_tag || 'Default'}
                                       </span>
+                                      {lab.is_exam_mode && (
+                                        <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', fontSize: '10.5px', fontWeight: '700' }}>
+                                          🎓 Exam Mode
+                                        </span>
+                                      )}
                                     </div>
                                     {lab.description && (
                                       <div style={{ 
@@ -1942,6 +1976,11 @@ export default function StudentDashboard() {
                 <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px', fontWeight: '600', padding: '1px 6px' }}>
                   🏷️ {selectedLab.grade_tag || 'Default'}
                 </span>
+                {selectedLab.is_exam_mode && (
+                  <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', fontSize: '11px', fontWeight: '700' }}>
+                    🎓 Exam Mode
+                  </span>
+                )}
                 <span className="badge" style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: '500', padding: '2px 8px', border: '1px solid #cbd5e1' }} title="Submission Deadline">
                   ⏰ Deadline: <b>{formatLocalTime(getEffectiveDeadline(selectedLab))}</b>
                 </span>
@@ -2069,18 +2108,37 @@ export default function StudentDashboard() {
                         </a>
                       )}
 
+                      <button
+                        type="button"
+                        onClick={handleSubmitExamFromVm}
+                        className="btn-icon"
+                        style={{ width: '30px', height: '30px', background: '#059669', border: '1px solid #10b981', color: '#ffffff' }}
+                        disabled={!guacamoleUrl || examSubmitting}
+                        title="Submit Exam Report (Collect Word .docx report from Desktop Exam_Workspace)"
+                      >
+                        <FileCheck size={15} className={examSubmitting ? 'spin-animation' : ''} />
+                      </button>
+
                       <button 
                         type="button" 
                         onClick={handleRollbackVm} 
                         className="btn-icon" 
                         disabled={vmLoading}
                         style={{ width: '30px', height: '30px', background: '#dc2626', border: '1px solid #ef4444', color: '#ffffff' }}
-                        title="Rollback Clean VM (Revert to initial state on Proxmox)"
+                        title="Rollback Clean VM (Revert to initial state on Proxmox while preserving Exam_Workspace)"
                       >
                         <RotateCcw size={14} />
                       </button>
                     </div>
                   </div>
+
+                  {selectedLab?.is_exam_mode && (
+                    <div style={{ background: 'rgba(236, 72, 153, 0.1)', color: '#f472b6', borderBottom: '1px solid rgba(236, 72, 153, 0.3)', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>
+                        🎓 <b>Exam Mode Active:</b> Write your report in Microsoft Word (<b>.docx</b>) and save it inside <b>Exam_Workspace</b> on your VM Desktop. Click the green <b>FileCheck icon</b> on the toolbar to submit. Clean VM rollbacks safely preserve your work.
+                      </span>
+                    </div>
+                  )}
 
                   {screenshotNotice && (
                     <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '6px 14px', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #059669' }}>

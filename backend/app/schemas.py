@@ -127,6 +127,10 @@ class LabBase(BaseModel):
     vm_drive_mode: Optional[Literal["default", "custom"]] = "default"
     vm_drive_files: Optional[List[str]] = []
     disable_vm_copy: Optional[bool] = False
+    disable_vm_paste: Optional[bool] = False
+    is_exam_mode: Optional[bool] = False
+    cpu_cores: Optional[int] = None
+    ram_mb: Optional[int] = None
     class_id: int
 
 class LabCreate(LabBase):
@@ -152,6 +156,10 @@ class LabUpdate(BaseModel):
     vm_drive_mode: Optional[Literal["default", "custom"]] = None
     vm_drive_files: Optional[List[str]] = None
     disable_vm_copy: Optional[bool] = None
+    disable_vm_paste: Optional[bool] = None
+    is_exam_mode: Optional[bool] = None
+    cpu_cores: Optional[int] = None
+    ram_mb: Optional[int] = None
     class_id: Optional[int] = None
 
 class LabClone(BaseModel):

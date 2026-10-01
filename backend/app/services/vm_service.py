@@ -285,12 +285,15 @@ def provision_student_vm(
     port: int,
     is_linked_clone: bool = True,
     iso_filename: str | None = None,
+    cpu_cores: int | None = None,
+    ram_mb: int | None = None,
+    is_exam_mode: bool = False,
 ) -> Tuple[str, int]:
     """
     1. Kiểm tra xem sinh viên đã có máy ảo cho bài lab này chưa.
     2. Nếu chưa có, clone từ template (Linked Clone hoặc Full Clone tùy cấu hình lab).
-    3. Gán MAC riêng và lấy IP DHCP thật qua QEMU Guest Agent.
-    4. Bật máy ảo.
+    3. Gán MAC riêng và cấu hình RAM/CPU nếu có.
+    4. Bật máy ảo và phục hồi Exam Workspace (nếu có bản backup).
     """
     node = settings.PVE_NODE
     proxmox = get_pve_client()
@@ -354,6 +357,10 @@ def provision_student_vm(
                 }
                 if iso_filename:
                     post_config["ide2"] = f"local:iso/{iso_filename},media=cdrom"
+                if cpu_cores and cpu_cores > 0:
+                    post_config["cores"] = cpu_cores
+                if ram_mb and ram_mb >= 512:
+                    post_config["memory"] = ram_mb
 
                 proxmox.nodes(node).qemu(new_vmid).config.post(**post_config)
             else:
@@ -374,6 +381,18 @@ def provision_student_vm(
             boot_start = time.perf_counter()
             is_already_running = (status.get("status") == "running")
             if not is_already_running:
+                # Cập nhật RAM/Cores nếu có cấu hình tùy chỉnh
+                hw_updates = {}
+                if cpu_cores and cpu_cores > 0:
+                    hw_updates["cores"] = cpu_cores
+                if ram_mb and ram_mb >= 512:
+                    hw_updates["memory"] = ram_mb
+                if hw_updates:
+                    try:
+                        proxmox.nodes(node).qemu(new_vmid).config.post(**hw_updates)
+                    except Exception as hw_e:
+                        logger.warning(f"Could not apply hardware updates to VM {new_vmid}: {hw_e}")
+
                 print(f"[+] Starting VM {new_vmid}...", flush=True)
                 start_upid = proxmox.nodes(node).qemu(new_vmid).status.start.post()
                 _wait_for_pve_task(proxmox, node, start_upid, f"starting VM {new_vmid}")
@@ -395,6 +414,12 @@ def provision_student_vm(
                 # Tự động đảm bảo FakeNet không chặn RDP 3389 và Guacamole IP khi vừa khởi động
                 if protocol.lower() == "rdp" or port == 3389:
                     _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
+
+                # Tự động khởi tạo hoặc phục hồi Exam_Workspace cho sinh viên
+                try:
+                    restore_vm_workspace(new_vmid, student_username, lab_id)
+                except Exception as ws_err:
+                    logger.warning(f"[EXAM_WORKSPACE] Workspace restore skipped/failed on VM {new_vmid}: {ws_err}")
 
             boot_duration = time.perf_counter() - boot_start
             logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Status: {'warm_hit' if is_already_running else 'cold_boot'} | Duration: {boot_duration:.1f}s")
@@ -437,6 +462,8 @@ def generate_guacamole_auth_json_url(
     username: str | None = None,
     password: str | None = None,
     disable_vm_copy: bool = False,
+    disable_vm_paste: bool = False,
+    is_exam_mode: bool = False,
 ) -> str:
     """
     Sinh URL kết nối Apache Guacamole mã hóa theo chuẩn guacamole-auth-json (Encrypted JSON Authentication v1.6.0).
@@ -470,6 +497,8 @@ def generate_guacamole_auth_json_url(
     if password:
         parameters["password"] = password
     if protocol == "rdp":
+        should_disable_copy = bool(disable_vm_copy or is_exam_mode)
+        should_disable_paste = bool(disable_vm_paste or is_exam_mode)
         parameters.update({
             "ignore-cert": str(settings.GUAC_RDP_IGNORE_CERT).lower(),
             "security": settings.GUAC_RDP_SECURITY,
@@ -488,8 +517,8 @@ def generate_guacamole_auth_json_url(
             "enable-desktop-composition": str(
                 settings.GUAC_RDP_ENABLE_DESKTOP_COMPOSITION
             ).lower(),
-            "disable-copy": "true" if disable_vm_copy else "false",
-            "disable-paste": "false",
+            "disable-copy": "true" if should_disable_copy else "false",
+            "disable-paste": "true" if should_disable_paste else "false",
         })
     elif protocol == "ssh":
         parameters.update({
@@ -561,6 +590,13 @@ def rollback_student_vm(student_username: str, lab_id: int) -> bool:
             try:
                 status = proxmox.nodes(node).qemu(target_vmid).status.current.get()
                 if status.get("status") == "running":
+                    # Tự động sao lưu Exam_Workspace trước khi xóa máy ảo để không mất bài làm
+                    try:
+                        backup_vm_workspace(target_vmid, student_username, lab_id)
+                        logger.info(f"[EXAM_WORKSPACE] Auto-backed up workspace for {student_username} before rollback on VM {target_vmid}")
+                    except Exception as ws_err:
+                        logger.warning(f"[EXAM_WORKSPACE] Auto-backup failed before rollback on VM {target_vmid}: {ws_err}")
+
                     print(f"[+] Stopping VM {target_vmid} for rollback...", flush=True)
                     stop_upid = proxmox.nodes(node).qemu(target_vmid).status.stop.post()
                     _wait_for_pve_task(proxmox, node, stop_upid, f"stopping VM {target_vmid}")
@@ -880,6 +916,161 @@ $dest = Join-Path $desk '{filename}'
     except Exception as exc:
         logger.error(f"[SCREENSHOT] Failed to save screenshot into VM {vmid}: {exc}")
         raise RuntimeError(f"Lỗi ghi ảnh vào máy ảo: {str(exc)}")
+
+
+def backup_vm_workspace(vmid: int, student_username: str, lab_id: int) -> Optional[str]:
+    """
+    Sao lưu toàn bộ thư mục C:\\Users\\<Student>\\Desktop\\Exam_Workspace từ VM về server MalSec.
+    Dùng khi sinh viên bấm Rollback VM hoặc nộp bài thi.
+    Trả về đường dẫn file zip trên server nếu có dữ liệu bài làm, hoặc None nếu rỗng.
+    """
+    import os
+    import json
+    import base64
+    import subprocess
+
+    ps_script = """
+$u = (Get-Process explorer -IncludeUserName -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty UserName)
+if ($u -and $u -match '\\\\(.+)') { $name = $matches[1] } else { $name = 'admin' }
+$desk = Join-Path 'C:\\Users' (Join-Path $name 'Desktop')
+if (-not (Test-Path -LiteralPath $desk)) { $desk = 'C:\\Users\\admin\\Desktop' }
+$ws = Join-Path $desk 'Exam_Workspace'
+if (Test-Path -LiteralPath $ws) {
+    $files = Get-ChildItem -LiteralPath $ws -Recurse -File | Where-Object { $_.Name -notin @('Instructions.txt', 'HuongDan_NopBai.txt') }
+    if ($files -and $files.Count -gt 0) {
+        $zipPath = "C:\\Windows\\Temp\\ws_backup_$((Get-Date).Ticks).zip"
+        if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+        Compress-Archive -Path "$ws\\*" -DestinationPath $zipPath -Force
+        if (Test-Path -LiteralPath $zipPath) {
+            $bytes = [System.IO.File]::ReadAllBytes($zipPath)
+            Remove-Item -LiteralPath $zipPath -Force
+            [System.Convert]::ToBase64String($bytes)
+        } else {
+            Write-Output "ZIP_FAILED"
+        }
+    } else {
+        Write-Output "EMPTY_WORKSPACE"
+    }
+} else {
+    New-Item -ItemType Directory -Path $ws -Force | Out-Null
+    Write-Output "NO_WORKSPACE"
+}
+"""
+    ps_b64 = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
+    pve_exec_cmd = f"qm guest exec {vmid} --pass-stdin 1 powershell -- -NoProfile -EncodedCommand {ps_b64}"
+    remote_ssh = [
+        "ssh", "-i", "/root/.ssh/id_pve_sync",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=10",
+        f"root@{settings.PVE_API_HOST}",
+        pve_exec_cmd
+    ]
+    try:
+        res = subprocess.run(remote_ssh, input="", capture_output=True, text=True, timeout=40)
+        out_raw = res.stdout.strip()
+        data = json.loads(out_raw) if out_raw.startswith("{") else {}
+        out_data = data.get("out-data", "").strip()
+
+        if not out_data or out_data in ("EMPTY_WORKSPACE", "NO_WORKSPACE", "ZIP_FAILED"):
+            logger.info(f"[EXAM_WORKSPACE] VM {vmid} workspace status: {out_data or 'empty'}")
+            return None
+
+        # out_data chứa chuỗi base64 của file zip
+        zip_bytes = base64.b64decode(out_data)
+        if len(zip_bytes) < 50:
+            return None
+
+        backup_dir = os.path.join(settings.UPLOAD_DIR, "exam_workspaces", f"lab_{lab_id}")
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(backup_dir, f"student_{student_username}_workspace.zip")
+        with open(backup_path, "wb") as f:
+            f.write(zip_bytes)
+
+        logger.info(f"[EXAM_WORKSPACE] Successfully backed up {len(zip_bytes)} bytes for {student_username} on Lab {lab_id} to {backup_path}")
+        return backup_path
+    except Exception as e:
+        logger.error(f"[EXAM_WORKSPACE] Error backing up workspace from VM {vmid}: {e}")
+        return None
+
+
+def restore_vm_workspace(vmid: int, student_username: str, lab_id: int) -> bool:
+    """
+    Phục hồi thư mục Exam_Workspace từ server MalSec vào VM sau khi rollback hoặc khi khởi động.
+    Nếu chưa có backup, tự động tạo sẵn thư mục Exam_Workspace trên Desktop kèm file hướng dẫn.
+    """
+    import os
+    import json
+    import base64
+    import subprocess
+
+    backup_path = os.path.join(settings.UPLOAD_DIR, "exam_workspaces", f"lab_{lab_id}", f"student_{student_username}_workspace.zip")
+    zip_b64 = ""
+    if os.path.exists(backup_path):
+        try:
+            with open(backup_path, "rb") as f:
+                zip_b64 = base64.b64encode(f.read()).decode("ascii")
+        except Exception as read_err:
+            logger.warning(f"[EXAM_WORKSPACE] Failed to read backup file {backup_path}: {read_err}")
+
+    ps_script = """
+$b64 = [Console]::In.ReadToEnd().Trim()
+$u = (Get-Process explorer -IncludeUserName -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty UserName)
+if ($u -and $u -match '\\\\(.+)') { $name = $matches[1] } else { $name = 'admin' }
+$desk = Join-Path 'C:\\Users' (Join-Path $name 'Desktop')
+if (-not (Test-Path -LiteralPath $desk)) { $desk = 'C:\\Users\\admin\\Desktop' }
+$ws = Join-Path $desk 'Exam_Workspace'
+if (-not (Test-Path -LiteralPath $ws)) { New-Item -ItemType Directory -Path $ws -Force | Out-Null }
+
+if ($b64.Length -gt 50) {
+    $tempZip = "C:\\Windows\\Temp\\ws_restore_$((Get-Date).Ticks).zip"
+    try {
+        [System.IO.File]::WriteAllBytes($tempZip, [System.Convert]::FromBase64String($b64))
+        Expand-Archive -LiteralPath $tempZip -DestinationPath $ws -Force
+        Remove-Item -LiteralPath $tempZip -Force
+        Write-Output "RESTORED_OK"
+    } catch {
+        Write-Output "RESTORE_ERROR: $_"
+    }
+} else {
+    Write-Output "INITIALIZED_DIR"
+}
+
+$hdPath = Join-Path $ws 'Instructions.txt'
+if (-not (Test-Path -LiteralPath $hdPath)) {
+    $guide = @"
+MALSEC EXAM WORKSPACE
+===============================================================
+Please save your exam report (.docx) and any practical analysis
+files directly inside this directory (Exam_Workspace).
+
+IMPORTANT NOTES:
+- You may click "Rollback Clean VM" on the MalSec toolbar anytime.
+  The system will automatically backup this folder and restore it
+  intact when the clean VM starts.
+- When finished, click the green "Submit Exam Report" icon on the
+  MalSec toolbar to submit your Word report to your instructor.
+===============================================================
+"@
+    Set-Content -LiteralPath $hdPath -Value $guide -Encoding UTF8
+}
+"""
+    ps_b64 = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
+    pve_exec_cmd = f"qm guest exec {vmid} --pass-stdin 1 powershell -- -NoProfile -EncodedCommand {ps_b64}"
+    remote_ssh = [
+        "ssh", "-i", "/root/.ssh/id_pve_sync",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=10",
+        f"root@{settings.PVE_API_HOST}",
+        pve_exec_cmd
+    ]
+    try:
+        res = subprocess.run(remote_ssh, input=zip_b64, capture_output=True, text=True, timeout=40)
+        logger.info(f"[EXAM_WORKSPACE] Restored/Initialized workspace for {student_username} on VM {vmid}. Output: {res.stdout.strip()}")
+        return True
+    except Exception as e:
+        logger.error(f"[EXAM_WORKSPACE] Error restoring workspace into VM {vmid}: {e}")
+        return False
+
 
 
 
