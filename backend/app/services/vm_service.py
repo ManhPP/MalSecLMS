@@ -436,6 +436,7 @@ def generate_guacamole_auth_json_url(
     port: int,
     username: str | None = None,
     password: str | None = None,
+    disable_vm_copy: bool = False,
 ) -> str:
     """
     Sinh URL kết nối Apache Guacamole mã hóa theo chuẩn guacamole-auth-json (Encrypted JSON Authentication v1.6.0).
@@ -487,6 +488,7 @@ def generate_guacamole_auth_json_url(
             "enable-desktop-composition": str(
                 settings.GUAC_RDP_ENABLE_DESKTOP_COMPOSITION
             ).lower(),
+            "disable-copy": "true" if disable_vm_copy else "false",
             "disable-paste": "false",
         })
     elif protocol == "ssh":

@@ -96,6 +96,8 @@ class Lab(Base):
     vm_drive_mode = Column(String, default='default', server_default='default', nullable=False)
     # vm_drive_files: list of selected filenames or metadata e.g. ['static.zip', 'malware1.exe']
     vm_drive_files = Column(JSONB, nullable=False, server_default='[]')
+    # VM Clipboard Isolation: Chặn copy từ trong máy ảo ra ngoài máy thật
+    disable_vm_copy = Column(Boolean, default=False, server_default='false', nullable=False)
 
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 

@@ -27,6 +27,7 @@ for i in range(5):
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS attachment_files JSONB DEFAULT '[]'::jsonb;"))
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS vm_drive_mode VARCHAR DEFAULT 'default';"))
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS vm_drive_files JSONB DEFAULT '[]'::jsonb;"))
+            conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS disable_vm_copy BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS semester VARCHAR DEFAULT 'unknown';"))
             conn.execute(text("UPDATE classes SET semester = 'unknown' WHERE semester IS NULL;"))
             # Auto-seed semesters table from classes table if empty

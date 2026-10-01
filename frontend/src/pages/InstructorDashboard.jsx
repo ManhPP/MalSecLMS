@@ -188,6 +188,7 @@ export default function InstructorDashboard() {
   const [labAttachments, setLabAttachments] = useState([]) // File đính kèm tài liệu học liệu bài lab do GV cung cấp
   const [uploadingLabAttachment, setUploadingLabAttachment] = useState(false)
   const [enableVm, setEnableVm] = useState(false)
+  const [disableVmCopy, setDisableVmCopy] = useState(false)
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
   const [isLinkedClone, setIsLinkedClone] = useState(true)
@@ -1241,7 +1242,8 @@ export default function InstructorDashboard() {
         is_active: true,
         enable_vm: enableVm,
         vm_drive_mode: vmDriveMode,
-        vm_drive_files: vmDriveMode === 'custom' ? vmDriveFiles : []
+        vm_drive_files: vmDriveMode === 'custom' ? vmDriveFiles : [],
+        disable_vm_copy: disableVmCopy
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
@@ -1250,6 +1252,7 @@ export default function InstructorDashboard() {
         payload.vm_port = parseInt(vmPort)
         payload.vm_username = vmUsername.trim()
         if (vmPassword) payload.vm_password = vmPassword
+        payload.disable_vm_copy = disableVmCopy
       }
 
       let res
@@ -1318,6 +1321,7 @@ export default function InstructorDashboard() {
     setPenaltyPerHour('')
     setMaxPenalty('')
     setEnableVm(false)
+    setDisableVmCopy(false)
     setIsLinkedClone(true)
 
     const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
@@ -1358,6 +1362,7 @@ export default function InstructorDashboard() {
     setFormFields(lab.form_fields || [])
     setLabAttachments(lab.attachment_files || [])
     setEnableVm(lab.enable_vm !== false)
+    setDisableVmCopy(Boolean(lab.disable_vm_copy))
     setIsLinkedClone(lab.is_linked_clone !== false)
     setVmDriveMode(lab.vm_drive_mode || 'default')
     setVmDriveFiles(Array.isArray(lab.vm_drive_files) ? lab.vm_drive_files : [])
@@ -2639,9 +2644,16 @@ export default function InstructorDashboard() {
                                 </td>
                                 <td>
                                   {lab.enable_vm !== false ? (
-                                    <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
-                                      {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
-                                    </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                      <span style={{ fontSize: '13px', fontWeight: '600', color: lab.is_linked_clone ? '#0284c7' : '#d97706', fontFamily: 'var(--font-mono)' }}>
+                                        {lab.is_linked_clone ? '⚡ Linked' : '📦 Full'}
+                                      </span>
+                                      {lab.disable_vm_copy && (
+                                        <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '2px' }} title="Clipboard Isolation: Copying from VM to host is blocked">
+                                          🔒 No Copy
+                                        </span>
+                                      )}
+                                    </div>
                                   ) : (
                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No VM</span>
                                   )}
@@ -6078,6 +6090,27 @@ export default function InstructorDashboard() {
                       )}
                     </div>
 
+                    {/* Clipboard Security Option */}
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          id="disableVmCopyCheck"
+                          checked={disableVmCopy}
+                          onChange={(e) => setDisableVmCopy(e.target.checked)}
+                          style={{ marginTop: '3px', accentColor: 'var(--neon-ruby)' }}
+                        />
+                        <div>
+                          <span style={{ fontSize: '13.5px', fontWeight: '600', color: disableVmCopy ? '#dc2626' : 'var(--text-primary)', display: 'block' }}>
+                            🔒 Block Copy from VM to Host (Clipboard Isolation)
+                          </span>
+                          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                            When enabled, students cannot copy code, text, or malicious artifacts from inside the virtual machine to their physical computer. Copy & paste <b>inside the VM</b> remains completely functional.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
                     {runtimeConfig?.vm && (
                       <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px', marginBottom: 0 }}>
                         📌 Template VMs are in VMID range <b>{runtimeConfig.vm.template_vmid_min} – {runtimeConfig.vm.template_vmid_max}</b>. Student VMs are in range <b>{runtimeConfig.vm.student_vmid_min} – {runtimeConfig.vm.student_vmid_max}</b>.
@@ -6215,7 +6248,8 @@ export default function InstructorDashboard() {
                           template_vmid: templateVmid ? parseInt(templateVmid) : null,
                           is_linked_clone: isLinkedClone,
                           vm_protocol: vmProtocol,
-                          vm_port: vmPort ? parseInt(vmPort) : null
+                          vm_port: vmPort ? parseInt(vmPort) : null,
+                          disable_vm_copy: disableVmCopy
                         }
                         openLabPreview(tempLabObj)
                       }} 

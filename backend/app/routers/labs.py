@@ -164,6 +164,7 @@ def create_lab(
         vm_password=vm_password,
         vm_drive_mode=lab_data.vm_drive_mode or "default",
         vm_drive_files=lab_data.vm_drive_files or [],
+        disable_vm_copy=bool(lab_data.disable_vm_copy) if lab_data.disable_vm_copy is not None else False,
     )
     db.add(new_lab)
     db.commit()
@@ -252,6 +253,8 @@ def update_lab(
         lab.vm_drive_mode = lab_data.vm_drive_mode
     if lab_data.vm_drive_files is not None:
         lab.vm_drive_files = lab_data.vm_drive_files
+    if lab_data.disable_vm_copy is not None:
+        lab.disable_vm_copy = bool(lab_data.disable_vm_copy)
 
     if lab.enable_vm:
         if lab.template_vmid is None or not (
@@ -408,7 +411,10 @@ def clone_lab(
         vm_protocol=source_lab.vm_protocol,
         vm_port=source_lab.vm_port,
         vm_username=source_lab.vm_username,
-        vm_password=source_lab.vm_password
+        vm_password=source_lab.vm_password,
+        vm_drive_mode=source_lab.vm_drive_mode,
+        vm_drive_files=source_lab.vm_drive_files or [],
+        disable_vm_copy=getattr(source_lab, 'disable_vm_copy', False)
     )
     db.add(cloned_lab)
     db.commit()
@@ -544,7 +550,8 @@ def get_or_create_vm_session(
         protocol=lab.vm_protocol,
         port=lab.vm_port,
         username=lab.vm_username,
-        password=lab.vm_password
+        password=lab.vm_password,
+        disable_vm_copy=getattr(lab, 'disable_vm_copy', False)
     )
 
 

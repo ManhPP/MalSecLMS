@@ -126,6 +126,7 @@ class LabBase(BaseModel):
     vm_username: Optional[str] = None
     vm_drive_mode: Optional[Literal["default", "custom"]] = "default"
     vm_drive_files: Optional[List[str]] = []
+    disable_vm_copy: Optional[bool] = False
     class_id: int
 
 class LabCreate(LabBase):
@@ -150,6 +151,7 @@ class LabUpdate(BaseModel):
     vm_password: Optional[str] = Field(default=None, min_length=1)
     vm_drive_mode: Optional[Literal["default", "custom"]] = None
     vm_drive_files: Optional[List[str]] = None
+    disable_vm_copy: Optional[bool] = None
     class_id: Optional[int] = None
 
 class LabClone(BaseModel):
