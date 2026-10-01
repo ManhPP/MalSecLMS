@@ -4,7 +4,8 @@ import {
   BookOpen, Terminal, Clock, FileCheck, CheckCircle, Award,
   Send, Save, Upload, ShieldAlert, Monitor, ChevronRight, Play, RotateCcw, AlertTriangle,
   School, Layers, ChevronDown, Calendar, Trash2, Code, FileText, Lock,
-  Download, Eye, Paperclip, X, RefreshCw, ArrowLeft, ArrowRight, Camera
+  Download, Eye, Paperclip, X, RefreshCw, ArrowLeft, ArrowRight, Camera,
+  Maximize2, Minimize2
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 import { useAuth } from '../App.jsx'
@@ -328,7 +329,30 @@ export default function StudentDashboard() {
   const [vmInfo, setVmInfo] = useState(null)
   const [screenshotLoading, setScreenshotLoading] = useState(false)
   const [screenshotNotice, setScreenshotNotice] = useState('')
+  const [isVmFullscreen, setIsVmFullscreen] = useState(false)
   const guacamoleFrameRef = useRef(null)
+  const vmWrapperRef = useRef(null)
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsVmFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const toggleVmFullscreen = () => {
+    if (!vmWrapperRef.current) return
+    if (!document.fullscreenElement) {
+      vmWrapperRef.current.requestFullscreen().catch(err => {
+        console.error('Error attempting to enable fullscreen:', err)
+      })
+    } else {
+      document.exitFullscreen().catch(err => {
+        console.error('Error attempting to exit fullscreen:', err)
+      })
+    }
+  }
 
   const focusIframe = () => {
     try {
@@ -1970,13 +1994,22 @@ export default function StudentDashboard() {
             {/* Split Left (65%): Mind-blowing Apache Guacamole RDP connection simulator */}
             {selectedLab.enable_vm !== false && (
               <div className="split-left" style={{ height: '100%' }}>
-                <div className="vm-screen-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div 
+                  ref={vmWrapperRef} 
+                  className={`vm-screen-wrapper ${isVmFullscreen ? 'vm-fullscreen-mode' : ''}`} 
+                  style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    height: '100%',
+                    background: '#090d16'
+                  }}
+                >
                   
                   {/* RDP Window Top bar */}
-                  <div className="vm-header-bar">
+                  <div className="vm-header-bar" style={isVmFullscreen ? { background: '#0f172a', borderBottom: '1px solid #334155' } : {}}>
                     <div className="vm-title">
                       <Monitor size={15} />
-                      <span>{vmOs}</span>
+                      <span>{vmOs} {isVmFullscreen && '(Full Screen)'}</span>
                     </div>
                     <div className="vm-actions">
                       <button 
@@ -1998,17 +2031,6 @@ export default function StudentDashboard() {
                       >
                         Capture Keyboard
                       </button>
-                      {guacamoleUrl && (
-                        <a 
-                          href={guacamoleUrl} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="btn btn-secondary" 
-                          style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--neon-cyan)', border: 'none', color: '#000', fontWeight: 'bold', textDecoration: 'none' }}
-                        >
-                          New Window ↗
-                        </a>
-                      )}
                       <button
                         type="button"
                         onClick={handleTakeScreenshot}
@@ -2019,6 +2041,28 @@ export default function StudentDashboard() {
                       >
                         <Camera size={12} /> {screenshotLoading ? 'Capturing...' : 'Capture to VM Desktop'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={toggleVmFullscreen}
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 9px', fontSize: '11px', background: '#059669', border: 'none', color: '#fff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        disabled={!guacamoleUrl}
+                        title={isVmFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen Mode (Keeping Toolbar & Screenshot)'}
+                      >
+                        {isVmFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                        {isVmFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+                      </button>
+                      {guacamoleUrl && !isVmFullscreen && (
+                        <a 
+                          href={guacamoleUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="btn btn-secondary" 
+                          style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--neon-cyan)', border: 'none', color: '#000', fontWeight: 'bold', textDecoration: 'none' }}
+                        >
+                          New Window ↗
+                        </a>
+                      )}
                       <button 
                         type="button" 
                         onClick={handleRollbackVm} 
