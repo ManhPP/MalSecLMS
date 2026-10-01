@@ -717,4 +717,73 @@ def upload_lab_attachment(
     }
 
 
+@router.get("/vm-tools/my-files", response_model=List[Dict[str, Any]])
+def list_my_vm_tool_files(
+    current_user: User = Depends(require_lecturer)
+):
+    """API Liệt kê danh sách các file trong không gian riêng của Giảng viên hiện tại"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        scope = f"lecturer_{current_user.username}"
+        return IsoToolService.list_files(scope=scope)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vm-tools/my-files")
+def upload_my_vm_tool_file(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Upload file vào không gian riêng của Giảng viên hiện tại"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        scope = f"lecturer_{current_user.username}"
+        result = IsoToolService.upload_file(file, scope=scope)
+        
+        log = AuditLog(
+            user_id=current_user.id,
+            action="lecturer_vm_tool_upload",
+            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to Private Drive D: [{scope}]",
+            ip_address=get_client_ip(request)
+        )
+        db.add(log)
+        db.commit()
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/vm-tools/my-files/{filename}")
+def delete_my_vm_tool_file(
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Xóa file khỏi không gian riêng của Giảng viên hiện tại"""
+    from app.services.iso_tool_service import IsoToolService
+    try:
+        scope = f"lecturer_{current_user.username}"
+        IsoToolService.delete_file(filename, scope=scope)
+        
+        log = AuditLog(
+            user_id=current_user.id,
+            action="lecturer_vm_tool_delete",
+            target=f"Deleted {filename} from Private Drive D: [{scope}]",
+            ip_address=get_client_ip(request)
+        )
+        db.add(log)
+        db.commit()
+        return {"success": True, "message": f"Successfully deleted {filename} from your private drive"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 

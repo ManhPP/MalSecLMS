@@ -7,7 +7,7 @@ import {
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
   ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
-  Paperclip, Upload, HardDrive
+  Paperclip, Upload, HardDrive, FileArchive, Disc
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
@@ -201,6 +201,11 @@ export default function InstructorDashboard() {
   const [vmDriveFiles, setVmDriveFiles] = useState([])
   const [availableVmTools, setAvailableVmTools] = useState([])
   const [loadingVmTools, setLoadingVmTools] = useState(false)
+  // Lecturer Private Drive D: Files State
+  const [myVmTools, setMyVmTools] = useState([])
+  const [loadingMyVmTools, setLoadingMyVmTools] = useState(false)
+  const [myVmToolFileToUpload, setMyVmToolFileToUpload] = useState(null)
+  const [myVmToolUploading, setMyVmToolUploading] = useState(false)
 
   // VM Manager Modal State
   const [showVmManagerModal, setShowVmManagerModal] = useState(false)
@@ -326,6 +331,78 @@ export default function InstructorDashboard() {
       console.error("Failed to fetch available VM tools:", err)
     } finally {
       setLoadingVmTools(false)
+    }
+  }
+
+  const fetchMyVmTools = async () => {
+    const token = localStorage.getItem('malsec_token')
+    setLoadingMyVmTools(true)
+    try {
+      const res = await fetch('/api/labs/vm-tools/my-files', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMyVmTools(Array.isArray(data) ? data : [])
+      }
+    } catch (err) {
+      console.error("Failed to fetch my VM tools:", err)
+    } finally {
+      setLoadingMyVmTools(false)
+    }
+  }
+
+  const handleUploadMyVmTool = async (e) => {
+    e.preventDefault()
+    if (!myVmToolFileToUpload) return
+    setMyVmToolUploading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    const formData = new FormData()
+    formData.append('file', myVmToolFileToUpload)
+
+    try {
+      const res = await fetch('/api/labs/vm-tools/my-files', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to upload tool file')
+      setSuccess(`File "${data.filename}" uploaded successfully to your private drive!`)
+      setMyVmToolFileToUpload(null)
+      const fileInput = document.getElementById('myVmToolFileInput')
+      if (fileInput) fileInput.value = ''
+      fetchMyVmTools()
+      fetchAvailableVmTools()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setMyVmToolUploading(false)
+    }
+  }
+
+  const handleDeleteMyVmTool = async (filename) => {
+    if (!confirm(`Are you sure you want to delete file "${filename}" from your private drive?`)) return
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/vm-tools/my-files/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete tool file')
+      setSuccess(data.message)
+      fetchMyVmTools()
+      fetchAvailableVmTools()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -681,7 +758,14 @@ export default function InstructorDashboard() {
       return
     }
 
-    // 5. Class Hub view via URL: ?classId=10&tab=labs (or students, analytics, gradebook)
+    // 5. My VM Drive view via URL: ?view=my_drive
+    if (paramView === 'my_drive') {
+      if (viewState !== 'my_drive') setViewState('my_drive')
+      fetchMyVmTools()
+      return
+    }
+
+    // 6. Class Hub view via URL: ?classId=10&tab=labs (or students, analytics, gradebook)
     if (paramClassId) {
       if (viewState !== 'dashboard') setViewState('dashboard')
       if (paramTab && ['labs', 'students', 'analytics', 'gradebook'].includes(paramTab)) {
@@ -1914,7 +1998,26 @@ export default function InstructorDashboard() {
           </button>
           
           <button 
-            onClick={fetchData} 
+            onClick={() => {
+              setViewState('my_drive')
+              fetchMyVmTools()
+              setSearchParams({ view: 'my_drive' })
+            }} 
+            className={`btn ${viewState === 'my_drive' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+          >
+            <HardDrive size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+            My VM Drive Tools
+          </button>
+          
+          <button 
+            onClick={() => {
+              if (viewState === 'my_drive') {
+                fetchMyVmTools()
+              } else {
+                fetchData()
+              }
+            }} 
             className="btn btn-secondary" 
             style={{ marginLeft: 'auto', padding: '8px 12px' }}
             title="Refresh data"
@@ -4356,6 +4459,170 @@ export default function InstructorDashboard() {
             )
           })()}
 
+        </div>
+      )}
+
+      {/* VIEW 5: MY VM DRIVE TOOLS (LECTURER PRIVATE DRIVE D:\) */}
+      {viewState === 'my_drive' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Header Banner */}
+          <div className="cyber-card" style={{ padding: '20px 24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <HardDrive size={22} style={{ color: 'var(--neon-cyan)' }} />
+                  My Private VM Drive Tools
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', margin: 0, maxWidth: '750px', lineHeight: 1.5 }}>
+                  Manage your personal toolkits, malware samples, custom analyzers, or exercise scripts. 
+                  Files stored in your private drive are completely isolated from other instructors and can be selectively bundled into student VMs when configuring or creating labs.
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={fetchMyVmTools} 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                disabled={loadingMyVmTools}
+              >
+                <RefreshCw size={14} className={loadingMyVmTools ? 'spin-slow' : ''} />
+                Refresh Files
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) 1fr', gap: '24px', alignItems: 'flex-start' }}>
+            {/* Upload Card */}
+            <div className="cyber-card" style={{ padding: '20px' }}>
+              <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Upload size={16} style={{ color: 'var(--neon-cyan)' }} />
+                Upload File to Private Drive
+              </h4>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Supported formats: <code>.zip</code>, <code>.rar</code>, <code>.7z</code>, <code>.exe</code>, <code>.msi</code>, <code>.py</code>, <code>.txt</code>, etc. Maximum file size: 500 MB.
+              </p>
+
+              <form onSubmit={handleUploadMyVmTool}>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <input
+                    type="file"
+                    id="myVmToolFileInput"
+                    className="form-input"
+                    style={{ padding: '8px', fontSize: '12.5px' }}
+                    onChange={(e) => setMyVmToolFileToUpload(e.target.files[0] || null)}
+                    disabled={myVmToolUploading}
+                  />
+                  {myVmToolFileToUpload && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--neon-cyan)', fontFamily: 'var(--font-mono)' }}>
+                      Selected: {myVmToolFileToUpload.name} ({(myVmToolFileToUpload.size / (1024 * 1024)).toFixed(2)} MB)
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '10px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  disabled={!myVmToolFileToUpload || myVmToolUploading}
+                >
+                  {myVmToolUploading ? (
+                    <>
+                      <RefreshCw size={15} className="spin-slow" /> Uploading to Proxmox...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={15} /> Upload to My Drive
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Files List Table */}
+            <div className="cyber-card" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
+                    Uploaded Files ({myVmTools.length} {myVmTools.length === 1 ? 'file' : 'files'})
+                  </h4>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Isolated storage on Proxmox hypervisor
+                  </span>
+                </div>
+                <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                  Total: {(myVmTools.reduce((acc, f) => acc + (f.size_bytes || 0), 0) / (1024 * 1024)).toFixed(2)} MB
+                </span>
+              </div>
+
+              <div className="table-container">
+                <table className="cyber-table">
+                  <thead>
+                    <tr>
+                      <th>Filename</th>
+                      <th>Size</th>
+                      <th>Last Modified</th>
+                      <th style={{ textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myVmTools.map((file, idx) => {
+                      const isZip = file.filename.endsWith('.zip') || file.filename.endsWith('.rar') || file.filename.endsWith('.7z')
+                      const isExe = file.filename.endsWith('.exe') || file.filename.endsWith('.msi')
+                      const sizeMb = (file.size_bytes / (1024 * 1024)).toFixed(2)
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {isZip ? (
+                                <FileArchive size={18} style={{ color: 'var(--neon-amber)', flexShrink: 0 }} />
+                              ) : isExe ? (
+                                <Disc size={18} style={{ color: 'var(--neon-ruby)', flexShrink: 0 }} />
+                              ) : (
+                                <HardDrive size={18} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                              )}
+                              <span style={{ fontWeight: '500', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                                {file.filename}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px' }}>
+                            {file.size_bytes > 1024 * 1024 
+                              ? `${sizeMb} MB` 
+                              : `${(file.size_bytes / 1024).toFixed(1)} KB`}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                            {file.updated_at || '—'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMyVmTool(file.filename)}
+                              className="btn btn-secondary"
+                              style={{ padding: '5px 10px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)', fontSize: '12px' }}
+                              title="Delete file from private drive"
+                              disabled={actionLoading}
+                            >
+                              <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {myVmTools.length === 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '36px 16px' }}>
+                          <HardDrive size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                          <div>No files uploaded in your private drive yet.</div>
+                          <div style={{ fontSize: '12px', marginTop: '4px' }}>Upload your custom tools or malware samples using the panel on the left.</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
