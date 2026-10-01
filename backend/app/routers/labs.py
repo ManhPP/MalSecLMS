@@ -719,13 +719,14 @@ def upload_lab_attachment(
 
 @router.get("/vm-tools/my-files", response_model=List[Dict[str, Any]])
 def list_my_vm_tool_files(
+    scope: str = Query("private", description="'private' for lecturer private drive, 'common' for global drive D:"),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Liệt kê danh sách các file trong không gian riêng của Giảng viên hiện tại"""
+    """API Liệt kê danh sách các file trong không gian riêng hoặc không gian chung của Giảng viên"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        scope = f"lecturer_{current_user.username}"
-        return IsoToolService.list_files(scope=scope)
+        resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
+        return IsoToolService.list_files(scope=resolved_scope)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -734,19 +735,21 @@ def list_my_vm_tool_files(
 def upload_my_vm_tool_file(
     request: Request,
     file: UploadFile = File(...),
+    scope: str = Form("private"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Upload file vào không gian riêng của Giảng viên hiện tại"""
+    """API Upload file vào không gian riêng hoặc không gian chung của Giảng viên"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        scope = f"lecturer_{current_user.username}"
-        result = IsoToolService.upload_file(file, scope=scope)
+        resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
+        result = IsoToolService.upload_file(file, scope=resolved_scope)
         
+        target_desc = f"Common Drive D: (Global)" if resolved_scope == "common" else f"Private Drive D: [{resolved_scope}]"
         log = AuditLog(
             user_id=current_user.id,
             action="lecturer_vm_tool_upload",
-            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to Private Drive D: [{scope}]",
+            target=f"Uploaded {result['filename']} ({result['size_bytes']} bytes) to {target_desc}",
             ip_address=get_client_ip(request)
         )
         db.add(log)
@@ -762,24 +765,26 @@ def upload_my_vm_tool_file(
 def delete_my_vm_tool_file(
     filename: str,
     request: Request,
+    scope: str = Query("private"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
-    """API Xóa file khỏi không gian riêng của Giảng viên hiện tại"""
+    """API Xóa file khỏi không gian riêng hoặc không gian chung của Giảng viên"""
     from app.services.iso_tool_service import IsoToolService
     try:
-        scope = f"lecturer_{current_user.username}"
-        IsoToolService.delete_file(filename, scope=scope)
+        resolved_scope = "common" if scope == "common" else f"lecturer_{current_user.username}"
+        IsoToolService.delete_file(filename, scope=resolved_scope)
         
+        target_desc = f"Common Drive D: (Global)" if resolved_scope == "common" else f"Private Drive D: [{resolved_scope}]"
         log = AuditLog(
             user_id=current_user.id,
             action="lecturer_vm_tool_delete",
-            target=f"Deleted {filename} from Private Drive D: [{scope}]",
+            target=f"Deleted {filename} from {target_desc}",
             ip_address=get_client_ip(request)
         )
         db.add(log)
         db.commit()
-        return {"success": True, "message": f"Successfully deleted {filename} from your private drive"}
+        return {"success": True, "message": f"Successfully deleted {filename} from {target_desc}"}
     except HTTPException:
         raise
     except Exception as e:

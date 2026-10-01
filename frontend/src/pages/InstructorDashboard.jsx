@@ -7,7 +7,7 @@ import {
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
   ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
-  Paperclip, Upload, HardDrive, FileArchive, Disc
+  Paperclip, Upload, HardDrive, FileArchive, Disc, Globe
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
 
@@ -201,8 +201,9 @@ export default function InstructorDashboard() {
   const [vmDriveFiles, setVmDriveFiles] = useState([])
   const [availableVmTools, setAvailableVmTools] = useState([])
   const [loadingVmTools, setLoadingVmTools] = useState(false)
-  // Lecturer Private Drive D: Files State
+  // Lecturer VM Drive D: Files State (Private Workspace or Common Drive D:)
   const [myVmTools, setMyVmTools] = useState([])
+  const [myVmToolScope, setMyVmToolScope] = useState('private') // 'private' | 'common'
   const [loadingMyVmTools, setLoadingMyVmTools] = useState(false)
   const [myVmToolFileToUpload, setMyVmToolFileToUpload] = useState(null)
   const [myVmToolUploading, setMyVmToolUploading] = useState(false)
@@ -334,11 +335,11 @@ export default function InstructorDashboard() {
     }
   }
 
-  const fetchMyVmTools = async () => {
+  const fetchMyVmTools = async (targetScope = myVmToolScope) => {
     const token = localStorage.getItem('malsec_token')
     setLoadingMyVmTools(true)
     try {
-      const res = await fetch('/api/labs/vm-tools/my-files', {
+      const res = await fetch(`/api/labs/vm-tools/my-files?scope=${encodeURIComponent(targetScope)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) {
@@ -346,7 +347,7 @@ export default function InstructorDashboard() {
         setMyVmTools(Array.isArray(data) ? data : [])
       }
     } catch (err) {
-      console.error("Failed to fetch my VM tools:", err)
+      console.error("Failed to fetch VM tools:", err)
     } finally {
       setLoadingMyVmTools(false)
     }
@@ -361,6 +362,7 @@ export default function InstructorDashboard() {
     const token = localStorage.getItem('malsec_token')
     const formData = new FormData()
     formData.append('file', myVmToolFileToUpload)
+    formData.append('scope', myVmToolScope)
 
     try {
       const res = await fetch('/api/labs/vm-tools/my-files', {
@@ -370,11 +372,12 @@ export default function InstructorDashboard() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Failed to upload tool file')
-      setSuccess(`File "${data.filename}" uploaded successfully to your private drive!`)
+      const destLabel = myVmToolScope === 'common' ? 'Common Drive D: (Global)' : 'your private drive'
+      setSuccess(`File "${data.filename}" uploaded successfully to ${destLabel}!`)
       setMyVmToolFileToUpload(null)
       const fileInput = document.getElementById('myVmToolFileInput')
       if (fileInput) fileInput.value = ''
-      fetchMyVmTools()
+      fetchMyVmTools(myVmToolScope)
       fetchAvailableVmTools()
     } catch (err) {
       setError(err.message)
@@ -384,20 +387,21 @@ export default function InstructorDashboard() {
   }
 
   const handleDeleteMyVmTool = async (filename) => {
-    if (!confirm(`Are you sure you want to delete file "${filename}" from your private drive?`)) return
+    const destLabel = myVmToolScope === 'common' ? 'Common Drive D:' : 'your private drive'
+    if (!confirm(`Are you sure you want to delete file "${filename}" from ${destLabel}?`)) return
     setActionLoading(true)
     setError('')
     setSuccess('')
     const token = localStorage.getItem('malsec_token')
     try {
-      const res = await fetch(`/api/labs/vm-tools/my-files/${encodeURIComponent(filename)}`, {
+      const res = await fetch(`/api/labs/vm-tools/my-files/${encodeURIComponent(filename)}?scope=${encodeURIComponent(myVmToolScope)}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Failed to delete tool file')
       setSuccess(data.message)
-      fetchMyVmTools()
+      fetchMyVmTools(myVmToolScope)
       fetchAvailableVmTools()
     } catch (err) {
       setError(err.message)
@@ -4462,7 +4466,7 @@ export default function InstructorDashboard() {
         </div>
       )}
 
-      {/* VIEW 5: MY VM DRIVE TOOLS (LECTURER PRIVATE DRIVE D:\) */}
+      {/* VIEW 5: MY VM DRIVE TOOLS (LECTURER PRIVATE DRIVE D:\ & COMMON DRIVE D:\) */}
       {viewState === 'my_drive' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Header Banner */}
@@ -4471,16 +4475,16 @@ export default function InstructorDashboard() {
               <div>
                 <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <HardDrive size={22} style={{ color: 'var(--neon-cyan)' }} />
-                  My Private VM Drive Tools
+                  VM Drive Tools Management
                 </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', margin: 0, maxWidth: '750px', lineHeight: 1.5 }}>
-                  Manage your personal toolkits, malware samples, custom analyzers, or exercise scripts. 
-                  Files stored in your private drive are completely isolated from other instructors and can be selectively bundled into student VMs when configuring or creating labs.
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', margin: 0, maxWidth: '780px', lineHeight: 1.5 }}>
+                  Manage toolkits, malware samples, reverse engineering tools, or exercise scripts. 
+                  You can upload files directly into your <b>Private Workspace</b> (isolated from other instructors) or into the <b>Common Drive D:</b> (global shared drive accessible across all default lab environments).
                 </p>
               </div>
               <button 
                 type="button" 
-                onClick={fetchMyVmTools} 
+                onClick={() => fetchMyVmTools(myVmToolScope)} 
                 className="btn btn-secondary" 
                 style={{ padding: '8px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
                 disabled={loadingMyVmTools}
@@ -4491,15 +4495,72 @@ export default function InstructorDashboard() {
             </div>
           </div>
 
+          {/* Scope Selector Bar: Private Workspace vs Common Drive */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            flexWrap: 'wrap', 
+            gap: '12px', 
+            padding: '12px 18px', 
+            background: '#ffffff', 
+            borderRadius: '10px', 
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-primary)' }}>Storage Workspace:</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMyVmToolScope('private')
+                    fetchMyVmTools('private')
+                  }}
+                  className={`btn ${myVmToolScope === 'private' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <HardDrive size={15} /> My Private Workspace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMyVmToolScope('common')
+                    fetchMyVmTools('common')
+                  }}
+                  className={`btn ${myVmToolScope === 'common' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Globe size={15} /> Common Drive D: (Global)
+                </button>
+              </div>
+            </div>
+
+            <div>
+              {myVmToolScope === 'private' ? (
+                <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', padding: '4px 10px', fontWeight: '600' }}>
+                  🔒 Private Workspace (Only visible to you & attached labs)
+                </span>
+              ) : (
+                <span className="badge" style={{ background: '#fef3c7', color: '#b45309', fontSize: '11px', padding: '4px 10px', fontWeight: '600' }}>
+                  🌐 Common Shared Drive D:\ (Packaged into tools-1001.iso)
+                </span>
+              )}
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) 1fr', gap: '24px', alignItems: 'flex-start' }}>
             {/* Upload Card */}
             <div className="cyber-card" style={{ padding: '20px' }}>
               <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Upload size={16} style={{ color: 'var(--neon-cyan)' }} />
-                Upload File to Private Drive
+                Upload to {myVmToolScope === 'private' ? 'Private Drive' : 'Common Drive D:'}
               </h4>
-              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Supported formats: <code>.zip</code>, <code>.rar</code>, <code>.7z</code>, <code>.exe</code>, <code>.msi</code>, <code>.py</code>, <code>.txt</code>, etc. Maximum file size: 500 MB.
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
+                {myVmToolScope === 'private'
+                  ? 'Files uploaded here are stored in your personal isolated folder on Proxmox and can be attached to custom lab environments.'
+                  : 'Files uploaded here will be placed in the global tools folder and automatically rebuilt into tools-1001.iso for all student VMs.'
+                }
               </p>
 
               <form onSubmit={handleUploadMyVmTool}>
@@ -4527,11 +4588,11 @@ export default function InstructorDashboard() {
                 >
                   {myVmToolUploading ? (
                     <>
-                      <RefreshCw size={15} className="spin-slow" /> Uploading to Proxmox...
+                      <RefreshCw size={15} className="spin-slow" /> Uploading to {myVmToolScope === 'private' ? 'Private Drive' : 'Common Drive'}...
                     </>
                   ) : (
                     <>
-                      <Upload size={15} /> Upload to My Drive
+                      <Upload size={15} /> Upload to {myVmToolScope === 'private' ? 'My Drive' : 'Common Drive D:'}
                     </>
                   )}
                 </button>
@@ -4544,10 +4605,10 @@ export default function InstructorDashboard() {
                 <div>
                   <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <HardDrive size={16} style={{ color: 'var(--neon-cyan)' }} />
-                    Uploaded Files ({myVmTools.length} {myVmTools.length === 1 ? 'file' : 'files'})
+                    {myVmToolScope === 'private' ? 'Private Files' : 'Common Drive D: Files'} ({myVmTools.length} {myVmTools.length === 1 ? 'file' : 'files'})
                   </h4>
                   <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                    Isolated storage on Proxmox hypervisor
+                    {myVmToolScope === 'private' ? 'Isolated workspace on Proxmox hypervisor' : 'Global Drive D: storage on Proxmox hypervisor'}
                   </span>
                 </div>
                 <span className="badge badge-submitted" style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
@@ -4600,7 +4661,7 @@ export default function InstructorDashboard() {
                               onClick={() => handleDeleteMyVmTool(file.filename)}
                               className="btn btn-secondary"
                               style={{ padding: '5px 10px', color: 'var(--neon-ruby)', borderColor: 'rgba(255, 8, 68, 0.3)', fontSize: '12px' }}
-                              title="Delete file from private drive"
+                              title={`Delete file from ${myVmToolScope === 'private' ? 'private drive' : 'common drive'}`}
                               disabled={actionLoading}
                             >
                               <Trash2 size={13} style={{ marginRight: '4px' }} /> Delete
@@ -4613,7 +4674,7 @@ export default function InstructorDashboard() {
                       <tr>
                         <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '36px 16px' }}>
                           <HardDrive size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
-                          <div>No files uploaded in your private drive yet.</div>
+                          <div>No files found in {myVmToolScope === 'private' ? 'your private drive' : 'Common Drive D:'}.</div>
                           <div style={{ fontSize: '12px', marginTop: '4px' }}>Upload your custom tools or malware samples using the panel on the left.</div>
                         </td>
                       </tr>
