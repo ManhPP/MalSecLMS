@@ -399,6 +399,7 @@ def delete_lab(
 def clone_lab(
     lab_id: int,
     clone_data: LabClone,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_lecturer)
 ):
@@ -458,8 +459,9 @@ def clone_lab(
 
     log = AuditLog(
         user_id=current_user.id,
-        action="CLONE_LAB",
-        details=f"Nhân bản bài lab '{source_lab.title}' (ID {source_lab.id}) sang lớp '{target_class.name}' (ID {target_class.id}) thành '{cloned_lab.title}' (ID {cloned_lab.id})"
+        action="clone_lab",
+        target=f"Cloned lab '{source_lab.title}' (ID {source_lab.id}) to class '{target_class.name}' (ID {target_class.id}) as '{cloned_lab.title}' (ID {cloned_lab.id})",
+        ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
