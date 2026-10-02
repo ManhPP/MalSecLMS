@@ -457,6 +457,15 @@ def clone_lab(
     db.commit()
     db.refresh(cloned_lab)
 
+    # Nếu bài lab gốc có cấu hình ổ đĩa tùy chọn (custom drive files), tự động build ISO lab-{id}.iso cho bài lab mới
+    if cloned_lab.vm_drive_mode == "custom" and cloned_lab.vm_drive_files:
+        try:
+            from app.services.iso_tool_service import IsoToolService
+            IsoToolService.build_lab_iso(cloned_lab.id, cloned_lab.vm_drive_files)
+            logger.info(f"[LABS] Custom ISO lab-{cloned_lab.id}.iso successfully built for Cloned Lab {cloned_lab.id}")
+        except Exception as e:
+            logger.error(f"[LABS] Failed to build custom lab ISO for Cloned Lab {cloned_lab.id}: {e}")
+
     log = AuditLog(
         user_id=current_user.id,
         action="clone_lab",
@@ -623,6 +632,7 @@ def rollback_vm_session(
         success = rollback_student_vm(
             student_username=current_user.username,
             lab_id=lab.id,
+            is_exam_mode=getattr(lab, 'is_exam_mode', False),
         )
     except VMProvisionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

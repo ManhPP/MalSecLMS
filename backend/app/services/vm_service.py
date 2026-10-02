@@ -437,11 +437,12 @@ def provision_student_vm(
                 if protocol.lower() == "rdp" or port == 3389:
                     _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
 
-                # Tự động khởi tạo hoặc phục hồi Exam_Workspace cho sinh viên
-                try:
-                    restore_vm_workspace(new_vmid, student_username, lab_id)
-                except Exception as ws_err:
-                    logger.warning(f"[EXAM_WORKSPACE] Workspace restore skipped/failed on VM {new_vmid}: {ws_err}")
+                # Tự động khởi tạo hoặc phục hồi Exam_Workspace cho sinh viên (Chỉ áp dụng khi bài lab bật chế độ kiểm tra Exam Mode)
+                if is_exam_mode:
+                    try:
+                        restore_vm_workspace(new_vmid, student_username, lab_id)
+                    except Exception as ws_err:
+                        logger.warning(f"[EXAM_WORKSPACE] Workspace restore skipped/failed on VM {new_vmid}: {ws_err}")
 
             boot_duration = time.perf_counter() - boot_start
             logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Status: {'warm_hit' if is_already_running else 'cold_boot'} | Duration: {boot_duration:.1f}s")
@@ -586,7 +587,7 @@ def generate_guacamole_auth_json_url(
     logger.info(f"[VDI] SESSION_ISSUED | User: {student_username} | Target: {ip_address}:{port} ({protocol.upper()}) | TTL: {settings.GUAC_SESSION_TTL_SECONDS}s")
     return url
 
-def rollback_student_vm(student_username: str, lab_id: int) -> bool:
+def rollback_student_vm(student_username: str, lab_id: int, is_exam_mode: bool = False) -> bool:
     """Tắt và xóa sạch TẤT CẢ các bản VM của sinh viên ở bài lab này (kể cả khi bị tạo trùng lặp nhiều VM)"""
     node = settings.PVE_NODE
     proxmox = get_pve_client()
@@ -612,12 +613,13 @@ def rollback_student_vm(student_username: str, lab_id: int) -> bool:
             try:
                 status = proxmox.nodes(node).qemu(target_vmid).status.current.get()
                 if status.get("status") == "running":
-                    # Tự động sao lưu Exam_Workspace trước khi xóa máy ảo để không mất bài làm
-                    try:
-                        backup_vm_workspace(target_vmid, student_username, lab_id)
-                        logger.info(f"[EXAM_WORKSPACE] Auto-backed up workspace for {student_username} before rollback on VM {target_vmid}")
-                    except Exception as ws_err:
-                        logger.warning(f"[EXAM_WORKSPACE] Auto-backup failed before rollback on VM {target_vmid}: {ws_err}")
+                    # Tự động sao lưu Exam_Workspace trước khi xóa máy ảo để không mất bài làm (nếu là bài thi)
+                    if is_exam_mode:
+                        try:
+                            backup_vm_workspace(target_vmid, student_username, lab_id)
+                            logger.info(f"[EXAM_WORKSPACE] Auto-backed up workspace for {student_username} before rollback on VM {target_vmid}")
+                        except Exception as ws_err:
+                            logger.warning(f"[EXAM_WORKSPACE] Auto-backup failed before rollback on VM {target_vmid}: {ws_err}")
 
                     print(f"[+] Stopping VM {target_vmid} for rollback...", flush=True)
                     stop_upid = proxmox.nodes(node).qemu(target_vmid).status.stop.post()

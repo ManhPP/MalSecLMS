@@ -6820,13 +6820,48 @@ export default function InstructorDashboard() {
                     <span>{modalError}</span>
                   </div>
                 )}
-                <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '13px' }}>
+                <div style={{ padding: '12px 14px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0', fontSize: '13px' }}>
                   <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '12px' }}>Source Lab:</div>
                   <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '15px' }}>{cloneSourceLab.title}</div>
-                  <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px', fontWeight: '500' }}>
+                  
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                     {cloneSourceLab.enable_vm ? (
-                      `🖥️ VM Template ${cloneSourceLab.template_vmid} (${cloneSourceLab.is_linked_clone ? 'Linked Clone' : 'Full Clone'}) | ${cloneSourceLab.vm_protocol?.toUpperCase()}`
-                    ) : 'No virtual machine'}
+                      <span className="badge" style={{ background: '#d1fae5', color: '#065f46', fontSize: '11px', fontWeight: '600' }}>
+                        🖥️ VM {cloneSourceLab.template_vmid} ({cloneSourceLab.is_linked_clone ? 'Linked' : 'Full'}) | {cloneSourceLab.vm_protocol?.toUpperCase()}
+                      </span>
+                    ) : (
+                      <span className="badge" style={{ background: '#f1f5f9', color: '#64748b', fontSize: '11px' }}>
+                        No VM
+                      </span>
+                    )}
+
+                    {cloneSourceLab.vm_drive_mode === 'custom' ? (
+                      <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '11px', fontWeight: '600' }}>
+                        💿 Custom Drive D: ({cloneSourceLab.vm_drive_files?.length || 0} files)
+                      </span>
+                    ) : (
+                      <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px' }}>
+                        💿 Default Tools Drive D:
+                      </span>
+                    )}
+
+                    {cloneSourceLab.is_exam_mode && (
+                      <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', fontSize: '11px', fontWeight: '700' }}>
+                        🎓 Exam Mode
+                      </span>
+                    )}
+
+                    {(cloneSourceLab.cpu_cores || cloneSourceLab.ram_mb) && (
+                      <span className="badge" style={{ background: '#f3e8ff', color: '#6b21a8', fontSize: '11px' }}>
+                        ⚡ {cloneSourceLab.cpu_cores ? `${cloneSourceLab.cpu_cores} vCPU` : ''}{cloneSourceLab.cpu_cores && cloneSourceLab.ram_mb ? ' / ' : ''}{cloneSourceLab.ram_mb ? `${Math.round(cloneSourceLab.ram_mb / 1024)}GB RAM` : ''}
+                      </span>
+                    )}
+
+                    {cloneSourceLab.grade_tag && (
+                      <span className="badge" style={{ background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontSize: '11px' }}>
+                        🏷️ {cloneSourceLab.grade_tag}
+                      </span>
+                    )}
                   </div>
                 </div>
 
