@@ -127,7 +127,7 @@ def delete_class(
         
     lab_ids = [lab.id for lab in class_.labs]
 
-    # 1. Thu thập và xóa sạch các file vật lý đính kèm trên ổ cứng
+    # 1. Thu thập và xóa an toàn các file vật lý đính kèm trên ổ cứng
     if lab_ids:
         submissions = db.query(Submission).filter(Submission.lab_id.in_(lab_ids)).all()
         for sub in submissions:
@@ -136,7 +136,14 @@ def delete_class(
                 filepath = att.get("filepath")
                 if filepath and os.path.exists(filepath):
                     try:
-                        os.remove(filepath)
+                        # Kiểm tra xem có bài nộp nào ngoài các lab bị xóa này đang dùng chung file không
+                        other_sub_using = db.query(Submission).filter(~Submission.lab_id.in_(lab_ids)).all()
+                        is_shared = any(
+                            any(o_att.get("filepath") == filepath for o_att in (s.file_attachments or []))
+                            for s in other_sub_using
+                        )
+                        if not is_shared:
+                            os.remove(filepath)
                     except Exception:
                         pass
 

@@ -332,13 +332,21 @@ def delete_lab(
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp chứa bài lab này")
 
-    # 1. Xóa sạch các file vật lý đính kèm của bài lab này và các bài nộp thuộc lab này
+    # 1. Xóa an toàn các file vật lý đính kèm của bài lab này và các bài nộp thuộc lab này
+    # CHỈ xóa file trên ổ đĩa nếu không còn bất kỳ bài lab hoặc bài nộp nào khác tham chiếu đến file đó (ví dụ trường hợp bài lab được clone)
     lab_attachments = lab.attachment_files or []
     for att in lab_attachments:
         filepath = att.get("filepath")
         if filepath and os.path.exists(filepath):
             try:
-                os.remove(filepath)
+                # Kiểm tra xem có bài lab nào khác (chưa xóa) đang dùng chung file này không
+                other_labs_using = db.query(Lab).filter(Lab.id != lab_id).all()
+                is_shared_lab = any(
+                    any(other_att.get("filepath") == filepath for other_att in (l.attachment_files or []))
+                    for l in other_labs_using
+                )
+                if not is_shared_lab:
+                    os.remove(filepath)
             except Exception:
                 pass
 
@@ -349,7 +357,14 @@ def delete_lab(
             filepath = att.get("filepath")
             if filepath and os.path.exists(filepath):
                 try:
-                    os.remove(filepath)
+                    # Kiểm tra xem có bài nộp nào khác đang tham chiếu cùng file không
+                    other_sub_using = db.query(Submission).filter(Submission.id != sub.id).all()
+                    is_shared_sub = any(
+                        any(o_att.get("filepath") == filepath for o_att in (s.file_attachments or []))
+                        for s in other_sub_using
+                    )
+                    if not is_shared_sub:
+                        os.remove(filepath)
                 except Exception:
                     pass
 
@@ -422,8 +437,26 @@ def clone_lab(
     if current_user.role == "lecturer" and current_user not in target_class.users:
         raise HTTPException(status_code=403, detail="Bạn không có quyền giao bài cho lớp học phần đích này")
 
-    title = clone_data.new_title.strip() if clone_data.new_title and clone_data.new_title.strip() else f"{source_lab.title} (Bản sao)"
-    deadline = clone_data.new_deadline if clone_data.new_deadline else source_lab.deadline
+    # Sao chép độc lập các tệp đính kèm sang bản ghi và file vật lý mới để tránh việc xóa một bài lab làm mất file của bài lab kia
+    cloned_attachments = []
+    if source_lab.attachment_files:
+        for att in source_lab.attachment_files:
+            src_path = att.get("filepath")
+            if src_path and os.path.exists(src_path):
+                ext = att.get("filename", "").split('.')[-1] if '.' in att.get("filename", "") else "bin"
+                new_safe_filename = f"{uuid.uuid4().hex}.{ext}"
+                new_filepath = os.path.join(settings.UPLOAD_DIR, new_safe_filename)
+                try:
+                    shutil.copy2(src_path, new_filepath)
+                    cloned_att = dict(att)
+                    cloned_att["filename"] = new_safe_filename
+                    cloned_att["filepath"] = new_filepath
+                    cloned_attachments.append(cloned_att)
+                except Exception as copy_err:
+                    logger.warning(f"[CLONE_LAB] Failed to duplicate attachment {src_path}: {copy_err}")
+                    cloned_attachments.append(dict(att))
+            else:
+                cloned_attachments.append(dict(att))
 
     # Tạo bản sao bài lab với dữ liệu cấu hình giống bài lab gốc
     cloned_lab = Lab(
@@ -431,7 +464,7 @@ def clone_lab(
         description=source_lab.description,
         grade_tag=clone_data.grade_tag if clone_data.grade_tag is not None else source_lab.grade_tag,
         form_fields=source_lab.form_fields,
-        attachment_files=source_lab.attachment_files or [],
+        attachment_files=cloned_attachments,
         deadline=deadline,
         late_policy=source_lab.late_policy,
         individual_extensions={}, # Làm mới danh sách gia hạn cá nhân
