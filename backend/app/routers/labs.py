@@ -459,6 +459,10 @@ def clone_lab(
             else:
                 cloned_attachments.append(dict(att))
 
+    # Xác định title và deadline cho bản sao
+    title = clone_data.new_title if clone_data.new_title else source_lab.title
+    deadline = clone_data.new_deadline if clone_data.new_deadline else source_lab.deadline
+
     # Tạo bản sao bài lab với dữ liệu cấu hình giống bài lab gốc
     cloned_lab = Lab(
         title=title,
