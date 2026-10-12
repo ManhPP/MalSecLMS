@@ -98,7 +98,7 @@ class IsoToolService:
         """Liệt kê toàn bộ file từ kho chung và tất cả không gian riêng của giảng viên (dành cho tạo lab)"""
         cmd = (
             f"mkdir -p '{PVE_TOOLS_DIR}/lecturers' && "
-            f"find '{PVE_TOOLS_DIR}' -maxdepth 2 -type f -printf '%P\t%s\t%TY-%Tm-%Td %TH:%TM:%TS\n'"
+            f"find '{PVE_TOOLS_DIR}' -maxdepth 3 -type f -printf '%P\t%s\t%TY-%Tm-%Td %TH:%TM:%TS\n'"
         )
         raw_output = IsoToolService._run_pve_ssh_command(cmd)
         files = []

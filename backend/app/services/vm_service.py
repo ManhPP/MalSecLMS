@@ -233,24 +233,38 @@ def _net0_with_unique_mac(source_net0: str) -> str:
 
 def _ensure_fakenet_rdp_whitelist(proxmox, node: str, vmid: int) -> None:
     """
-    Tự động kiểm tra và thêm BlackListPortsTCP (3389, 22) và HostBlackList (Guacamole IP, Gateway)
-    vào file cấu hình FakeNet-NG nếu tồn tại trong VM Windows.
-    Giúp sinh viên/giảng viên mở FakeNet mà không bao giờ bị ngắt kết nối VDI/RDP làm đóng băng máy ảo.
+    Tự động chuẩn hóa file cấu hình FakeNet-NG (default.ini) trên VM Windows:
+    - Loại trừ port 3389, 22, 139 (BlackListPortsTCP)
+    - Loại trừ Guacamole IP và Gateway (HostBlackList)
+    - Loại trừ svchost.exe khỏi Diverter (ProcessBlackList) để không can thiệp luồng RDP
+    - Tắt FixGateway và FixDNS tránh làm hỏng định tuyến mạng VLAN 30 của VM
+    - Fix lỗi dính dòng ncat.exeHostBlackList
+    Đảm bảo sinh viên mở FakeNet và tab qua tab khác không bao giờ bị nghẽn gói tin làm treo máy ảo.
     """
     try:
-        fix_ps = (
-            "$p='C:\\Tools\\fakenet\\fakenet3.5\\configs\\default.ini';"
-            "if(Test-Path $p){"
-            "$c=Get-Content $p -Raw;"
-            "if($c -notmatch 'BlackListPortsTCP.*3389'){"
-            "$c=$c -replace 'BlackListPortsTCP:.*', 'BlackListPortsTCP: 139, 3389, 22';"
-            "$c=$c -replace '#?\\s*HostBlackList:.*', 'HostBlackList: 10.30.0.50, 10.30.0.1, 10.0.80.50';"
-            "Set-Content -Path $p -Value $c -NoNewline"
-            "}"
-            "}"
+        import base64
+        ps_script = (
+            "$p = 'C:\\Tools\\fakenet\\fakenet3.5\\configs\\default.ini';\n"
+            "if (Test-Path $p) {\n"
+            "    $c = Get-Content $p -Raw;\n"
+            "    $c = $c -replace '(?im)^\\s*DumpPackets\\s*:\\s*Yes', 'DumpPackets:           No';\n"
+            "    $c = $c -replace '(?im)^\\s*StopDNSService\\s*:\\s*Yes', 'StopDNSService:        No';\n"
+            "    $c = $c -replace '(?im)^\\s*ModifyLocalDNS\\s*:\\s*Yes', 'ModifyLocalDNS:        No';\n"
+            "    $c = $c -replace '(?im)^\\s*FixGateway\\s*:\\s*Yes', 'FixGateway:            No';\n"
+            "    $c = $c -replace '(?im)^\\s*FixDNS\\s*:\\s*Yes', 'FixDNS:                No';\n"
+            "    $c = $c -replace '(?im)^\\s*#?\\s*BlackListPortsTCP:.*', 'BlackListPortsTCP: 139, 3389, 22';\n"
+            "    $c = $c -replace '(?im)^\\s*#?\\s*HostBlackList:.*', 'HostBlackList: 10.30.0.50, 10.30.0.1, 10.0.80.50';\n"
+            "    $procs = 'ProcessBlackList: svchost.exe, dmclient.exe, OneDrive.exe, backgroundTaskHost.exe, GoogleUpdate.exe, chrome.exe, Procmon.exe, Procmon64.exe, procexp.exe, procexp64.exe, Wireshark.exe, dumpcap.exe';\n"
+            "    $c = $c -replace '(?im)^\\s*ProcessBlackList:.*', $procs;\n"
+            "    [System.IO.File]::WriteAllText($p, $c, [System.Text.Encoding]::UTF8);\n"
+            "}\n"
+            "$regPath = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services';\n"
+            "if (-not (Test-Path $regPath)) { New-Item $regPath -Force | Out-Null };\n"
+            "Set-ItemProperty -Path $regPath -Name 'SelectTransport' -Value 1 -Type DWord -Force;\n"
         )
+        encoded_cmd = base64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
         proxmox.nodes(node).qemu(vmid).agent("exec").post(
-            command=["powershell", "-ExecutionPolicy", "Bypass", "-Command", fix_ps]
+            command=["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded_cmd]
         )
     except Exception as e:
         logger.warning(f"Could not check/patch FakeNet RDP whitelist on VM {vmid}: {e}")
@@ -433,16 +447,16 @@ def provision_student_vm(
                         flush=True,
                     )
                     time.sleep(settings.VM_BOOT_WAIT_SECONDS)
-                # Tự động đảm bảo FakeNet không chặn RDP 3389 và Guacamole IP khi vừa khởi động
-                if protocol.lower() == "rdp" or port == 3389:
-                    _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
-
                 # Tự động khởi tạo hoặc phục hồi Exam_Workspace cho sinh viên (Chỉ áp dụng khi bài lab bật chế độ kiểm tra Exam Mode)
                 if is_exam_mode:
                     try:
                         restore_vm_workspace(new_vmid, student_username, lab_id)
                     except Exception as ws_err:
                         logger.warning(f"[EXAM_WORKSPACE] Workspace restore skipped/failed on VM {new_vmid}: {ws_err}")
+
+            # Đảm bảo cấu hình FakeNet và RDP Transport luôn chuẩn xác kể cả warm hit lẫn cold boot
+            if protocol.lower() == "rdp" or port == 3389:
+                _ensure_fakenet_rdp_whitelist(proxmox, node, new_vmid)
 
             boot_duration = time.perf_counter() - boot_start
             logger.info(f"[VM_ORCHESTRATION] VM_ONLINE | User: {student_username} | VMID: {new_vmid} | IP: {ip_address} | {protocol.upper()}:{port} | Status: {'warm_hit' if is_already_running else 'cold_boot'} | Duration: {boot_duration:.1f}s")
@@ -542,6 +556,7 @@ def generate_guacamole_auth_json_url(
             ).lower(),
             "disable-copy": "true" if should_disable_copy else "false",
             "disable-paste": "true" if should_disable_paste else "false",
+            "server-keepalive": "10",
         })
     elif protocol == "ssh":
         parameters.update({

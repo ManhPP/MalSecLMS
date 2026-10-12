@@ -6136,7 +6136,7 @@ export default function InstructorDashboard() {
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button
                                 type="button"
-                                onClick={() => setVmDriveFiles(availableVmTools.map(t => t.filename))}
+                                onClick={() => setVmDriveFiles(availableVmTools.map(t => t.rel_path || t.filename))}
                                 className="btn btn-secondary"
                                 style={{ padding: '2px 8px', fontSize: '11px' }}
                               >
