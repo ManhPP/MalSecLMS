@@ -28,6 +28,8 @@ scp malsec_deploy.tar.gz ubuntu-105:/home/iahn/malsec_deploy.tar.gz
 ssh ubuntu-105 "mkdir -p /home/iahn/malsec && tar -xzf /home/iahn/malsec_deploy.tar.gz -C /home/iahn/malsec && rm /home/iahn/malsec_deploy.tar.gz && cd /home/iahn/malsec && echo 'KhongQuanLieu' | sudo -S docker compose up -d --build"
 Remove-Item -Path "malsec_deploy.tar.gz" -Force
 ```
+> ⚠️ **CRITICAL DEPLOYMENT GOTCHA**:
+> Container `malsec-backend` trong `docker-compose.yml` **không bind mount source code từ host**. Vì vậy, nếu chỉ copy/scp file lẻ vào `/home/iahn/malsec/backend/` rồi chạy `docker restart malsec-backend`, container **vẫn chạy code cũ** trong layer Docker image. Bắt buộc phải chạy `docker compose up -d --build`, hoặc nếu test nóng thì phải `docker cp <file> malsec-backend:/app/app/...` trước khi restart.
 
 ### Staging Deployment to `ubuntu-106` (Test Environment)
 ```powershell
@@ -57,11 +59,11 @@ qm guest cmd <vmid> network-get-interfaces
 
 | Layer | Technology | Details |
 |---|---|---|
-| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, instant VDI canvas (<1s for running VMs), in-browser Word docx / PDF viewer with realistic paper theme, Fast Student Switcher Speed Grader, dynamic form builder, class grouping, centralized academic semester management & filters, comprehensive gradebook matrix & CSV export by grade category tags |
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine, multi-layer file security validation (Magic bytes, DOCX macro/OLE scanning, ZIP infection detection), resubmission before deadline, academic semester management |
+| **Frontend** | React 18 (Vite), Vanilla CSS, Lucide React | Cyberpunk dark theme UI, instant VDI canvas (<1s for running VMs), in-browser Word docx / PDF viewer with realistic paper theme, Fast Student Switcher Speed Grader, dynamic form builder, class grouping, centralized academic semester management & filters, comprehensive gradebook matrix & CSV export by grade category tags, attach tools manager from common/lecturer private storage |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, Pydantic v2 | JWT Auth, REST API, Proxmoxer API client, Guacamole HMAC/AES-128-CBC Token engine, multi-layer file security validation (Magic bytes, DOCX macro/OLE scanning, ZIP infection detection), resubmission before deadline, academic semester management, **FakeNet-NG / WinDivert auto-patching engine** (`_ensure_fakenet_rdp_whitelist`), **Lab ISO Tool Service** (gắn ổ D: từ PVE tools ISO chung & thư mục riêng của GV) |
 | **Database** | PostgreSQL 16 | Relational store for Users, Classes, Labs, Submissions, Audit Logs, Semesters |
 | **VDI Proxy** | Apache Guacamole 1.6.0 (LXC 103) | `guacamole-auth-json` plugin, guacd daemon, RDP (3389) protocol translation |
-| **Hypervisor** | Proxmox VE (pve01) | Full-clone orchestration, MAC sync, isolated VLAN 30 network |
+| **Hypervisor** | Proxmox VE (pve01) | Full-clone orchestration, MAC sync, isolated VLAN 30 network, dynamic ISO tools injection (`tools-1001.iso`) |
 
 ---
 
@@ -99,8 +101,9 @@ MalSec/
 │   │   ├── request_utils.py    # IP helper utilities
 │   │   ├── routers/            # API Endpoints (auth, users, classes, labs, submissions, admin, semesters, configuration)
 │   │   └── services/
-│   │       ├── vm_service.py   # Proxmox API orchestration & Guacamole Encrypted JSON generator
-│   │       └── file_service.py # Uploads & ZIP packaging
+│   │       ├── vm_service.py       # Proxmox API orchestration, FakeNet auto-patching & Guacamole Encrypted JSON generator
+│   │       ├── iso_tool_service.py # Lab ISO packaging (tools-1001.iso) & Lecturer private tools storage
+│   │       └── file_service.py     # Uploads & ZIP packaging
 │   ├── Dockerfile
 │   └── requirements.txt
 └── frontend/

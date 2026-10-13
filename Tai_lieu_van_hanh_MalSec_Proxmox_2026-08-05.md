@@ -1,8 +1,8 @@
 # HỒ SƠ HIỆN TRẠNG, KIẾN TRÚC, TRIỂN KHAI VÀ HƯỚNG DẪN VẬN HÀNH MALSEC
 
 **Hệ thống:** Malware Lab trên Proxmox VE và nền tảng MalSec LMS  
-**Phiên bản tài liệu:** 1.2 — cập nhật tối ưu hóa VDI latency, Docx preview, Multi-class grouping và bảo mật file upload  
-**Ngày chốt hiện trạng:** 09/09/2026, múi giờ Asia/Ho_Chi_Minh (UTC+7)  
+**Phiên bản tài liệu:** 1.3 — cập nhật ổn định hóa FakeNet-NG / WinDivert kernel queue, RDP TCP Transport, Quản lý gắn công cụ bài lab IsoToolService  
+**Ngày chốt hiện trạng:** 13/10/2026, múi giờ Asia/Ho_Chi_Minh (UTC+7)  
 **Phạm vi:** node `pve01`, pfSense, toàn bộ VM/LXC, mạng, storage, Apache Guacamole, Cloudflare Tunnel, VM triển khai `ubuntu-105`, mã nguồn và dữ liệu vận hành MalSec  
 **Nguồn nền:** [Ho_so_kien_truc_Malware_Lab_v3.docx](./Ho_so_kien_truc_Malware_Lab_v3.docx), mã nguồn tại workspace và kiểm tra trực tiếp qua SSH/API/QEMU Guest Agent  
 **Mức độ bí mật:** Nội bộ. Tài liệu cố ý không chứa mật khẩu, API token, khóa JWT, khóa Guacamole, tunnel token, serial phần cứng hoặc UUID nhạy cảm.
@@ -16,6 +16,7 @@
 | 1.0 | 05/08/2026 | Hồ sơ as-is đầu tiên sau kiểm kê source và live system. |
 | 1.1 | 05/08/2026 | Rà soát chéo lần hai: sửa luồng Guacamole/VM và lệnh Sysprep; làm rõ quyền API, timezone, ZIP password, cleanup; bổ sung toàn bộ ISO/template, port CT 103, giới hạn audit pfSense và risk register. |
 | 1.2 | 09/09/2026 | Cập nhật tối ưu độ trễ mở VM (bỏ sleep thừa khi VM đã running), sửa render nền trắng cho DOCX preview, hỗ trợ nộp file DOCX, kiểm tra an toàn đa tầng cho file upload, cho phép sinh viên chỉnh sửa bài nộp trước deadline, chuyển đổi toàn bộ giao diện sang tiếng Anh, Speed Grader chọn nhanh sinh viên. |
+| 1.3 | 13/10/2026 | Xử lý lỗi treo cứng VM khi mở FakeNet-NG (tắt DumpPackets, ngăn stop Dnscache, ép RDP TCP Transport `SelectTransport = 1` qua QGA `_ensure_fakenet_rdp_whitelist` cho cả cold boot & warm hit/rollback). Bổ sung dịch vụ gắn công cụ bài lab (`IsoToolService`) hỗ trợ kho chung và thư mục riêng của từng giảng viên vào ổ D:\ trên máy ảo. |
 
 ---
 
@@ -857,10 +858,18 @@ sequenceDiagram
 - Nếu QGA không báo IP trong 180 giây, API trả lỗi 502; không phát link sai.
 - Base phải stopped. Nếu source đang running, hệ thống từ chối clone.
 
-### 18.4. Readiness và tối ưu hóa độ trễ phiên (Latency Optimization)
+### 18.4. Readiness và tối ưu hóa độ trễ phiên (Latency Optimization & FakeNet Stability)
 
-- **Trường hợp VM vừa mới tạo hoặc đang tắt:** Backend khởi động VM và đợi QGA báo IP. Khi `VM_VERIFY_CONNECTION=false`, hệ thống chờ `VM_BOOT_WAIT_SECONDS=15` để guest OS hoàn tất boot và cấu hình whitelist cho FakeNet nếu là RDP.
-- **Trường hợp VM đã ở trạng thái chạy (`running`) từ trước:** Backend nhận diện cờ `is_already_running = True`, lấy ngay IP từ QGA và trả về Encrypted JSON URL ngay lập tức (**< 1 giây**), hoàn toàn bỏ qua `time.sleep` 15 giây và lệnh Powershell không cần thiết. Điều này giúp loại bỏ độ trễ khi sinh viên vào lại bài lab đang làm dở.
+- **Trường hợp VM vừa mới tạo hoặc đang tắt (Cold boot):** Backend khởi động VM và đợi QGA báo IP. Khi `VM_VERIFY_CONNECTION=false`, hệ thống chờ `VM_BOOT_WAIT_SECONDS=15` để guest OS hoàn tất boot và cấu hình whitelist cho FakeNet nếu là RDP.
+- **Trường hợp VM đã ở trạng thái chạy (`running`) từ trước (Warm hit):** Backend nhận diện cờ `is_already_running = True`, lấy ngay IP từ QGA và trả về Encrypted JSON URL ngay lập tức (**< 1 giây**), hoàn toàn bỏ qua `time.sleep` 15 giây không cần thiết.
+- **Cơ chế ổn định hóa FakeNet-NG & WinDivert Driver (`_ensure_fakenet_rdp_whitelist`):**
+  - Khi sinh viên mở FakeNet-NG trên máy ảo Windows (FLARE-VM), driver `WinDivert` lọc và bắt giữ gói tin mạng. Nếu FakeNet ghi PCAP liên tục (`DumpPackets: Yes`), queue gói tin kernel (`WINDIVERT_PARAM_QUEUE_LENGTH`) bị tràn làm kẹt hoàn toàn luồng I/O mạng của hệ điều hành, dẫn đến hiện tượng máy ảo bị treo cứng (freeze). Đồng thời, nếu `StopDNSService: Yes` được kích hoạt, FakeNet vô hiệu hóa service `Dnscache` của Windows, khiến các tiến trình hệ thống và phiên RDP bị gián đoạn.
+  - Ngoài ra, RDP mặc định trên Windows sử dụng UDP transport; UDP rất nhạy cảm với việc bị WinDivert intercept packet, dễ dẫn đến rớt phiên điều khiển từ xa.
+  - **Giải pháp backend:** Trong cả trường hợp cold boot lẫn warm hit / rollback, sau khi VM đã có IP hợp lệ trên VLAN 30, backend tự động thực thi script PowerShell qua QEMU Guest Agent để:
+    1. Patch file `C:\Tools\fakenet\fakenet3.5\configs\default.ini` (hoặc các vị trí FakeNet tương đương): đặt `DumpPackets: No`, `StopDNSService: No`, `ModifyLocalDNS: No`, `FixGateway: No`, `FixDNS: No`.
+    2. Bổ sung các tiến trình hệ thống và công cụ phân tích malware phổ biến vào `ProcessBlackList` (như `mstsc.exe`, `svchost.exe`, `procmon.exe`, `x64dbg.exe`, `wireshark.exe`...).
+    3. Thiết lập Windows Registry: `HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services` với `SelectTransport = 1` (ép RDP sử dụng kết nối TCP thuần túy, loại bỏ hoàn toàn nhiễu UDP qua WinDivert).
+  - Nhờ cơ chế này, sinh viên có thể bật FakeNet-NG, chạy malware và chuyển đổi tab trình duyệt mà không bao giờ gặp lỗi treo cứng máy ảo.
 
 ### 18.5. Rollback
 
@@ -1398,7 +1407,7 @@ Giảng viên chỉ thấy class được admin gán và lab của các class đ
 5. Bật/tắt nộp muộn, `% mỗi giờ`, mức phạt tối đa.
 6. `is_active=true` chỉ khi sẵn sàng cho sinh viên.
 
-**Cấu hình VM**
+**Cấu hình VM và Công cụ thực hành (Attach Lab Tools)**
 
 1. Bật “Kết nối máy ảo”.
 2. Chọn base VM từ danh sách 1000–2000. Nhãn “Base VM” là hợp lệ; không bắt buộc PVE template flag.
@@ -1409,8 +1418,12 @@ Giảng viên chỉ thấy class được admin gán và lab của các class đ
    - Desktop có VNC server: VNC, 5900 hoặc port cấu hình.
 4. Nhập username/password đúng trong guest; RDP/SSH bắt buộc username, mọi protocol hiện bắt buộc password.
 5. Khi edit, để password trống để giữ credential cũ; nhập mới nếu guest đổi.
-6. Base phải stopped và QGA phải hoạt động sau clone.
-7. Dùng tài khoản test mở lab trước khi giao lớp.
+6. **Gắn công cụ bài lab vào ổ đĩa D:\ (Attach Lab Tools):**
+   - Giảng viên có thể chọn các file công cụ từ **Kho công cụ chung** (`tools-content`) hoặc từ **Kho lưu trữ riêng của giảng viên** (`tools-content/lecturers/<username>`).
+   - Có thể chọn từng file hoặc bấm "Select All" để chọn toàn bộ danh sách file phù hợp.
+   - Khi bài lab được khởi chạy, hệ thống tự động build ISO `tools-1001.iso` và gắn vào máy ảo sinh viên dưới dạng ổ đĩa CD/DVD phụ (ổ D:\ trên Windows). Sinh viên chỉ cần mở ổ D:\ là có đầy đủ mẫu malware và bộ tool cần thiết mà không cần tải qua mạng.
+7. Base phải stopped và QGA phải hoạt động sau clone.
+8. Dùng tài khoản test mở lab trước khi giao lớp.
 
 **Thiết kế form**
 

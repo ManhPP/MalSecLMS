@@ -15,7 +15,13 @@ Tệp này là tài liệu bàn giao nhanh cho agent hoặc kỹ sư tiếp qu�
 - Apache Guacamole chạy riêng trong LXC 103 trên Proxmox.
 - pfSense chạy ở VM 100 và làm gateway/DHCP cho VLAN sandbox.
 - VM sinh viên được full-clone từ base VM, có MAC riêng, IP DHCP riêng và được tìm lại bằng stable name `lab-{lab_id}-{username}`.
-- **Tối ưu hóa VDI Latency (09/2026):** Mở VM ngay tức thì (< 1 giây) khi VM đã running, bỏ hoàn toàn thời gian chờ 15 giây không cần thiết.
+- **Tối ưu hóa VDI Latency & FakeNet Auto-Patching (09-10/2026):**
+  - Mở VM ngay tức thì (< 1 giây) khi VM đã running, bỏ hoàn toàn thời gian chờ 15 giây không cần thiết.
+  - Tự động chuẩn hóa cấu hình FakeNet-NG (`default.ini`) và Windows Registry qua QEMU Guest Agent (`_ensure_fakenet_rdp_whitelist`): vô hiệu hóa `DumpPackets`, ngăn tắt `Dnscache`, whitelist tiến trình hệ thống/phân tích và ép RDP dùng TCP thuần (`SelectTransport = 1`) để giải quyết triệt để lỗi tràn kernel packet queue WinDivert làm treo máy ảo.
+  - Áp dụng whitelist tự động trên cả cold boot lẫn warm hit / rollback.
+- **Quản lý công cụ bài lab & Ổ đĩa ảo D: (`IsoToolService`):**
+  - Giảng viên và Admin có thể upload, quản lý công cụ trong kho chung (`tools-content`) hoặc kho riêng của từng giảng viên (`tools-content/lecturers/<username>`).
+  - Khi tạo/sửa lab, giảng viên có thể chọn gắn các file từ kho chung hoặc kho riêng của mình vào bài lab; hệ thống tự động build ISO `tools-1001.iso` trên PVE và mount vào ổ đĩa CD/DVD phụ (ổ D:\ trong VM Windows).
 - **Tính năng LMS mới (09/2026):**
   - Xem trước file Word (.docx) chuẩn khổ giấy A4 nền trắng; kiểm tra an toàn đa tầng cho file tải lên (magic bytes, DOCX macro/OLE scanning, ZIP anti-zipbomb/password).
   - Cho phép sinh viên chỉnh sửa bài nộp khi chưa hết hạn; phân nhóm bài lab đa tầng theo Kì học & Lớp học; toggle ẩn kì cũ (`Active Sem Only`).
@@ -192,6 +198,9 @@ Trước khi cho giảng viên chọn một base VM:
 - Chuẩn bị Sysprep/unattend đúng nếu generalize; bảo đảm OOBE không làm clone kẹt trước khi RDP sẵn sàng.
 - Kiểm tra QGA, RDP 3389, layout bàn phím, wallpaper/graphics và credential qua Guacamole.
 - SMB/NetBIOS không nên mở giữa các VM sinh viên.
+- **RDP Transport & FakeNet-NG Stability:**
+  - Để tránh xung đột gói tin làm rớt phiên VDI khi sinh viên bật FakeNet-NG (WinDivert driver), RDP cần được ép chạy qua TCP thay vì UDP bằng registry: `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services` với `SelectTransport = 1` (DWORD).
+  - FakeNet-NG 3.5 (`default.ini`) phải được tắt `DumpPackets: No` (để tránh nghẽn kernel I/O do dump pcap) và `StopDNSService: No` (không tắt service `Dnscache` của Windows gây mất phân giải tên miền hệ thống). Backend tự động kiểm tra và patch cấu hình này qua QEMU Guest Agent trong hàm `_ensure_fakenet_rdp_whitelist`.
 
 ### 7.2. Ubuntu/Linux base
 
@@ -338,8 +347,10 @@ Không in `docker compose config` đầy đủ.
 2. Xác nhận source remote có thể đã có thay đổi riêng; không ghi đè mù `.env`.
 3. Backup DB, uploads và file cấu hình cần thiết.
 4. Copy đúng các file thay đổi vào `/home/iahn/malsec` theo quy trình có checksum.
+   > ⚠️ **Lưu ý quan trọng về Docker Backend Container**:
+   > `malsec-backend` không dùng bind mount mã nguồn từ host. Nếu chỉ copy file vào host `/home/iahn/malsec/backend/` và chạy `docker restart malsec-backend`, container **vẫn giữ mã nguồn cũ** được đóng gói bên trong Docker image. Bắt buộc phải chạy `docker compose up -d --build` để build lại image mới, HOẶC dùng `docker cp <file> malsec-backend:/app/app/...` và restart container khi cần cập nhật nóng.
 5. Chạy `docker compose config --quiet`.
-6. Build có kiểm soát; ghi lại image cũ để rollback.
+6. Build có kiểm soát; ghi lại image cũ để rollback (`docker compose up -d --build`).
 7. Chạy `docker compose up -d`.
 8. Kiểm tra `docker compose ps` và log giới hạn dòng.
 9. Smoke test login, role, class/lab, `/api`, `/guacamole/`, WebSocket và VM test.
