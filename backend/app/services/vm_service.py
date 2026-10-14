@@ -244,6 +244,7 @@ def _ensure_fakenet_rdp_whitelist(proxmox, node: str, vmid: int) -> None:
     try:
         import base64
         ps_script = (
+            "Stop-Process -Name fakenet -Force -ErrorAction SilentlyContinue;\n"
             "$p = 'C:\\Tools\\fakenet\\fakenet3.5\\configs\\default.ini';\n"
             "if (Test-Path $p) {\n"
             "    $c = Get-Content $p -Raw;\n"
