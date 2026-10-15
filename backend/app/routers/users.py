@@ -100,6 +100,23 @@ def update_user(
         user.email = user_data.email
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
+        if not user.is_active and user.role == "student":
+            from app.services.vm_service import get_pve_client, control_student_vm, _is_vm_owned_by_student
+            proxmox = get_pve_client()
+            if proxmox:
+                try:
+                    resources = proxmox.cluster.resources.get(type="vm")
+                    for res in resources:
+                        vmid = int(res.get("vmid", -1))
+                        status_vm = res.get("status")
+                        vm_name = res.get("name", "")
+                        if status_vm == "running" and _is_vm_owned_by_student(vm_name, user.username):
+                            try:
+                                control_student_vm(vmid, "stop")
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
     if user_data.password is not None and user_data.password != "":
         user.password_hash = get_password_hash(user_data.password)
         
@@ -110,7 +127,7 @@ def update_user(
     log = AuditLog(
         user_id=current_user.id,
         action="update_user",
-        target=f"Updated user: {user.username}",
+        target=f"Updated user: {user.username} (Active: {user.is_active})",
         ip_address=get_client_ip(request)
     )
     db.add(log)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime
 from app.config import settings
@@ -60,6 +60,7 @@ class ClassBase(BaseModel):
     name: str
     description: Optional[str] = None
     semester: Optional[str] = "unknown"
+    is_blocked: Optional[bool] = False
 
 class ClassCreate(ClassBase):
     pass
@@ -68,6 +69,7 @@ class ClassUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     semester: Optional[str] = None
+    is_blocked: Optional[bool] = None
 
 class ClassOut(ClassBase):
     id: int
@@ -78,6 +80,88 @@ class ClassOut(ClassBase):
 
 class ClassWithStudents(ClassOut):
     users: List[UserOut] = []
+
+    class Config:
+        from_attributes = True
+
+# --- EXTENSION REQUEST SCHEMAS ---
+class ExtensionRequestCreate(BaseModel):
+    reason: str
+
+class ExtensionRequestRespond(BaseModel):
+    status: Literal["approved", "rejected"]
+    granted_deadline: Optional[datetime] = None
+    response_note: Optional[str] = None
+
+class ExtensionRequestOut(BaseModel):
+    id: int
+    lab_id: int
+    student_id: int
+    student: Optional[UserOut] = None
+    reason: str
+    status: str
+    granted_deadline: Optional[datetime] = None
+    response_note: Optional[str] = None
+    created_at: datetime
+    responded_at: Optional[datetime] = None
+
+    @computed_field
+    @property
+    def student_username(self) -> Optional[str]:
+        return self.student.username if self.student else None
+
+    @computed_field
+    @property
+    def student_name(self) -> Optional[str]:
+        return self.student.full_name if self.student else None
+
+    class Config:
+        from_attributes = True
+
+# --- DIRECT MESSAGE SCHEMAS ---
+class DirectMessageCreate(BaseModel):
+    recipient_id: int
+    content: str
+
+class DirectMessageOut(BaseModel):
+    id: int
+    sender_id: int
+    recipient_id: int
+    content: str
+    is_read: bool
+    created_at: datetime
+    sender: Optional[UserOut] = None
+    recipient: Optional[UserOut] = None
+
+    class Config:
+        from_attributes = True
+
+# --- CLASS POST & COMMENT SCHEMAS ---
+class ClassCommentCreate(BaseModel):
+    content: str
+
+class ClassCommentOut(BaseModel):
+    id: int
+    post_id: int
+    author_id: int
+    author: Optional[UserOut] = None
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ClassPostCreate(BaseModel):
+    content: str
+
+class ClassPostOut(BaseModel):
+    id: int
+    class_id: int
+    author_id: int
+    author: Optional[UserOut] = None
+    content: str
+    created_at: datetime
+    comments: List[ClassCommentOut] = []
 
     class Config:
         from_attributes = True

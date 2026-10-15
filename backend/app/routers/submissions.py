@@ -65,7 +65,14 @@ def save_draft(
         Submission.student_id == current_user.id
     ).first()
 
-    answers = payload.get("answers", {})
+    now = datetime.now()
+    effective_deadline = _get_student_lab_deadline(lab, current_user.username)
+
+    if now > effective_deadline:
+        raise HTTPException(
+            status_code=400, 
+            detail="Bài lab đã hết hạn nộp. Vui lòng gửi yêu cầu gia hạn tới giảng viên để được phép làm bài tiếp."
+        )
 
     if not submission:
         submission = Submission(
@@ -80,12 +87,7 @@ def save_draft(
         if submission.status == "graded":
             raise HTTPException(status_code=400, detail="Bài làm đã được giảng viên chấm điểm, không thể chỉnh sửa")
         
-        now = datetime.now()
-        effective_deadline = _get_student_lab_deadline(lab, current_user.username)
-        
         if submission.status == "submitted":
-            if now > effective_deadline:
-                raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể chỉnh sửa bài đã nộp")
             # Đang trước hạn: cho phép sinh viên chỉnh sửa nội dung bài làm
             submission.status = "draft"
 
@@ -123,11 +125,12 @@ def upload_submission_file(
     now = datetime.now()
     effective_deadline = _get_student_lab_deadline(lab, current_user.username)
 
+    if now > effective_deadline:
+        raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể tải tệp lên. Vui lòng yêu cầu gia hạn.")
+
     if submission:
         if submission.status == "graded":
             raise HTTPException(status_code=400, detail="Bài làm đã được chấm điểm, không thể tải tệp mới")
-        if submission.status == "submitted" and now > effective_deadline:
-            raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể thay đổi tệp đã nộp")
 
     # Gọi FileService để kiểm tra định dạng và làm sạch
     is_image = field_config.get("type") == "file" and file.filename.split('.')[-1].lower() in {'png', 'jpg', 'jpeg'}
@@ -207,10 +210,10 @@ def delete_submission_attachment(
     now = datetime.now()
     effective_deadline = _get_student_lab_deadline(lab, current_user.username)
 
+    if now > effective_deadline:
+        raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể xóa tệp đã nộp. Vui lòng yêu cầu gia hạn.")
     if submission.status == "graded":
         raise HTTPException(status_code=400, detail="Bài làm đã được chấm điểm, không thể xóa tệp")
-    if submission.status == "submitted" and now > effective_deadline:
-        raise HTTPException(status_code=400, detail="Bài lab đã hết hạn, không thể thay đổi tệp đã nộp")
 
     current_attachments = list(submission.file_attachments or [])
     updated_attachments = [a for a in current_attachments if not (a.get("field_id") == field_id and a.get("filepath") == filepath)]
@@ -278,22 +281,13 @@ def submit_lab(
     now = datetime.now()
     deadline = _get_student_lab_deadline(lab, current_user.username)
 
-    # Nếu đã nộp và quá hạn thì không cho nộp lại
-    if submission.status == "submitted" and now > deadline:
-        raise HTTPException(status_code=400, detail="Bài lab đã hết hạn nộp!")
+    if now > deadline:
+        raise HTTPException(
+            status_code=400, 
+            detail="Bài lab đã hết hạn nộp! Vui lòng gửi yêu cầu gia hạn tới giảng viên để được phép nộp bài."
+        )
 
     late_penalty = 0.0
-    if now > deadline:
-        late_policy = lab.late_policy or {}
-        if not late_policy.get("allow_late", True):
-            raise HTTPException(status_code=400, detail="Bài lab đã hết hạn nộp và không cho phép nộp muộn!")
-            
-        penalty_per_hour = late_policy.get("penalty_per_hour_percent", 0.0)
-        max_penalty = late_policy.get("max_penalty_percent", 0.0)
-        
-        hours_late = (now - deadline).total_seconds() / 3600.0
-        calculated_penalty = hours_late * penalty_per_hour
-        late_penalty = min(calculated_penalty, max_penalty)
 
     # 2. Thực hiện quét đạo văn (chỉ so khớp trên các trường tự luận)
     is_plagiarized, plagiarism_score, plagiarism_details = PlagiarismService.check_submission(

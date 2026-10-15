@@ -96,19 +96,154 @@ def update_class(
     if class_data.semester is not None:
         class_.semester = class_data.semester.strip() or "unknown"
 
+    if current_user.role == "admin" and class_data.is_blocked is not None:
+        class_.is_blocked = class_data.is_blocked
+
     db.commit()
     db.refresh(class_)
 
     log = AuditLog(
         user_id=current_user.id,
         action="update_class",
-        target=f"Updated class: {class_.name} (Semester: {class_.semester})",
+        target=f"Updated class: {class_.name} (Semester: {class_.semester}, Blocked: {class_.is_blocked})",
         ip_address=get_client_ip(request)
     )
     db.add(log)
     db.commit()
 
     return class_
+
+@router.post("/{class_id}/toggle-block", response_model=Dict[str, Any])
+def toggle_block_class(
+    class_id: int,
+    payload: Dict[str, Any], # {"is_blocked": bool, "stop_vms": bool}
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """API Admin chặn/mở chặn truy cập lớp học, có tùy chọn tắt ngay máy ảo của sinh viên trong lớp"""
+    class_ = db.query(Class).filter(Class.id == class_id).first()
+    if not class_:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    new_blocked_state = payload.get("is_blocked", not class_.is_blocked)
+    stop_vms = payload.get("stop_vms", False)
+
+    class_.is_blocked = new_blocked_state
+    db.commit()
+    db.refresh(class_)
+
+    stopped_count = 0
+    if new_blocked_state and stop_vms:
+        from app.services.vm_service import get_pve_client, control_student_vm, _is_vm_owned_by_student
+        class_students = [u.username for u in class_.users if u.role == "student"]
+        proxmox = get_pve_client()
+        if proxmox and class_students:
+            try:
+                resources = proxmox.cluster.resources.get(type="vm")
+                for res in resources:
+                    vmid = int(res.get("vmid", -1))
+                    status_vm = res.get("status")
+                    vm_name = res.get("name", "")
+                    if status_vm == "running" and any(_is_vm_owned_by_student(vm_name, stu) for stu in class_students):
+                        try:
+                            control_student_vm(vmid, "stop")
+                            stopped_count += 1
+                        except Exception:
+                            pass
+            except Exception as err:
+                pass
+
+    action_name = "BLOCK_CLASS" if new_blocked_state else "UNBLOCK_CLASS"
+    log = AuditLog(
+        user_id=current_user.id,
+        action=action_name,
+        target=f"{action_name} for class {class_.name} (Stopped VMs: {stopped_count})",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "is_blocked": class_.is_blocked,
+        "stopped_vms_count": stopped_count,
+        "message": f"{'Chặn' if class_.is_blocked else 'Mở chặn'} lớp {class_.name} thành công. (Đã tắt {stopped_count} máy ảo)"
+    }
+
+
+@router.post("/{class_id}/isolate-for-exam", response_model=Dict[str, Any])
+def isolate_class_for_exam(
+    class_id: int,
+    payload: Dict[str, Any], # {"stop_other_vms": bool}
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Kích hoạt chế độ thi / độc quyền cho lớp được chọn:
+    - Mở chặn lớp này (is_blocked = False).
+    - Tự động chặn TẤT CẢ các lớp còn lại (is_blocked = True).
+    - Tùy chọn tắt toàn bộ máy ảo của sinh viên thuộc các lớp bị chặn để giải phóng RAM/CPU.
+    """
+    target_class = db.query(Class).filter(Class.id == class_id).first()
+    if not target_class:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học")
+
+    stop_other_vms = payload.get("stop_other_vms", True)
+
+    # 1. Unblock target class
+    target_class.is_blocked = False
+
+    # 2. Block all other classes
+    other_classes = db.query(Class).filter(Class.id != class_id).all()
+    other_student_usernames = set()
+    target_student_usernames = {u.username for u in target_class.users if u.role == "student"}
+
+    for oc in other_classes:
+        oc.is_blocked = True
+        for u in oc.users:
+            if u.role == "student" and u.username not in target_student_usernames:
+                other_student_usernames.add(u.username)
+
+    db.commit()
+
+    stopped_count = 0
+    if stop_other_vms and other_student_usernames:
+        from app.services.vm_service import get_pve_client, control_student_vm, _is_vm_owned_by_student
+        proxmox = get_pve_client()
+        if proxmox:
+            try:
+                resources = proxmox.cluster.resources.get(type="vm")
+                for res in resources:
+                    vmid = int(res.get("vmid", -1))
+                    status_vm = res.get("status")
+                    vm_name = res.get("name", "")
+                    if status_vm == "running" and any(_is_vm_owned_by_student(vm_name, stu) for stu in other_student_usernames):
+                        try:
+                            control_student_vm(vmid, "stop")
+                            stopped_count += 1
+                        except Exception:
+                            pass
+            except Exception as err:
+                logger.error(f"[EXAM_MODE] Error stopping other VMs: {err}")
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="EXAM_MODE_ISOLATE",
+        target=f"Active class {target_class.name}, blocked {len(other_classes)} other classes (Stopped VMs: {stopped_count})",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "active_class": target_class.name,
+        "blocked_classes_count": len(other_classes),
+        "stopped_vms_count": stopped_count,
+        "message": f"Đã kích hoạt chế độ thi cho lớp '{target_class.name}'. Tự động chặn {len(other_classes)} lớp khác và tắt {stopped_count} máy ảo."
+    }
 
 @router.delete("/{class_id}", status_code=status.HTTP_200_OK)
 def delete_class(

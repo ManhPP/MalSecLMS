@@ -39,9 +39,12 @@ class Class(Base):
     semester = Column(String, default="unknown", server_default="unknown", index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
+    is_blocked = Column(Boolean, default=False, server_default='false', nullable=False)
+
     # Relationships
     users = relationship('User', secondary=user_class_association, back_populates='classes')
     labs = relationship('Lab', back_populates='class_', cascade='all, delete-orphan')
+    posts = relationship('ClassPost', back_populates='class_', cascade='all, delete-orphan', order_by='ClassPost.created_at.desc()')
 
 
 class Semester(Base):
@@ -115,6 +118,7 @@ class Lab(Base):
     class_ = relationship('Class', back_populates='labs')
     created_by = relationship('User')
     submissions = relationship('Submission', back_populates='lab', cascade='all, delete-orphan')
+    extension_requests = relationship('ExtensionRequest', back_populates='lab', cascade='all, delete-orphan')
 
 class Submission(Base):
     __tablename__ = 'submissions'
@@ -146,6 +150,72 @@ class Submission(Base):
     # Relationships
     lab = relationship('Lab', back_populates='submissions')
     student = relationship('User', back_populates='submissions')
+
+class ExtensionRequest(Base):
+    """Yêu cầu mở hạn nộp bài sau deadline của sinh viên gửi tới giảng viên"""
+    __tablename__ = 'extension_requests'
+
+    id = Column(Integer, primary_key=True, index=True)
+    lab_id = Column(Integer, ForeignKey('labs.id', ondelete='CASCADE'), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    reason = Column(String, nullable=False)
+    status = Column(String, default='pending', nullable=False) # pending, approved, rejected
+    granted_deadline = Column(DateTime, nullable=True)
+    response_note = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    responded_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    lab = relationship('Lab', back_populates='extension_requests')
+    student = relationship('User')
+
+
+class DirectMessage(Base):
+    """Tin nhắn riêng giữa sinh viên và giảng viên"""
+    __tablename__ = 'direct_messages'
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    recipient_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    content = Column(String, nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    # Relationships
+    sender = relationship('User', foreign_keys=[sender_id])
+    recipient = relationship('User', foreign_keys=[recipient_id])
+
+
+class ClassPost(Base):
+    """Bảng tin lớp học (Classroom Stream)"""
+    __tablename__ = 'class_posts'
+
+    id = Column(Integer, primary_key=True, index=True)
+    class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # Relationships
+    class_ = relationship('Class', back_populates='posts')
+    author = relationship('User')
+    comments = relationship('ClassComment', back_populates='post', cascade='all, delete-orphan', order_by='ClassComment.created_at.asc()')
+
+
+class ClassComment(Base):
+    """Bình luận trên bài đăng bảng tin lớp học"""
+    __tablename__ = 'class_comments'
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey('class_posts.id', ondelete='CASCADE'), nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # Relationships
+    post = relationship('ClassPost', back_populates='comments')
+    author = relationship('User')
+
 
 class AuditLog(Base):
     __tablename__ = 'audit_logs'

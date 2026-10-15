@@ -60,9 +60,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is disabled"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is disabled or locked by administrator"
         )
+    if user.role == "student" and user.classes:
+        all_blocked = all(getattr(c, 'is_blocked', False) for c in user.classes)
+        if all_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Lớp học của bạn đang tạm thời bị chặn truy cập để phục vụ thi/bảo trì hệ thống."
+            )
     return user
 
 class RoleChecker:
@@ -116,9 +123,16 @@ def get_current_user_flexible(request: Request, db: Session = Depends(get_db)) -
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is disabled"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is disabled or locked by administrator"
         )
+    if user.role == "student" and user.classes:
+        all_blocked = all(getattr(c, 'is_blocked', False) for c in user.classes)
+        if all_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Lớp học của bạn đang tạm thời bị chặn truy cập để phục vụ thi/bảo trì hệ thống."
+            )
     return user
 
 class FlexibleRoleChecker:

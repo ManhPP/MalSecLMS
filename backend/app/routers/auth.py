@@ -122,9 +122,23 @@ def login(login_data: LoginSchema, request: Request, db: Session = Depends(get_d
             f"[AUTH_FAILED] Reason: ACCOUNT_INACTIVE | Username='{cleaned_username}' (UserID: {user.id}) | IP: {client_ip}"
         )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is disabled"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản của bạn đã bị khóa hoặc tạm thời bị chặn truy cập hệ thống."
         )
+
+    # 5. Check if student's classes are blocked
+    if user.role == "student" and user.classes:
+        # If student belongs to classes and all their classes are blocked
+        all_blocked = all(getattr(c, 'is_blocked', False) for c in user.classes)
+        if all_blocked:
+            login_limiter.record_failure(client_ip, cleaned_username)
+            logger.warning(
+                f"[AUTH_FAILED] Reason: CLASS_BLOCKED | Username='{cleaned_username}' (UserID: {user.id}) | IP: {client_ip}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Lớp học của bạn đang tạm thời bị chặn truy cập để phục vụ thi/bảo trì hệ thống."
+            )
     
     # Successful login -> Reset failures
     login_limiter.reset_on_success(client_ip, cleaned_username)

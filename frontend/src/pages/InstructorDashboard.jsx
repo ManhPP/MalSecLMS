@@ -7,9 +7,11 @@ import {
   School, Users, Edit2, Trash2, Search, Lock, Unlock, Filter, Monitor, Play,
   Copy, Layers, ChevronDown, ChevronRight, Eye, ExternalLink, X, FileCheck, Maximize2,
   ChevronLeft, UserCheck, BarChart3, TrendingUp, Activity, CheckCircle2, AlertCircle,
-  Paperclip, Upload, HardDrive, FileArchive, Disc, Globe
+  Paperclip, Upload, HardDrive, FileArchive, Disc, Globe,
+  MessageSquare, MessageCircle, CornerDownLeft, Send
 } from 'lucide-react'
 import { renderAsync } from 'docx-preview'
+import { useAuth } from '../App.jsx'
 
 
 // --- CYBERPUNK MARKDOWN PARSER UTILITIES ---
@@ -510,6 +512,45 @@ export default function InstructorDashboard() {
   const [error, setError] = useState('')
   const [modalError, setModalError] = useState('')
 
+  const { user } = useAuth()
+
+  // Extension Requests State
+  const [showExtRequestsModal, setShowExtRequestsModal] = useState(false)
+  const [extRequestsLab, setExtRequestsLab] = useState(null)
+  const [extRequestsList, setExtRequestsList] = useState([])
+  const [extResponseDates, setExtResponseDates] = useState({})
+  const [extResponseNotes, setExtResponseNotes] = useState({})
+  const [extActionLoading, setExtActionLoading] = useState(false)
+
+  // Direct Messaging (Chat) State
+  const [showChatModal, setShowChatModal] = useState(false)
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0)
+  const [chatContacts, setChatContacts] = useState([])
+  const [activeContact, setActiveContact] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [availableRecipients, setAvailableRecipients] = useState([])
+  const [showNewChatPicker, setShowNewChatPicker] = useState(false)
+  const [searchRecipientQuery, setSearchRecipientQuery] = useState('')
+  const activeContactRef = useRef(null)
+  const showChatModalRef = useRef(false)
+  const messagesEndRef = useRef(null)
+
+  useEffect(() => {
+    activeContactRef.current = activeContact
+  }, [activeContact])
+
+  useEffect(() => {
+    showChatModalRef.current = showChatModal
+  }, [showChatModal])
+
+  // Classroom Stream Posts & Comments State
+  const [classPosts, setClassPosts] = useState([])
+  const [postContent, setPostContent] = useState('')
+  const [commentInputs, setCommentInputs] = useState({})
+  const [streamLoading, setStreamLoading] = useState(false)
+
   // Fetch Class Analytics (supports optional labId filter)
   const fetchClassAnalytics = async (classId, labId = '') => {
     if (!classId) return
@@ -558,6 +599,316 @@ export default function InstructorDashboard() {
       setError(err.message)
     } finally {
       setGradebookLoading(false)
+    }
+  }
+
+  // --- EXTENSION REQUEST HANDLERS (INSTRUCTOR) ---
+  const openExtRequestsModal = async (lab) => {
+    setExtRequestsLab(lab)
+    setShowExtRequestsModal(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/labs/${lab.id}/extension-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setExtRequestsList(await res.json())
+      }
+    } catch (e) {
+      console.error('Failed to fetch extension requests:', e)
+    }
+  }
+
+  const handleRespondExtensionRequest = async (requestId, approved) => {
+    setExtActionLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    const extendedDeadline = extResponseDates[requestId] || ''
+    const responseNote = extResponseNotes[requestId] || ''
+
+    if (approved && !extendedDeadline) {
+      alert('Please select a new extended deadline for the student.')
+      setExtActionLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/labs/extension-requests/${requestId}/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          approved,
+          extended_deadline: approved ? new Date(extendedDeadline).toISOString() : null,
+          response_note: responseNote
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to process extension request')
+      setSuccess(data.message || 'Updated extension request status successfully!')
+      if (extRequestsLab) {
+        openExtRequestsModal(extRequestsLab)
+      }
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setExtActionLoading(false)
+    }
+  }
+
+  // --- DIRECT MESSAGING (CHAT) HANDLERS ---
+  const fetchAvailableRecipients = async () => {
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/messages/available-recipients', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setAvailableRecipients(await res.json())
+      }
+    } catch (e) {
+      console.error('Failed to fetch available recipients:', e)
+    }
+  }
+
+  const openChatWith = async (contact = null) => {
+    setShowChatModal(true)
+    setShowNewChatPicker(false)
+    setSearchRecipientQuery('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      fetchAvailableRecipients()
+      const res = await fetch('/api/messages/contacts', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const contactList = await res.json()
+        setChatContacts(contactList)
+        if (contact) {
+          const target = contactList.find(c => c.id === contact.id) || contact
+          selectContact(target)
+        } else if (contactList.length > 0 && !activeContact) {
+          selectContact(contactList[0])
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch chat contacts:', e)
+    }
+  }
+
+  const startNewConversationWith = (recipient) => {
+    setShowNewChatPicker(false)
+    setSearchRecipientQuery('')
+    // Add to chatContacts if not already present
+    if (!chatContacts.some(c => c.id === recipient.id)) {
+      setChatContacts(prev => [recipient, ...prev])
+    }
+    selectContact(recipient)
+  }
+
+  const selectContact = async (contact) => {
+    setActiveContact(contact)
+    setChatLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/messages/conversation/${contact.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setChatMessages(await res.json())
+      }
+    } catch (e) {
+      console.error('Failed to fetch conversation:', e)
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    if (!chatInput.trim() || !activeContact) return
+    const content = chatInput.trim()
+    setChatInput('')
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch('/api/messages/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipient_id: activeContact.id,
+          content
+        })
+      })
+      if (res.ok) {
+        const newMsg = await res.json()
+        setChatMessages(prev => [...prev, newMsg])
+        // Refresh contact list to show updated conversation time
+        const contactRes = await fetch('/api/messages/contacts', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (contactRes.ok) setChatContacts(await contactRes.json())
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        alert(errData.detail || 'Failed to send message')
+      }
+    } catch (e) {
+      console.error('Failed to send message:', e)
+    }
+  }
+
+  const fetchUnreadCount = async () => {
+    const token = localStorage.getItem('malsec_token')
+    if (!token) return
+    try {
+      const res = await fetch('/api/messages/unread-count', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTotalUnreadCount(data.unread_count || 0)
+      }
+    } catch (e) {
+      // silent catch
+    }
+  }
+
+  // Periodic polling for unread count & active conversation updates
+  useEffect(() => {
+    fetchUnreadCount()
+    const timer = setInterval(async () => {
+      fetchUnreadCount()
+      const token = localStorage.getItem('malsec_token')
+      if (!token) return
+
+      // If chat modal is open, silently refresh active conversation & contacts
+      if (showChatModalRef.current) {
+        const currentTarget = activeContactRef.current
+        if (currentTarget) {
+          try {
+            const res = await fetch(`/api/messages/conversation/${currentTarget.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) {
+              const freshMsgs = await res.json()
+              setChatMessages(prev => {
+                const isDifferent = freshMsgs.length !== prev.length || 
+                  (freshMsgs.length > 0 && freshMsgs[freshMsgs.length - 1].id !== prev[prev.length - 1]?.id)
+                if (isDifferent) {
+                  setTimeout(() => {
+                    if (messagesEndRef.current) {
+                      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+                    }
+                  }, 50)
+                  return freshMsgs
+                }
+                return prev
+              })
+            }
+          } catch (e) {
+            // silent catch
+          }
+        }
+        try {
+          const contactRes = await fetch('/api/messages/contacts', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (contactRes.ok) {
+            const updatedContacts = await contactRes.json()
+            setChatContacts(updatedContacts)
+            // If no active contact is currently set but contacts exist, pick the first one
+            if (!activeContactRef.current && updatedContacts.length > 0) {
+              selectContact(updatedContacts[0])
+            }
+          }
+        } catch (e) {
+          // silent catch
+        }
+      }
+    }, 2500)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  // --- CLASSROOM STREAM (POSTS & COMMENTS) HANDLERS ---
+  const fetchClassPosts = async (classId) => {
+    setStreamLoading(true)
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/community/class/${classId}/posts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setClassPosts(await res.json())
+      }
+    } catch (e) {
+      console.error('Failed to fetch class stream:', e)
+    } finally {
+      setStreamLoading(false)
+    }
+  }
+
+  const handleCreatePost = async (e) => {
+    e.preventDefault()
+    if (!postContent.trim() || !selectedClass) return
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/community/class/${selectedClass.id}/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: postContent.trim() })
+      })
+      if (res.ok) {
+        setPostContent('')
+        fetchClassPosts(selectedClass.id)
+      }
+    } catch (e) {
+      console.error('Failed to create post:', e)
+    }
+  }
+
+  const handleAddComment = async (postId) => {
+    const text = (commentInputs[postId] || '').trim()
+    if (!text) return
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/community/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: text })
+      })
+      if (res.ok) {
+        setCommentInputs(prev => ({ ...prev, [postId]: '' }))
+        fetchClassPosts(selectedClass.id)
+      }
+    } catch (e) {
+      console.error('Failed to add comment:', e)
+    }
+  }
+
+  const handleDeletePost = async (postId) => {
+    if (!confirm('Are you sure you want to delete this post?')) return
+    const token = localStorage.getItem('malsec_token')
+    try {
+      const res = await fetch(`/api/community/posts/${postId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        fetchClassPosts(selectedClass.id)
+      }
+    } catch (e) {
+      console.error('Failed to delete post:', e)
     }
   }
 
@@ -777,7 +1128,7 @@ export default function InstructorDashboard() {
     // 6. Class Hub view via URL: ?classId=10&tab=labs (or students, analytics, gradebook)
     if (paramClassId) {
       if (viewState !== 'dashboard') setViewState('dashboard')
-      if (paramTab && ['labs', 'students', 'analytics', 'gradebook'].includes(paramTab)) {
+      if (paramTab && ['labs', 'students', 'analytics', 'gradebook', 'stream'].includes(paramTab)) {
         if (activeClassTab !== paramTab) setActiveClassTab(paramTab)
       }
       if (classes.length > 0) {
@@ -790,6 +1141,8 @@ export default function InstructorDashboard() {
           } else if (paramTab === 'gradebook') {
             setGradebookClassId(found.id)
             fetchClassGradebook(found.id)
+          } else if (paramTab === 'stream') {
+            fetchClassPosts(found.id)
           }
         }
       }
@@ -800,6 +1153,12 @@ export default function InstructorDashboard() {
       }
     }
   }, [classes, labs, allStudents, searchParams])
+
+  useEffect(() => {
+    if (selectedClass && activeClassTab === 'stream') {
+      fetchClassPosts(selectedClass.id)
+    }
+  }, [selectedClass, activeClassTab])
 
   // Listen to browser Back button so sub-views (grading, student_grading) and class hub return smoothly
   useEffect(() => {
@@ -2427,6 +2786,21 @@ export default function InstructorDashboard() {
                                       >
                                         <FileSpreadsheet size={12} style={{ marginRight: '3px' }} /> Gradebook
                                       </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          fetchClassDetails(cls.id)
+                                          setActiveClassTab('stream')
+                                          setSearchParams({ classId: cls.id, tab: 'stream' })
+                                          fetchClassPosts(cls.id)
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '4px 7px', fontSize: '11px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', whiteSpace: 'nowrap' }}
+                                        title="Classroom Stream & Discussion"
+                                      >
+                                        <MessageSquare size={12} style={{ marginRight: '3px' }} /> Stream
+                                      </button>
                                     </div>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: theme.accent, fontWeight: '600', fontSize: '12px', flexShrink: 0 }}>
@@ -2563,6 +2937,20 @@ export default function InstructorDashboard() {
                   >
                     <FileSpreadsheet size={15} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
                     Gradebook & Export
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveClassTab('stream')
+                      setSearchParams({ classId: selectedClass.id, tab: 'stream' })
+                      fetchClassPosts(selectedClass.id)
+                    }}
+                    className={`btn ${activeClassTab === 'stream' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '8px 16px', fontSize: '13px', fontWeight: activeClassTab === 'stream' ? '600' : '500' }}
+                  >
+                    <MessageSquare size={15} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+                    Classroom Stream & Discussion ({classPosts.length})
                   </button>
                 </div>
               </div>
@@ -2705,6 +3093,15 @@ export default function InstructorDashboard() {
                                       title="Preview Lab as Student (Test VM & Questions)"
                                     >
                                       <Eye size={15} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openExtRequestsModal(lab)}
+                                      className="btn-icon btn-secondary"
+                                      style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706' }}
+                                      title="Student Lab Deadline Extension Requests"
+                                    >
+                                      <Clock size={15} />
                                     </button>
                                     {lab.enable_vm !== false && (
                                       <button 
@@ -3451,6 +3848,177 @@ export default function InstructorDashboard() {
                       </div>
                     )
                   })()}
+                </div>
+              )}
+
+              {/* TAB CONTENT 5: CLASSROOM STREAM (POSTS & COMMENTS) */}
+              {activeClassTab === 'stream' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Create New Announcement/Post Box */}
+                  <div className="cyber-card" style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '16px', margin: '0 0 12px 0', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--neon-cyan)' }}>
+                      <MessageSquare size={18} /> Classroom Announcements ({selectedClass.name})
+                    </h3>
+                    <form onSubmit={handleCreatePost}>
+                      <textarea
+                        className="form-input"
+                        rows="3"
+                        placeholder="Post announcements, supplementary materials or instructions for all students in this class..."
+                        style={{ width: '100%', resize: 'vertical', marginBottom: '12px', fontFamily: 'inherit' }}
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="submit"
+                          className="btn btn-primary"
+                          style={{ padding: '6px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          disabled={!postContent.trim()}
+                        >
+                          <Send size={14} /> Post Announcement
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Posts List */}
+                  {streamLoading ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                      <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+                      <p>Loading classroom stream...</p>
+                    </div>
+                  ) : classPosts.length === 0 ? (
+                    <div className="cyber-card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                      <MessageSquare size={36} style={{ opacity: 0.3, marginBottom: '10px', color: 'var(--neon-cyan)' }} />
+                      <p style={{ margin: 0 }}>No announcements or posts in this class yet.</p>
+                    </div>
+                  ) : (
+                    classPosts.map(post => (
+                      <div key={post.id} className="cyber-card" style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              background: post.author_role === 'instructor' ? 'linear-gradient(135deg, #f59e0b, #ef4444)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#fff',
+                              fontWeight: 'bold',
+                              fontSize: '14px'
+                            }}>
+                              {(post.author_name || post.author_username || 'U')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px' }}>
+                                  {post.author_name || post.author_username}
+                                </span>
+                                {post.author_role === 'instructor' && (
+                                  <span className="badge" style={{ background: '#fef3c7', color: '#b45309', fontSize: '10px', fontWeight: 'bold', padding: '1px 6px' }}>
+                                    Instructor
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                {formatLocalTime(post.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                          {(post.author_id === user?.id || user?.role === 'admin' || user?.role === 'instructor') && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePost(post.id)}
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                              title="Delete post"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Post Content */}
+                        <div style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', marginBottom: '16px' }}>
+                          {post.content}
+                        </div>
+
+                        {/* Comments Section */}
+                        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                            {post.comments?.length || 0} comments
+                          </div>
+
+                          {/* Comment Items */}
+                          {(post.comments || []).map(comment => (
+                            <div key={comment.id} style={{ display: 'flex', gap: '10px', marginBottom: '10px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                background: comment.author_role === 'instructor' ? '#f59e0b' : '#3b82f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#fff',
+                                fontWeight: 'bold',
+                                fontSize: '11px',
+                                flexShrink: 0
+                              }}>
+                                {(comment.author_name || comment.author_username || 'U')[0].toUpperCase()}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                  <span style={{ fontWeight: '600', fontSize: '12.5px', color: 'var(--text-primary)' }}>
+                                    {comment.author_name || comment.author_username}
+                                  </span>
+                                  {comment.author_role === 'instructor' && (
+                                    <span className="badge" style={{ background: '#fef3c7', color: '#b45309', fontSize: '9px', padding: '0 4px' }}>
+                                      GV
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                    {formatLocalTime(comment.created_at)}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                  {comment.content}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Add Comment Input */}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Write a reply to students..."
+                              style={{ flex: 1, margin: 0, fontSize: '12.5px' }}
+                              value={commentInputs[post.id] || ''}
+                              onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleAddComment(post.id)
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAddComment(post.id)}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              disabled={!(commentInputs[post.id] || '').trim()}
+                            >
+                              <CornerDownLeft size={13} /> Send
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -7707,6 +8275,524 @@ export default function InstructorDashboard() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+      {/* INSTRUCTOR EXTENSION REQUESTS APPROVAL MODAL */}
+      {showExtRequestsModal && extRequestsLab && (
+        <div className="modal-overlay" style={{ zIndex: 9998, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)' }}>
+          <div className="modal-content" style={{ maxWidth: '780px', width: '92vw', background: '#ffffff', borderRadius: '12px', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={20} style={{ color: '#d97706' }} />
+                <div>
+                  <h3 style={{ fontSize: '17px', margin: 0, fontWeight: '700', color: '#0f172a' }}>
+                    Lab Deadline Extension Requests
+                  </h3>
+                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>
+                    Lab: <b>{extRequestsLab.title}</b> | Original Deadline: {formatLocalTime(extRequestsLab.deadline)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExtRequestsModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {extRequestsList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                  <Clock size={36} style={{ opacity: 0.3, marginBottom: '8px', color: '#d97706' }} />
+                  <p style={{ margin: 0 }}>No students have requested an extension for this lab.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {extRequestsList.map(req => {
+                    const isPending = req.status === 'pending'
+                    return (
+                      <div key={req.id} style={{
+                        padding: '16px',
+                        background: isPending ? '#fffbeb' : '#f8fafc',
+                        borderRadius: '8px',
+                        border: isPending ? '1px solid #fde68a' : '1px solid #e2e8f0'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '14px' }}>
+                              {req.student?.full_name || req.student_name || req.student?.username || req.student_username || `Student #${req.student_id}`}
+                            </span>
+                            <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                              ({req.student?.username || req.student_username || req.student_id})
+                            </span>
+                          </div>
+                          <span className={`badge ${
+                            req.status === 'approved' ? 'badge-submitted' :
+                            req.status === 'rejected' ? 'badge-resubmit' : 'badge-draft'
+                          }`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                            {req.status === 'approved' ? 'Approved' : req.status === 'rejected' ? 'Rejected' : 'Pending'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '13px', color: '#334155', marginBottom: '10px' }}>
+                          <b>Reason:</b> {req.reason}
+                        </div>
+
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '10px' }}>
+                          Submitted: {formatLocalTime(req.created_at)}
+                        </div>
+
+                        {req.status === 'approved' && (
+                          <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: '6px', fontSize: '12.5px', color: '#15803d' }}>
+                            ✓ Extended deadline granted until: <b>{formatLocalTime(req.granted_deadline || req.extended_deadline)}</b>
+                            {req.response_note && <div style={{ marginTop: '2px' }}>Note: {req.response_note}</div>}
+                          </div>
+                        )}
+
+                        {req.status === 'rejected' && (
+                          <div style={{ padding: '8px 12px', background: '#fee2e2', borderRadius: '6px', fontSize: '12.5px', color: '#b91c1c' }}>
+                            ✗ Extension request was rejected
+                            {req.response_note && <div style={{ marginTop: '2px' }}>Reason: {req.response_note}</div>}
+                          </div>
+                        )}
+
+                        {isPending && (
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                                  New Deadline for Student <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <input
+                                  type="datetime-local"
+                                  className="form-input"
+                                  style={{ margin: 0, fontSize: '12.5px', padding: '5px 8px' }}
+                                  value={extResponseDates[req.id] || ''}
+                                  onChange={(e) => setExtResponseDates({ ...extResponseDates, [req.id]: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                                  Note to Student
+                                </label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  placeholder="Optional note (e.g., Submit on time)..."
+                                  style={{ margin: 0, fontSize: '12.5px', padding: '5px 8px' }}
+                                  value={extResponseNotes[req.id] || ''}
+                                  onChange={(e) => setExtResponseNotes({ ...extResponseNotes, [req.id]: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRespondExtensionRequest(req.id, false)}
+                                className="btn btn-secondary"
+                                style={{ padding: '5px 12px', fontSize: '12px', color: '#dc2626', borderColor: '#fca5a5' }}
+                                disabled={extActionLoading}
+                              >
+                                Reject
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRespondExtensionRequest(req.id, true)}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 16px', fontSize: '12px', background: '#059669', borderColor: '#059669', color: '#fff' }}
+                                disabled={extActionLoading}
+                              >
+                                Approve Extension
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => setShowExtRequestsModal(false)}
+                className="btn btn-secondary"
+                style={{ padding: '6px 18px', fontSize: '12.5px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING DIRECT MESSAGE (CHAT) BUTTON */}
+      <button
+        type="button"
+        onClick={() => openChatWith()}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+          border: 'none',
+          boxShadow: '0 8px 24px rgba(0, 242, 254, 0.4)',
+          color: '#000',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 990,
+          transition: 'transform 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.08)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        title="Direct Message Students"
+      >
+        <MessageCircle size={26} />
+        {totalUnreadCount > 0 && (
+          <span style={{
+            position: 'absolute',
+            top: '-3px',
+            right: '-3px',
+            background: '#ef4444',
+            color: '#ffffff',
+            fontSize: '11px',
+            fontWeight: '700',
+            borderRadius: '10px',
+            minWidth: '20px',
+            height: '20px',
+            padding: '0 5px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.7)',
+            border: '2px solid #0f172a'
+          }}>
+            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* DIRECT MESSAGE (CHAT) MODAL */}
+      {showChatModal && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setShowChatModal(false)}
+          style={{ zIndex: 9999, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)' }}
+        >
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '880px',
+              width: '92vw',
+              height: '75vh',
+              maxHeight: '650px',
+              display: 'flex',
+              background: '#ffffff',
+              borderRadius: '14px',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
+              overflow: 'hidden',
+              padding: 0
+            }}
+          >
+            {/* Left Column: Contacts List */}
+            <div style={{
+              width: '300px',
+              borderRight: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#f8fafc'
+            }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: '700', fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MessageSquare size={17} style={{ color: '#0284c7' }} /> Messages
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowNewChatPicker(!showNewChatPicker)}
+                  className="btn btn-primary"
+                  style={{ padding: '4px 9px', fontSize: '11.5px', background: '#0284c7', borderColor: '#0284c7' }}
+                  title="Start a new direct message"
+                >
+                  {showNewChatPicker ? 'Cancel' : '+ New Chat'}
+                </button>
+              </div>
+
+              {/* New Conversation Picker Dropdown */}
+              {showNewChatPicker ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Search student to message..."
+                      style={{ margin: 0, padding: '6px 10px', fontSize: '12px' }}
+                      value={searchRecipientQuery}
+                      onChange={(e) => setSearchRecipientQuery(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {(() => {
+                      const filtered = availableRecipients.filter(r => 
+                        !searchRecipientQuery ||
+                        (r.full_name && r.full_name.toLowerCase().includes(searchRecipientQuery.toLowerCase())) ||
+                        (r.username && r.username.toLowerCase().includes(searchRecipientQuery.toLowerCase())) ||
+                        (r.class_name && r.class_name.toLowerCase().includes(searchRecipientQuery.toLowerCase()))
+                      )
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '12.5px' }}>
+                            No students found
+                          </div>
+                        )
+                      }
+                      return filtered.map(r => (
+                        <div
+                          key={r.id}
+                          onClick={() => startNewConversationWith(r)}
+                          style={{
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f8fafc',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: '#3b82f6',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '12px',
+                            flexShrink: 0
+                          }}>
+                            {(r.full_name || r.username)[0].toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: '600', fontSize: '12.5px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.full_name || r.username}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {r.class_name || r.username}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {chatContacts.length === 0 ? (
+                    <div style={{ padding: '36px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                      <p style={{ margin: '0 0 10px 0' }}>No active conversations yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewChatPicker(true)}
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        + Start New Chat
+                      </button>
+                    </div>
+                  ) : (
+                    chatContacts.map(c => {
+                      const isSelected = activeContact?.id === c.id
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => selectContact(c)}
+                          style={{
+                            padding: '12px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            background: isSelected ? '#e0f2fe' : 'transparent',
+                            borderLeft: isSelected ? '4px solid #0284c7' : '4px solid transparent',
+                            transition: 'background 0.15s'
+                          }}
+                        >
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: c.role === 'admin' ? '#ef4444' : c.role === 'instructor' || c.role === 'lecturer' ? '#f59e0b' : '#3b82f6',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '13px',
+                            flexShrink: 0
+                          }}>
+                            {(c.full_name || c.username)[0].toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontWeight: '600', fontSize: '13px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {c.full_name || c.username}
+                              </div>
+                              {c.unread_count > 0 && (
+                                <span style={{ background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold' }}>
+                                  {c.unread_count}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {c.last_message || (c.role === 'student' ? `Student: ${c.username}` : c.role)}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Chat Conversation */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+              {activeContact ? (
+                <>
+                  {/* Chat Header */}
+                  <div style={{ padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '50%',
+                        background: activeContact.role === 'admin' ? '#ef4444' : activeContact.role === 'instructor' || activeContact.role === 'lecturer' ? '#f59e0b' : '#3b82f6',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold',
+                        fontSize: '13px'
+                      }}>
+                        {(activeContact.full_name || activeContact.username)[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '14px', color: '#0f172a' }}>
+                          {activeContact.full_name || activeContact.username}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          {activeContact.role === 'student' ? `Student (${activeContact.username})` : activeContact.role}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowChatModal(false)}
+                      style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Messages Scroll Area */}
+                  <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {chatLoading ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                        <RefreshCw size={20} className="spin" style={{ marginBottom: '6px' }} />
+                        <p style={{ margin: 0 }}>Loading messages...</p>
+                      </div>
+                    ) : chatMessages.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: '13px' }}>
+                        No messages yet. Send a message to start conversation with {activeContact.full_name || activeContact.username}!
+                      </div>
+                    ) : (
+                      chatMessages.map(msg => {
+                        const isMe = msg.sender_id === user?.id
+                        return (
+                          <div
+                            key={msg.id}
+                            style={{
+                              alignSelf: isMe ? 'flex-end' : 'flex-start',
+                              maxWidth: '70%',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: isMe ? 'flex-end' : 'flex-start'
+                            }}
+                          >
+                            <div style={{
+                              padding: '10px 14px',
+                              borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
+                              background: isMe ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f1f5f9',
+                              color: isMe ? '#ffffff' : '#0f172a',
+                              fontSize: '13.5px',
+                              lineHeight: '1.5',
+                              wordBreak: 'break-word',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                            }}>
+                              {msg.content}
+                            </div>
+                            <span style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '3px', padding: '0 4px' }}>
+                              {formatLocalTime(msg.created_at)}
+                            </span>
+                          </div>
+                        )
+                      })
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  {/* Message Input Box */}
+                  <form onSubmit={handleSendMessage} style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder={`Message ${activeContact.full_name || activeContact.username}...`}
+                      style={{ flex: 1, margin: 0, fontSize: '13px' }}
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                      disabled={!chatInput.trim()}
+                    >
+                      <Send size={14} /> Send
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexDirection: 'column', gap: '8px', position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowChatModal(false)}
+                    style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '6px' }}
+                    title="Close"
+                  >
+                    <X size={20} />
+                  </button>
+                  <MessageSquare size={36} style={{ opacity: 0.4 }} />
+                  <p style={{ margin: 0 }}>Select a contact or click "+ New Chat" to start messaging</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.models import User
 from app.security import get_password_hash
-from app.routers import auth, users, classes, labs, submissions, admin, configuration, semesters
+from app.routers import auth, users, classes, labs, submissions, admin, configuration, semesters, messages, community
 from app.logging_config import setup_logging, logger
 from app.request_utils import get_client_ip, extract_user_from_request
 
@@ -33,6 +33,7 @@ for i in range(5):
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS cpu_cores INTEGER;"))
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS ram_mb INTEGER;"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS semester VARCHAR DEFAULT 'unknown';"))
+            conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("UPDATE classes SET semester = 'unknown' WHERE semester IS NULL;"))
             # Auto-seed semesters table from classes table if empty
             conn.execute(text("""
@@ -192,6 +193,8 @@ app.include_router(submissions.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(configuration.router, prefix="/api")
 app.include_router(semesters.router, prefix="/api")
+app.include_router(messages.router, prefix="/api")
+app.include_router(community.router, prefix="/api")
 
 @app.get("/")
 def read_root():

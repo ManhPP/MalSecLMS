@@ -3,7 +3,7 @@ import {
   Users, School, ShieldAlert, FileSpreadsheet, Plus, Edit2, 
   Trash2, ShieldCheck, Lock, Unlock, Key, RefreshCw, UploadCloud, Monitor, Play, Calendar, Check,
   HardDrive, Disc, FileArchive, Upload, Download, AlertTriangle,
-  Search, ChevronDown, ChevronRight, Folder, FolderPlus
+  Search, ChevronDown, ChevronRight, Folder, FolderPlus, PowerOff, Ban
 } from 'lucide-react'
 
 // --- TIMEZONE & DATE FORMATTING HELPER (LOCAL ASIA/HO_CHI_MINH) ---
@@ -424,6 +424,115 @@ export default function AdminDashboard() {
       if (selectedClass?.id === classId) {
         setSelectedClass(null)
       }
+      fetchData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleToggleBlockClass = async (cls) => {
+    const willBlock = !cls.is_blocked
+    let stopVms = false
+    if (willBlock) {
+      stopVms = confirm(
+        `[BLOCK CLASS ACCESS]\nDo you want to automatically STOP ALL VMs of students in class "${cls.name}" now to free up RAM/CPU resources for maintenance/exams?\n\n- Click OK: Block Access + STOP ALL VMs\n- Click Cancel: Block Access Only (keep VMs running)`
+      )
+    } else {
+      if (!confirm(`Confirm unblocking access for class "${cls.name}"?`)) return
+    }
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/classes/${cls.id}/toggle-block`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_blocked: willBlock, stop_vms: stopVms })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to update class block status')
+
+      setSuccess(data.message || 'Updated class block status successfully!')
+      fetchData()
+      if (selectedClass?.id === cls.id) {
+        setSelectedClass(prev => prev ? { ...prev, is_blocked: willBlock } : null)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleIsolateClassForExam = async (cls) => {
+    const stopOtherVMs = confirm(
+      `[EXAM MODE - DEDICATED TO CLASS: "${cls.name}"]\n\nThe system will:\n1. Enable access for class "${cls.name}".\n2. AUTOMATICALLY BLOCK ALL other classes (students from other classes will be disconnected).\n\nDo you want to STOP ALL VMs of students in other blocked classes to allocate 100% RAM/CPU for this exam?\n\n- Click OK: Block All Other Classes + STOP ALL Their VMs\n- Click Cancel: Block All Other Classes Only (keep VMs running)`
+    )
+
+    if (!confirm(`Confirm enabling Exam Mode for class "${cls.name}"?`)) return
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/classes/${cls.id}/isolate-for-exam`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ stop_other_vms: stopOtherVMs })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to activate Exam Mode')
+
+      setSuccess(data.message || 'Activated Exam Mode successfully!')
+      fetchData()
+      if (selectedClass?.id === cls.id) {
+        setSelectedClass(prev => prev ? { ...prev, is_blocked: false } : null)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleToggleUserActive = async (targetUser) => {
+    const willLock = targetUser.is_active
+    const confirmMsg = willLock
+      ? `Lock account "${targetUser.username}"?\nThis user will be disconnected and their running VM will be shut down.`
+      : `Unlock and activate account "${targetUser.username}"?`
+    if (!confirm(confirmMsg)) return
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/users/${targetUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_active: !willLock })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Action failed')
+
+      setSuccess(`Successfully ${willLock ? 'locked' : 'unlocked'} account ${targetUser.username}!`)
       fetchData()
     } catch (err) {
       setError(err.message)
@@ -1057,6 +1166,14 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
+                          <button 
+                            onClick={() => handleToggleUserActive(u)} 
+                            className={`btn ${u.is_active ? 'btn-secondary' : 'btn-success'}`} 
+                            style={{ padding: '6px 10px', marginRight: '6px', color: u.is_active ? 'var(--neon-ruby)' : '#10b981' }} 
+                            title={u.is_active ? "Lock account & Stop VM" : "Unlock account"}
+                          >
+                            {u.is_active ? <Ban size={13} /> : <Unlock size={13} />}
+                          </button>
                           <button onClick={() => handleOpenUserModal(u)} className="btn btn-secondary" style={{ padding: '6px 10px', marginRight: '6px' }} title="Edit">
                             <Edit2 size={13} />
                           </button>
@@ -1235,14 +1352,41 @@ export default function AdminDashboard() {
                                       borderLeft: selectedClass?.id === c.id ? '3px solid var(--neon-cyan)' : 'none'
                                     }}
                                   >
-                                    <td style={{ fontWeight: '600', color: 'var(--neon-cyan)' }}>
+                                    <td style={{ fontWeight: '600', color: c.is_blocked ? 'var(--neon-ruby)' : 'var(--neon-cyan)' }}>
                                       {c.name}
+                                      {c.is_blocked && (
+                                        <span className="badge" style={{ marginLeft: '6px', background: '#fee2e2', color: '#dc2626', fontSize: '10px', padding: '1px 5px' }}>
+                                          ⛔ Blocked
+                                        </span>
+                                      )}
                                     </td>
                                     <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                                       {c.description || '—'}
                                     </td>
                                     <td style={{ textAlign: 'right' }}>
                                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleIsolateClassForExam(c)
+                                          }} 
+                                          className="btn btn-primary" 
+                                          style={{ padding: '3px 7px', fontSize: '11px', background: '#7c3aed', borderColor: '#6d28d9', color: '#fff' }}
+                                          title="Exam Mode: Dedicate all resources to this class, automatically block all other classes & stop other VMs"
+                                        >
+                                          ⚡ Exam
+                                        </button>
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleToggleBlockClass(c)
+                                          }} 
+                                          className={`btn ${c.is_blocked ? 'btn-success' : 'btn-secondary'}`} 
+                                          style={{ padding: '3px 6px', fontSize: '11px', color: c.is_blocked ? '#10b981' : '#dc2626' }}
+                                          title={c.is_blocked ? "Unblock class access" : "Block class access & stop student VMs"}
+                                        >
+                                          {c.is_blocked ? <Unlock size={11} /> : <Ban size={11} />}
+                                        </button>
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation()
@@ -1285,9 +1429,42 @@ export default function AdminDashboard() {
           <div className="cyber-card">
             {selectedClass ? (
               <div>
-                <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                  Class: {selectedClass.name}
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', margin: 0 }}>
+                      Class: {selectedClass.name}
+                    </h3>
+                    {selectedClass.is_blocked ? (
+                      <span className="badge" style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 'bold', padding: '3px 8px' }}>
+                        ⛔ Access Blocked (Exam / Maintenance)
+                      </span>
+                    ) : (
+                      <span className="badge" style={{ background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0', fontSize: '11px', fontWeight: '500', padding: '3px 8px' }}>
+                        ✅ Active
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleIsolateClassForExam(selectedClass)}
+                      className="btn btn-primary"
+                      style={{ padding: '6px 14px', fontSize: '12px', background: '#7c3aed', borderColor: '#6d28d9', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      disabled={actionLoading}
+                      title="Dedicate all resources to this class, automatically block all other classes & stop other VMs"
+                    >
+                      ⚡ Activate Exam Mode (Auto-Block Others)
+                    </button>
+                    <button
+                      onClick={() => handleToggleBlockClass(selectedClass)}
+                      className={`btn ${selectedClass.is_blocked ? 'btn-success' : 'btn-danger'}`}
+                      style={{ padding: '6px 14px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      disabled={actionLoading}
+                    >
+                      {selectedClass.is_blocked ? <Unlock size={14} /> : <Ban size={14} />}
+                      {selectedClass.is_blocked ? 'Unblock Class Access' : 'Block Class & Stop VMs'}
+                    </button>
+                  </div>
+                </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', marginBottom: '24px' }}>
                   {selectedClass.description}
                 </p>
@@ -1537,6 +1714,7 @@ export default function AdminDashboard() {
                               <th>Student ID (Username)</th>
                               <th>Full Name</th>
                               <th>Email</th>
+                              <th>Status</th>
                               <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                           </thead>
@@ -1548,13 +1726,33 @@ export default function AdminDashboard() {
                                   <td style={{ fontFamily: 'var(--font-mono)' }}>{student.username}</td>
                                   <td style={{ fontWeight: '500' }}>{student.full_name}</td>
                                   <td>{student.email || '—'}</td>
+                                  <td>
+                                    <span style={{ 
+                                      color: student.is_active ? 'var(--neon-emerald)' : 'var(--neon-ruby)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontSize: '12px'
+                                    }}>
+                                      {student.is_active ? <Unlock size={12} /> : <Lock size={12} />}
+                                      {student.is_active ? 'Active' : 'Locked'}
+                                    </span>
+                                  </td>
                                   <td style={{ textAlign: 'right' }}>
+                                    <button 
+                                      onClick={() => handleToggleUserActive(student)} 
+                                      className={`btn ${student.is_active ? 'btn-secondary' : 'btn-success'}`} 
+                                      style={{ padding: '4px 8px', fontSize: '11px', marginRight: '6px', color: student.is_active ? 'var(--neon-ruby)' : '#10b981' }} 
+                                      title={student.is_active ? "Lock student account & Stop VM" : "Unlock student"}
+                                    >
+                                      {student.is_active ? <Ban size={11} /> : <Unlock size={11} />}
+                                    </button>
                                     <button 
                                       onClick={() => handleRemoveStudentFromClass(student.id)} 
                                       className="btn btn-danger" 
                                       style={{ padding: '4px 8px', fontSize: '11px' }}
                                     >
-                                      Remove from Class
+                                      Remove
                                     </button>
                                   </td>
                                 </tr>
