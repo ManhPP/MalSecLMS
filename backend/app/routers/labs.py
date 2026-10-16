@@ -11,7 +11,7 @@ from app.config import settings
 from app.logging_config import logger
 from app.models import Lab, User, Class, AuditLog, VmToolFile, ExtensionRequest
 from app.request_utils import get_client_ip
-from app.schemas import LabOut, LabCreate, LabUpdate, LabClone, ExtensionRequestCreate, ExtensionRequestRespond, ExtensionRequestOut
+from app.schemas import LabOut, LabCreate, LabUpdate, LabClone, ExtensionRequestCreate, ExtensionRequestRespond, ExtensionRequestBatchRespond, ExtensionRequestOut
 from app.security import require_lecturer, require_student, get_current_user, require_any_user
 from app.services.file_service import FileService
 
@@ -696,7 +696,85 @@ def respond_extension_request(
     return {
         "success": True, 
         "status": ext_req.status,
-        "message": f"Đã {'chấp thuận' if ext_req.status == 'approved' else 'từ chối'} yêu cầu gia hạn của sinh viên {student.username}."
+        "message": f"Successfully {'approved' if ext_req.status == 'approved' else 'rejected'} deadline extension request for {student.username}."
+    }
+
+@router.post("/{lab_id}/extension-requests/batch-respond", response_model=Dict[str, Any])
+def batch_respond_extension_requests(
+    lab_id: int,
+    payload: ExtensionRequestBatchRespond,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_lecturer)
+):
+    """API Giảng viên/Admin phê duyệt hoặc từ chối hàng loạt yêu cầu gia hạn của bài lab"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab assignment not found")
+
+    if current_user.role == "lecturer":
+        class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
+        if not class_exists or current_user not in class_exists.users:
+            raise HTTPException(status_code=403, detail="You do not manage the class containing this lab assignment")
+
+    # Tìm các requests cần xử lý
+    query = db.query(ExtensionRequest).options(joinedload(ExtensionRequest.student)).filter(
+        ExtensionRequest.lab_id == lab_id,
+        ExtensionRequest.status == "pending"
+    )
+    if payload.request_ids:
+        query = query.filter(ExtensionRequest.id.in_(payload.request_ids))
+    
+    requests_to_process = query.all()
+    if not requests_to_process:
+        return {
+            "success": True,
+            "processed_count": 0,
+            "message": "No pending extension requests found to process."
+        }
+
+    now = datetime.now()
+    new_deadline = payload.granted_deadline
+    if payload.status == "approved" and not new_deadline:
+        new_deadline = now + timedelta(days=1)
+
+    current_exts = dict(lab.individual_extensions or {})
+    processed_usernames = []
+
+    for req_item in requests_to_process:
+        req_item.status = payload.status
+        req_item.response_note = payload.response_note
+        req_item.responded_at = now
+
+        if payload.status == "approved":
+            req_item.granted_deadline = new_deadline
+            if req_item.student and req_item.student.username:
+                current_exts[req_item.student.username] = new_deadline.isoformat()
+                processed_usernames.append(req_item.student.username)
+        else:
+            req_item.granted_deadline = None
+            if req_item.student and req_item.student.username:
+                processed_usernames.append(req_item.student.username)
+
+    if payload.status == "approved":
+        lab.individual_extensions = current_exts
+
+    db.commit()
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action=f"extension_request_batch_{payload.status}",
+        target=f"Batch {payload.status} {len(requests_to_process)} extension requests for Lab {lab.id} (Students: {', '.join(processed_usernames[:10])})",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "processed_count": len(requests_to_process),
+        "status": payload.status,
+        "message": f"Successfully {'approved' if payload.status == 'approved' else 'rejected'} {len(requests_to_process)} extension requests."
     }
 
 # --- PROXMOX & GUACAMOLE VM ENDPOINTS ---

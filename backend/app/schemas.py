@@ -93,6 +93,12 @@ class ExtensionRequestRespond(BaseModel):
     granted_deadline: Optional[datetime] = None
     response_note: Optional[str] = None
 
+class ExtensionRequestBatchRespond(BaseModel):
+    request_ids: Optional[List[int]] = None # If None or empty, applies to all pending requests in the lab
+    status: Literal["approved", "rejected"]
+    granted_deadline: Optional[datetime] = None
+    response_note: Optional[str] = None
+
 class ExtensionRequestOut(BaseModel):
     id: int
     lab_id: int

@@ -521,6 +521,9 @@ export default function InstructorDashboard() {
   const [extResponseDates, setExtResponseDates] = useState({})
   const [extResponseNotes, setExtResponseNotes] = useState({})
   const [extActionLoading, setExtActionLoading] = useState(false)
+  const [batchExtendedDeadline, setBatchExtendedDeadline] = useState('')
+  const [batchResponseNote, setBatchResponseNote] = useState('')
+  const [selectedExtRequestIds, setSelectedExtRequestIds] = useState([])
 
   // Direct Messaging (Chat) State
   const [showChatModal, setShowChatModal] = useState(false)
@@ -665,6 +668,73 @@ export default function InstructorDashboard() {
       fetchData()
     } catch (err) {
       setError(err.message || 'Failed to process extension request')
+    } finally {
+      setExtActionLoading(false)
+    }
+  }
+
+  const handleBatchRespondExtensionRequests = async (approved) => {
+    if (!extRequestsLab) return
+    setError('')
+    setSuccess('')
+
+    if (approved && !batchExtendedDeadline) {
+      alert('Please select a common extended deadline for all requests.')
+      return
+    }
+
+    const pendingRequests = extRequestsList.filter(r => r.status === 'pending')
+    if (pendingRequests.length === 0) {
+      alert('There are no pending extension requests to process.')
+      return
+    }
+
+    const targetIds = selectedExtRequestIds.length > 0
+      ? selectedExtRequestIds
+      : pendingRequests.map(r => r.id)
+
+    const confirmMsg = approved
+      ? `Approve extension for ${targetIds.length} student request(s) until ${formatLocalTime(new Date(batchExtendedDeadline).toISOString())}?`
+      : `Reject ${targetIds.length} extension request(s)?`
+    if (!confirm(confirmMsg)) return
+
+    setExtActionLoading(true)
+    const token = localStorage.getItem('malsec_token')
+
+    try {
+      const res = await fetch(`/api/labs/${extRequestsLab.id}/extension-requests/batch-respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          request_ids: targetIds,
+          status: approved ? 'approved' : 'rejected',
+          granted_deadline: approved ? new Date(batchExtendedDeadline).toISOString() : null,
+          response_note: batchResponseNote || null
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        let errDetail = 'Failed to batch process extension requests'
+        if (typeof data.detail === 'string') {
+          errDetail = data.detail
+        } else if (Array.isArray(data.detail)) {
+          errDetail = data.detail.map(d => `${d.loc ? d.loc.join('.') : ''}: ${d.msg}`).join(', ')
+        } else if (data.detail && typeof data.detail === 'object') {
+          errDetail = JSON.stringify(data.detail)
+        }
+        throw new Error(errDetail)
+      }
+      setSuccess(data.message || `Batch processed ${targetIds.length} extension request(s) successfully!`)
+      setSelectedExtRequestIds([])
+      if (extRequestsLab) {
+        openExtRequestsModal(extRequestsLab)
+      }
+      fetchData()
+    } catch (err) {
+      setError(err.message || 'Failed to batch process extension requests')
     } finally {
       setExtActionLoading(false)
     }
@@ -8329,6 +8399,100 @@ export default function InstructorDashboard() {
               </div>
             )}
 
+            {/* Batch Action Toolbar */}
+            {extRequestsList.some(r => r.status === 'pending') && (
+              <div style={{
+                padding: '14px 16px',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="select-all-pending-ext"
+                      checked={
+                        extRequestsList.filter(r => r.status === 'pending').length > 0 &&
+                        selectedExtRequestIds.length === extRequestsList.filter(r => r.status === 'pending').length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedExtRequestIds(extRequestsList.filter(r => r.status === 'pending').map(r => r.id))
+                        } else {
+                          setSelectedExtRequestIds([])
+                        }
+                      }}
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                    />
+                    <label htmlFor="select-all-pending-ext" style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', cursor: 'pointer', margin: 0 }}>
+                      Batch Process Pending Requests ({selectedExtRequestIds.length > 0 ? `${selectedExtRequestIds.length} selected` : 'Select All / Process All'})
+                    </label>
+                  </div>
+                  {selectedExtRequestIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExtRequestIds([])}
+                      style={{ background: 'transparent', border: 'none', color: '#0284c7', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Deselect
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr auto', gap: '10px', alignItems: 'end' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      Common Extended Deadline <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="form-input"
+                      style={{ margin: 0, fontSize: '12.5px', padding: '6px 8px' }}
+                      value={batchExtendedDeadline}
+                      onChange={(e) => setBatchExtendedDeadline(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      Batch Note to Students (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g., Extension granted for all students..."
+                      style={{ margin: 0, fontSize: '12.5px', padding: '6px 8px' }}
+                      value={batchResponseNote}
+                      onChange={(e) => setBatchResponseNote(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleBatchRespondExtensionRequests(true)}
+                      className="btn btn-primary"
+                      style={{ padding: '6px 14px', fontSize: '12.5px', background: '#059669', borderColor: '#059669', color: '#fff', whiteSpace: 'nowrap' }}
+                      disabled={extActionLoading}
+                      title="Approve all selected or all pending requests"
+                    >
+                      ✓ Approve All {selectedExtRequestIds.length > 0 ? `(${selectedExtRequestIds.length})` : ''}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBatchRespondExtensionRequests(false)}
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 14px', fontSize: '12.5px', color: '#dc2626', borderColor: '#fca5a5', whiteSpace: 'nowrap' }}
+                      disabled={extActionLoading}
+                      title="Reject all selected or all pending requests"
+                    >
+                      ✗ Reject All {selectedExtRequestIds.length > 0 ? `(${selectedExtRequestIds.length})` : ''}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {extRequestsList.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
@@ -8339,21 +8503,39 @@ export default function InstructorDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {extRequestsList.map(req => {
                     const isPending = req.status === 'pending'
+                    const isSelected = selectedExtRequestIds.includes(req.id)
                     return (
                       <div key={req.id} style={{
                         padding: '16px',
-                        background: isPending ? '#fffbeb' : '#f8fafc',
+                        background: isPending ? (isSelected ? '#fef3c7' : '#fffbeb') : '#f8fafc',
                         borderRadius: '8px',
-                        border: isPending ? '1px solid #fde68a' : '1px solid #e2e8f0'
+                        border: isPending ? (isSelected ? '1.5px solid #f59e0b' : '1px solid #fde68a') : '1px solid #e2e8f0',
+                        transition: 'background 0.15s, border-color 0.15s'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                          <div>
-                            <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '14px' }}>
-                              {req.student?.full_name || req.student_name || req.student?.username || req.student_username || `Student #${req.student_id}`}
-                            </span>
-                            <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
-                              ({req.student?.username || req.student_username || req.student_id})
-                            </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {isPending && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedExtRequestIds(prev => [...prev, req.id])
+                                  } else {
+                                    setSelectedExtRequestIds(prev => prev.filter(id => id !== req.id))
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                              />
+                            )}
+                            <div>
+                              <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '14px' }}>
+                                {req.student?.full_name || req.student_name || req.student?.username || req.student_username || `Student #${req.student_id}`}
+                              </span>
+                              <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                                ({req.student?.username || req.student_username || req.student_id})
+                              </span>
+                            </div>
                           </div>
                           <span className={`badge ${
                             req.status === 'approved' ? 'badge-submitted' :
