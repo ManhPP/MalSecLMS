@@ -639,8 +639,8 @@ export default function InstructorDashboard() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          approved,
-          extended_deadline: approved ? new Date(extendedDeadline).toISOString() : null,
+          status: approved ? 'approved' : 'rejected',
+          granted_deadline: approved ? new Date(extendedDeadline).toISOString() : null,
           response_note: responseNote
         })
       })

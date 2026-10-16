@@ -74,6 +74,8 @@ def save_draft(
             detail="Bài lab đã hết hạn nộp. Vui lòng gửi yêu cầu gia hạn tới giảng viên để được phép làm bài tiếp."
         )
 
+    answers = payload.get("answers", {})
+
     if not submission:
         submission = Submission(
             lab_id=lab_id,
