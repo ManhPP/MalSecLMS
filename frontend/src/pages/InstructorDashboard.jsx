@@ -620,6 +620,8 @@ export default function InstructorDashboard() {
   }
 
   const handleRespondExtensionRequest = async (requestId, approved) => {
+    setError('')
+    setSuccess('')
     setExtActionLoading(true)
     const token = localStorage.getItem('malsec_token')
     const extendedDeadline = extResponseDates[requestId] || ''
@@ -645,14 +647,24 @@ export default function InstructorDashboard() {
         })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Failed to process extension request')
+      if (!res.ok) {
+        let errDetail = 'Failed to process extension request'
+        if (typeof data.detail === 'string') {
+          errDetail = data.detail
+        } else if (Array.isArray(data.detail)) {
+          errDetail = data.detail.map(d => `${d.loc ? d.loc.join('.') : ''}: ${d.msg}`).join(', ')
+        } else if (data.detail && typeof data.detail === 'object') {
+          errDetail = JSON.stringify(data.detail)
+        }
+        throw new Error(errDetail)
+      }
       setSuccess(data.message || 'Updated extension request status successfully!')
       if (extRequestsLab) {
         openExtRequestsModal(extRequestsLab)
       }
       fetchData()
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Failed to process extension request')
     } finally {
       setExtActionLoading(false)
     }
@@ -8302,6 +8314,20 @@ export default function InstructorDashboard() {
                 <X size={18} />
               </button>
             </div>
+
+            {error && (
+              <div style={{ padding: '8px 12px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '6px', color: '#b91c1c', fontSize: '13px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldAlert size={16} />
+                <span>{typeof error === 'string' ? error : JSON.stringify(error)}</span>
+              </div>
+            )}
+
+            {success && (
+              <div style={{ padding: '8px 12px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', color: '#15803d', fontSize: '13px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={16} />
+                <span>{typeof success === 'string' ? success : JSON.stringify(success)}</span>
+              </div>
+            )}
 
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {extRequestsList.length === 0 ? (
