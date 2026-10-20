@@ -1072,11 +1072,18 @@ def submit_exam_from_vm(
     individual_deadline_str = (lab.individual_extensions or {}).get(current_user.username)
     if individual_deadline_str:
         try:
-            cleaned_str = individual_deadline_str.replace("Z", "+00:00")
-            parsed_dt = datetime.fromisoformat(cleaned_str)
-            if parsed_dt.tzinfo is not None:
-                parsed_dt = parsed_dt.replace(tzinfo=None)
-            effective_deadline = parsed_dt
+            cleaned_str = str(individual_deadline_str).strip()
+            if cleaned_str.endswith("Z") or "+00:00" in cleaned_str:
+                iso_clean = cleaned_str.replace("Z", "+00:00")
+                parsed_dt = datetime.fromisoformat(iso_clean)
+                vn_dt = parsed_dt + timedelta(hours=7)
+                effective_deadline = vn_dt.replace(tzinfo=None)
+            else:
+                parsed_dt = datetime.fromisoformat(cleaned_str)
+                if parsed_dt.tzinfo is not None:
+                    effective_deadline = parsed_dt.astimezone().replace(tzinfo=None)
+                else:
+                    effective_deadline = parsed_dt
         except Exception:
             pass
 

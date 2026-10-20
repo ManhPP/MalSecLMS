@@ -37,7 +37,7 @@ def get_my_submission(
     ).first()
 
 def _get_student_lab_deadline(lab: Lab, username: str) -> datetime:
-    """Lấy thời hạn cuối cùng của sinh viên cho bài lab (tính cả gia hạn cá nhân nếu có, đảm bảo offset-naive)"""
+    """Lấy thời hạn cuối cùng của sinh viên cho bài lab (tính cả gia hạn cá nhân nếu có, đảm bảo offset-naive theo giờ server/Việt Nam)"""
     deadline = lab.deadline
     if deadline and deadline.tzinfo is not None:
         deadline = deadline.replace(tzinfo=None)
@@ -45,12 +45,22 @@ def _get_student_lab_deadline(lab: Lab, username: str) -> datetime:
     individual_deadline_str = (lab.individual_extensions or {}).get(username)
     if individual_deadline_str:
         try:
-            # Hỗ trợ cả định dạng kết thúc bằng 'Z' của JavaScript ISO string
-            cleaned_str = individual_deadline_str.replace("Z", "+00:00")
-            parsed_dt = datetime.fromisoformat(cleaned_str)
-            if parsed_dt.tzinfo is not None:
-                parsed_dt = parsed_dt.replace(tzinfo=None)
-            deadline = parsed_dt
+            cleaned_str = str(individual_deadline_str).strip()
+            # Nếu kết thúc bằng Z hoặc +00:00 (chuỗi UTC từ frontend ISO)
+            if cleaned_str.endswith("Z") or "+00:00" in cleaned_str:
+                iso_clean = cleaned_str.replace("Z", "+00:00")
+                parsed_dt = datetime.fromisoformat(iso_clean)
+                # Chuyển đổi từ UTC sang giờ Việt Nam (+7 giờ) rồi bỏ tzinfo
+                vn_dt = parsed_dt + timedelta(hours=7)
+                deadline = vn_dt.replace(tzinfo=None)
+            else:
+                # Chuỗi local ISO dạng 'YYYY-MM-DDTHH:MM[:SS]'
+                parsed_dt = datetime.fromisoformat(cleaned_str)
+                if parsed_dt.tzinfo is not None:
+                    # Nếu có timezone khác, đưa về timestamp rồi lấy localtime
+                    deadline = parsed_dt.astimezone().replace(tzinfo=None)
+                else:
+                    deadline = parsed_dt
         except Exception:
             pass
     return deadline

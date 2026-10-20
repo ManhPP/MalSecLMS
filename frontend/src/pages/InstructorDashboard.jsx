@@ -645,7 +645,7 @@ export default function InstructorDashboard() {
         },
         body: JSON.stringify({
           status: approved ? 'approved' : 'rejected',
-          granted_deadline: approved ? new Date(extendedDeadline).toISOString() : null,
+          granted_deadline: approved ? (extendedDeadline.length === 16 ? `${extendedDeadline}:00` : extendedDeadline) : null,
           response_note: responseNote
         })
       })
@@ -694,7 +694,7 @@ export default function InstructorDashboard() {
       : pendingRequests.map(r => r.id)
 
     const confirmMsg = approved
-      ? `Approve extension for ${targetIds.length} student request(s) until ${formatLocalTime(new Date(batchExtendedDeadline).toISOString())}?`
+      ? `Approve extension for ${targetIds.length} student request(s) until ${formatLocalTime(batchExtendedDeadline)}?`
       : `Reject ${targetIds.length} extension request(s)?`
     if (!confirm(confirmMsg)) return
 
@@ -711,7 +711,7 @@ export default function InstructorDashboard() {
         body: JSON.stringify({
           request_ids: targetIds,
           status: approved ? 'approved' : 'rejected',
-          granted_deadline: approved ? new Date(batchExtendedDeadline).toISOString() : null,
+          granted_deadline: approved ? (batchExtendedDeadline.length === 16 ? `${batchExtendedDeadline}:00` : batchExtendedDeadline) : null,
           response_note: batchResponseNote || null
         })
       })
