@@ -672,9 +672,12 @@ def respond_extension_request(
         if not new_deadline:
             # Mặc định gia hạn thêm 24 giờ nếu không cung cấp mốc giờ cụ thể
             new_deadline = datetime.now() + timedelta(days=1)
+        elif new_deadline.tzinfo is not None:
+            new_deadline = new_deadline.replace(tzinfo=None)
+
         ext_req.granted_deadline = new_deadline
         
-        # Cập nhật thẳng vào individual_extensions của Lab
+        # Cập nhật thẳng vào individual_extensions của Lab (lưu chuỗi ISO offset-naive)
         current_exts = dict(lab.individual_extensions or {})
         current_exts[student.username] = new_deadline.isoformat()
         lab.individual_extensions = current_exts
@@ -735,8 +738,11 @@ def batch_respond_extension_requests(
 
     now = datetime.now()
     new_deadline = payload.granted_deadline
-    if payload.status == "approved" and not new_deadline:
-        new_deadline = now + timedelta(days=1)
+    if payload.status == "approved":
+        if not new_deadline:
+            new_deadline = now + timedelta(days=1)
+        elif new_deadline.tzinfo is not None:
+            new_deadline = new_deadline.replace(tzinfo=None)
 
     current_exts = dict(lab.individual_extensions or {})
     processed_usernames = []
@@ -1060,10 +1066,17 @@ def submit_exam_from_vm(
 
     # Tính phạt muộn nếu quá hạn
     effective_deadline = lab.deadline
+    if effective_deadline and effective_deadline.tzinfo is not None:
+        effective_deadline = effective_deadline.replace(tzinfo=None)
+
     individual_deadline_str = (lab.individual_extensions or {}).get(current_user.username)
     if individual_deadline_str:
         try:
-            effective_deadline = datetime.fromisoformat(individual_deadline_str)
+            cleaned_str = individual_deadline_str.replace("Z", "+00:00")
+            parsed_dt = datetime.fromisoformat(cleaned_str)
+            if parsed_dt.tzinfo is not None:
+                parsed_dt = parsed_dt.replace(tzinfo=None)
+            effective_deadline = parsed_dt
         except Exception:
             pass
 

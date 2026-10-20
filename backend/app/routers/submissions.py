@@ -37,12 +37,20 @@ def get_my_submission(
     ).first()
 
 def _get_student_lab_deadline(lab: Lab, username: str) -> datetime:
-    """Lấy thời hạn cuối cùng của sinh viên cho bài lab (tính cả gia hạn cá nhân nếu có)"""
+    """Lấy thời hạn cuối cùng của sinh viên cho bài lab (tính cả gia hạn cá nhân nếu có, đảm bảo offset-naive)"""
     deadline = lab.deadline
+    if deadline and deadline.tzinfo is not None:
+        deadline = deadline.replace(tzinfo=None)
+
     individual_deadline_str = (lab.individual_extensions or {}).get(username)
     if individual_deadline_str:
         try:
-            deadline = datetime.fromisoformat(individual_deadline_str)
+            # Hỗ trợ cả định dạng kết thúc bằng 'Z' của JavaScript ISO string
+            cleaned_str = individual_deadline_str.replace("Z", "+00:00")
+            parsed_dt = datetime.fromisoformat(cleaned_str)
+            if parsed_dt.tzinfo is not None:
+                parsed_dt = parsed_dt.replace(tzinfo=None)
+            deadline = parsed_dt
         except Exception:
             pass
     return deadline
