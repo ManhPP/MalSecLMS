@@ -175,7 +175,7 @@ def create_lab(
         is_exam_mode=bool(lab_data.is_exam_mode) if lab_data.is_exam_mode is not None else False,
         cpu_cores=lab_data.cpu_cores,
         ram_mb=lab_data.ram_mb,
-        vm_expiration_days=lab_data.vm_expiration_days if lab_data.vm_expiration_days is not None else 14,
+        vm_expiration_days=lab_data.vm_expiration_days if lab_data.vm_expiration_days is not None else 3,
     )
     db.add(new_lab)
     db.commit()
@@ -493,7 +493,7 @@ def clone_lab(
         is_exam_mode=getattr(source_lab, 'is_exam_mode', False),
         cpu_cores=getattr(source_lab, 'cpu_cores', None),
         ram_mb=getattr(source_lab, 'ram_mb', None),
-        vm_expiration_days=getattr(source_lab, 'vm_expiration_days', 14),
+        vm_expiration_days=getattr(source_lab, 'vm_expiration_days', 3),
     )
     db.add(cloned_lab)
     db.commit()
@@ -839,9 +839,9 @@ def get_or_create_vm_session(
             except Exception:
                 pass
 
-        vm_exp_days = getattr(lab, 'vm_expiration_days', 14)
+        vm_exp_days = getattr(lab, 'vm_expiration_days', 3)
         if vm_exp_days is None:
-            vm_exp_days = 14
+            vm_exp_days = 3
 
         vm_cutoff = base_deadline + timedelta(days=vm_exp_days)
         if now > vm_cutoff:

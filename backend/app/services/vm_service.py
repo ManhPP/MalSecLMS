@@ -920,9 +920,9 @@ def purge_expired_lab_vms(db_session=None, expiration_days: Optional[int] = None
                         continue
 
                     # Xác định thời gian hết hạn cho VM của lab này
-                    effective_exp_days = expiration_days if expiration_days is not None else getattr(lab, 'vm_expiration_days', 14)
+                    effective_exp_days = expiration_days if expiration_days is not None else getattr(lab, 'vm_expiration_days', 3)
                     if effective_exp_days is None:
-                        effective_exp_days = 14
+                        effective_exp_days = 3
 
                     # Tìm username của sinh viên từ vm_name (định dạng: lab-{lab_id}-{username})
                     student_username = "-".join(parts[2:]) if len(parts) > 2 else ""

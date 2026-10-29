@@ -195,7 +195,7 @@ export default function InstructorDashboard() {
   const [isExamMode, setIsExamMode] = useState(false)
   const [cpuCores, setCpuCores] = useState('')
   const [ramGb, setRamGb] = useState('')
-  const [vmExpirationDays, setVmExpirationDays] = useState('14')
+  const [vmExpirationDays, setVmExpirationDays] = useState('3')
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
   const [isLinkedClone, setIsLinkedClone] = useState(true)
@@ -1694,7 +1694,7 @@ export default function InstructorDashboard() {
         is_exam_mode: isExamMode,
         cpu_cores: cpuCores ? parseInt(cpuCores) : null,
         ram_mb: ramGb ? Math.round(parseFloat(ramGb) * 1024) : null,
-        vm_expiration_days: vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 14
+        vm_expiration_days: vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 3
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
@@ -1708,7 +1708,7 @@ export default function InstructorDashboard() {
         payload.is_exam_mode = isExamMode
         payload.cpu_cores = cpuCores ? parseInt(cpuCores) : null
         payload.ram_mb = ramGb ? Math.round(parseFloat(ramGb) * 1024) : null
-        payload.vm_expiration_days = vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 14
+        payload.vm_expiration_days = vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 3
       }
 
       let res
@@ -1782,7 +1782,7 @@ export default function InstructorDashboard() {
     setIsExamMode(false)
     setCpuCores('')
     setRamGb('')
-    setVmExpirationDays('14')
+    setVmExpirationDays('3')
     setIsLinkedClone(true)
 
     const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
@@ -1828,7 +1828,7 @@ export default function InstructorDashboard() {
     setIsExamMode(Boolean(lab.is_exam_mode))
     setCpuCores(lab.cpu_cores ? String(lab.cpu_cores) : '')
     setRamGb(lab.ram_mb ? String(Math.round(lab.ram_mb / 1024)) : '')
-    setVmExpirationDays(lab.vm_expiration_days !== undefined && lab.vm_expiration_days !== null ? String(lab.vm_expiration_days) : '14')
+    setVmExpirationDays(lab.vm_expiration_days !== undefined && lab.vm_expiration_days !== null ? String(lab.vm_expiration_days) : '3')
     setIsLinkedClone(lab.is_linked_clone !== false)
     setVmDriveMode(lab.vm_drive_mode || 'default')
     setVmDriveFiles(Array.isArray(lab.vm_drive_files) ? lab.vm_drive_files : [])
@@ -6985,10 +6985,10 @@ export default function InstructorDashboard() {
                           style={{ width: '130px', fontSize: '13px' }}
                           value={vmExpirationDays}
                           onChange={(e) => setVmExpirationDays(e.target.value)}
-                          placeholder="Default: 14"
+                          placeholder="Default: 3"
                         />
                         <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500' }}>days after deadline</span>
-                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>(Standard recommendation: 14 days = 2 weeks)</span>
+                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>(Standard recommendation: 3 days after deadline)</span>
                       </div>
                     </div>
 
