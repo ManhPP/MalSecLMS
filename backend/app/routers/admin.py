@@ -294,3 +294,30 @@ def sync_vm_tools_to_active_vms(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vms/purge-expired", response_model=Dict[str, Any])
+def purge_expired_vms_manually(
+    request: Request,
+    days: int = 14,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """
+    API Quản trị: Chủ động kích hoạt dọn dẹp các máy ảo sinh viên
+    thuộc các bài lab đã kết thúc/quá hạn nộp quá số ngày quy định (mặc định 14 ngày).
+    """
+    from app.services.vm_service import purge_expired_lab_vms
+    result = purge_expired_lab_vms(db_session=db, expiration_days=days)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("message"))
+
+    log = AuditLog(
+        user_id=current_user.id,
+        action="purge_expired_vms",
+        target=f"Purged {result.get('purged_count', 0)} expired student VMs (threshold: {days} days)",
+        ip_address=get_client_ip(request)
+    )
+    db.add(log)
+    db.commit()
+    return result

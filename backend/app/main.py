@@ -1,4 +1,5 @@
 import time
+import asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -199,6 +200,31 @@ app.include_router(community.router, prefix="/api")
 @app.get("/")
 def read_root():
     return {"message": "MalSec LMS API is running normally"}
+
+async def _periodic_expired_vms_cleanup():
+    """
+    Tiến trình chạy nền định kỳ mỗi 6 tiếng một lần:
+    Tự động quét và xóa hoàn toàn các máy ảo sinh viên thuộc các bài Lab
+    đã hết hạn (deadline) quá 14 ngày (2 tuần).
+    """
+    from app.services.vm_service import purge_expired_lab_vms
+    # Chờ 60 giây sau khi backend khởi động ổn định trước khi quét lần đầu
+    await asyncio.sleep(60)
+    while True:
+        try:
+            logger.info("[BACKGROUND_CLEANUP] Starting periodic expired lab VMs cleanup (threshold: 14 days)...")
+            res = purge_expired_lab_vms(expiration_days=14)
+            logger.info(f"[BACKGROUND_CLEANUP] Result: {res.get('message')} (Purged: {res.get('purged_count', 0)})")
+        except Exception as exc:
+            logger.error(f"[BACKGROUND_CLEANUP] Error during periodic expired VM cleanup: {exc}", exc_info=True)
+        # Chạy lại sau mỗi 6 tiếng
+        await asyncio.sleep(6 * 3600)
+
+
+@app.on_event("startup")
+def startup_tasks():
+    asyncio.create_task(_periodic_expired_vms_cleanup())
+
 
 # --- DATA SEEDING (SYSTEM STARTUP EVENT) ---
 @app.on_event("startup")

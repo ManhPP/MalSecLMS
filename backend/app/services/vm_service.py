@@ -864,6 +864,103 @@ def clean_orphaned_student_vms(active_lab_ids: List[int]) -> Dict[str, Any]:
         return {"success": False, "message": f"Lỗi quét máy ảo: {str(e)}", "purged_count": 0, "details": []}
 
 
+def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[str, Any]:
+    """
+    Tự động quét và xóa hoàn toàn (purge) các máy ảo sinh viên thuộc các bài Lab
+    đã quá hạn nộp bài (deadline) quá `expiration_days` ngày (mặc định 14 ngày = 2 tuần).
+    Chỉ tác động nghiêm ngặt trong dải STUDENT_VMID_MIN đến STUDENT_VMID_MAX.
+    """
+    from datetime import datetime, timedelta
+    from app.models import Lab
+
+    should_close_db = False
+    if db_session is None:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        should_close_db = True
+    else:
+        db = db_session
+
+    try:
+        cutoff_date = datetime.now() - timedelta(days=expiration_days)
+        expired_labs = db.query(Lab.id, Lab.title, Lab.deadline).filter(Lab.deadline < cutoff_date).all()
+        expired_lab_map = {lab.id: {"title": lab.title, "deadline": lab.deadline} for lab in expired_labs}
+
+        if not expired_lab_map:
+            return {
+                "success": True,
+                "message": f"Không có bài Lab nào hết hạn quá {expiration_days} ngày.",
+                "purged_count": 0,
+                "purged": [],
+                "failed": []
+            }
+
+        proxmox = get_pve_client()
+        if not proxmox:
+            return {
+                "success": False,
+                "message": "Không thể kết nối Proxmox VE API",
+                "purged_count": 0,
+                "purged": [],
+                "failed": []
+            }
+
+        purged = []
+        failed = []
+        resources = proxmox.cluster.resources.get(type="vm")
+
+        for res in resources:
+            vmid = int(res.get("vmid", -1))
+            vm_name = res.get("name", "")
+
+            # Security Boundary Guard
+            if not (settings.STUDENT_VMID_MIN <= vmid <= settings.STUDENT_VMID_MAX):
+                continue
+
+            if vm_name.startswith("lab-"):
+                parts = vm_name.split("-")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    lab_id = int(parts[1])
+                    if lab_id in expired_lab_map:
+                        lab_info = expired_lab_map[lab_id]
+                        try:
+                            logger.info(
+                                f"[EXPIRED_VM_CLEANUP] VM {vmid} ('{vm_name}') belongs to Lab {lab_id} "
+                                f"('{lab_info['title']}') which expired on {lab_info['deadline']}. Purging..."
+                            )
+                            res_control = control_student_vm(vmid, "purge")
+                            if res_control.get("success"):
+                                purged.append({
+                                    "vmid": vmid,
+                                    "name": vm_name,
+                                    "lab_id": lab_id,
+                                    "lab_title": lab_info["title"],
+                                    "deadline": lab_info["deadline"].isoformat() if lab_info["deadline"] else None
+                                })
+                            else:
+                                failed.append({
+                                    "vmid": vmid,
+                                    "name": vm_name,
+                                    "error": res_control.get("message")
+                                })
+                        except Exception as exc:
+                            failed.append({"vmid": vmid, "name": vm_name, "error": str(exc)})
+
+        return {
+            "success": True,
+            "message": f"Đã dọn dẹp thành công {len(purged)} máy ảo của các bài lab hết hạn quá {expiration_days} ngày.",
+            "purged_count": len(purged),
+            "purged": purged,
+            "failed": failed
+        }
+    except Exception as e:
+        logger.error(f"[EXPIRED_VM_CLEANUP] Error during expired VM cleanup: {e}", exc_info=True)
+        return {"success": False, "message": f"Lỗi dọn dẹp VM hết hạn: {str(e)}", "purged_count": 0, "details": []}
+    finally:
+        if should_close_db:
+            db.close()
+
+
 def capture_vm_screenshot(vmid: int) -> bytes:
     """
     Chụp ảnh màn hình máy ảo (QEMU screendump) trực tiếp từ Proxmox node và nén thành JPEG.
