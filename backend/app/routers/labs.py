@@ -175,6 +175,7 @@ def create_lab(
         is_exam_mode=bool(lab_data.is_exam_mode) if lab_data.is_exam_mode is not None else False,
         cpu_cores=lab_data.cpu_cores,
         ram_mb=lab_data.ram_mb,
+        vm_expiration_days=lab_data.vm_expiration_days if lab_data.vm_expiration_days is not None else 14,
     )
     db.add(new_lab)
     db.commit()
@@ -273,6 +274,8 @@ def update_lab(
         lab.cpu_cores = lab_data.cpu_cores
     if lab_data.ram_mb is not None:
         lab.ram_mb = lab_data.ram_mb
+    if lab_data.vm_expiration_days is not None:
+        lab.vm_expiration_days = lab_data.vm_expiration_days
 
     if lab.enable_vm:
         if lab.template_vmid is None or not (
@@ -490,6 +493,7 @@ def clone_lab(
         is_exam_mode=getattr(source_lab, 'is_exam_mode', False),
         cpu_cores=getattr(source_lab, 'cpu_cores', None),
         ram_mb=getattr(source_lab, 'ram_mb', None),
+        vm_expiration_days=getattr(source_lab, 'vm_expiration_days', 14),
     )
     db.add(cloned_lab)
     db.commit()
@@ -817,6 +821,35 @@ def get_or_create_vm_session(
         
     if not lab.enable_vm:
         raise HTTPException(status_code=400, detail="Bài lab này không yêu cầu máy ảo thực hành")
+
+    # Kiểm tra thời hạn được phép mở / tạo máy ảo cho sinh viên
+    if current_user.role == "student":
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        base_deadline = lab.deadline
+        # Kiểm tra nếu sinh viên có gia hạn riêng
+        if lab.individual_extensions and current_user.username in lab.individual_extensions:
+            try:
+                ext_str = lab.individual_extensions[current_user.username]
+                ext_dt = datetime.fromisoformat(ext_str)
+                if ext_dt.tzinfo is not None:
+                    ext_dt = ext_dt.replace(tzinfo=None)
+                if ext_dt > base_deadline:
+                    base_deadline = ext_dt
+            except Exception:
+                pass
+
+        vm_exp_days = getattr(lab, 'vm_expiration_days', 14)
+        if vm_exp_days is None:
+            vm_exp_days = 14
+
+        vm_cutoff = base_deadline + timedelta(days=vm_exp_days)
+        if now > vm_cutoff:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Thời hạn truy cập và tạo máy ảo cho bài lab này đã kết thúc vào ngày {vm_cutoff.strftime('%d/%m/%Y %H:%M')} (quá {vm_exp_days} ngày sau deadline). Bạn vẫn có thể xem lại bài làm đã nộp hoặc gửi yêu cầu gia hạn tới giảng viên."
+            )
+
     if lab.vm_protocol in {"rdp", "ssh"} and not lab.vm_username:
         raise HTTPException(status_code=400, detail="Lab chưa cấu hình tên đăng nhập VM")
     if not lab.vm_password:

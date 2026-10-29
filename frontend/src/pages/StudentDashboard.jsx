@@ -719,9 +719,9 @@ export default function StudentDashboard() {
     }
   }
 
-  // Effect to manage auto-save intervals
+  // Effect to manage auto-save intervals (Only auto-save when in draft status to avoid touching submitted status)
   useEffect(() => {
-    if (viewState === 'doing_lab' && selectedLab && canEditSubmission()) {
+    if (viewState === 'doing_lab' && selectedLab && submissionStatus !== 'submitted' && canEditSubmission()) {
       autoSaveTimerRef.current = setInterval(() => {
         triggerServerSideAutoSave(answers)
       }, 30000)
@@ -2739,10 +2739,23 @@ export default function StudentDashboard() {
                       </div>
                     ) : vmError ? (
                       <div style={{ textAlign: 'center', color: 'var(--neon-ruby)', padding: '24px' }}>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>⚠️ {vmError}</div>
-                        <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '6px 16px', marginTop: '12px' }}>
-                          Retry Connection
-                        </button>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '8px', lineHeight: '1.5' }}>⚠️ {vmError}</div>
+                        {vmError.includes('gia hạn') || vmError.includes('extension') ? (
+                          <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                            <button 
+                              type="button" 
+                              onClick={() => handleOpenExtensionModal(selectedLab)} 
+                              className="btn btn-secondary" 
+                              style={{ padding: '8px 18px', background: '#f59e0b', color: '#fff', border: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <Clock size={15} /> Gửi yêu cầu gia hạn tới Giảng viên
+                            </button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => fetchVmSession(selectedLab.id)} className="btn btn-primary" style={{ padding: '6px 16px', marginTop: '12px' }}>
+                            Thử kết nối lại
+                          </button>
+                        )}
                       </div>
                     ) : guacamoleUrl ? (
                       <iframe 

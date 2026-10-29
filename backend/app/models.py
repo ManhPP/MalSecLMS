@@ -108,6 +108,8 @@ class Lab(Base):
     # Tùy chỉnh phần cứng VM (Cores, RAM MB)
     cpu_cores = Column(Integer, nullable=True)
     ram_mb = Column(Integer, nullable=True)
+    # Thời hạn tối đa sau x ngày kể từ deadline thì không cho sinh viên tạo VM ở bài lab đó nữa (mặc định 14 ngày = 2 tuần)
+    vm_expiration_days = Column(Integer, default=14, server_default='14', nullable=False)
 
     class_id = Column(Integer, ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
 

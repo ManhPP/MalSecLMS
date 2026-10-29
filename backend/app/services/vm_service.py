@@ -864,10 +864,11 @@ def clean_orphaned_student_vms(active_lab_ids: List[int]) -> Dict[str, Any]:
         return {"success": False, "message": f"Lỗi quét máy ảo: {str(e)}", "purged_count": 0, "details": []}
 
 
-def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[str, Any]:
+def purge_expired_lab_vms(db_session=None, expiration_days: Optional[int] = None) -> Dict[str, Any]:
     """
     Tự động quét và xóa hoàn toàn (purge) các máy ảo sinh viên thuộc các bài Lab
-    đã quá hạn nộp bài (deadline) quá `expiration_days` ngày (mặc định 14 ngày = 2 tuần).
+    đã quá hạn nộp bài (deadline + vm_expiration_days hoặc expiration_days truyền vào).
+    Tính đến cả trường hợp sinh viên được gia hạn riêng (individual_extensions).
     Chỉ tác động nghiêm ngặt trong dải STUDENT_VMID_MIN đến STUDENT_VMID_MAX.
     """
     from datetime import datetime, timedelta
@@ -882,18 +883,10 @@ def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[st
         db = db_session
 
     try:
-        cutoff_date = datetime.now() - timedelta(days=expiration_days)
-        expired_labs = db.query(Lab.id, Lab.title, Lab.deadline).filter(Lab.deadline < cutoff_date).all()
-        expired_lab_map = {lab.id: {"title": lab.title, "deadline": lab.deadline} for lab in expired_labs}
-
-        if not expired_lab_map:
-            return {
-                "success": True,
-                "message": f"Không có bài Lab nào hết hạn quá {expiration_days} ngày.",
-                "purged_count": 0,
-                "purged": [],
-                "failed": []
-            }
+        now = datetime.now()
+        # Lấy tất cả bài lab để kiểm tra thời hạn VM
+        labs = db.query(Lab).all()
+        lab_map = {lab.id: lab for lab in labs}
 
         proxmox = get_pve_client()
         if not proxmox:
@@ -921,12 +914,39 @@ def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[st
                 parts = vm_name.split("-")
                 if len(parts) >= 2 and parts[1].isdigit():
                     lab_id = int(parts[1])
-                    if lab_id in expired_lab_map:
-                        lab_info = expired_lab_map[lab_id]
+                    lab = lab_map.get(lab_id)
+                    if not lab:
+                        # Lab không còn tồn tại -> VM mồ côi, bỏ qua hoặc xử lý ở orphan cleanup
+                        continue
+
+                    # Xác định thời gian hết hạn cho VM của lab này
+                    effective_exp_days = expiration_days if expiration_days is not None else getattr(lab, 'vm_expiration_days', 14)
+                    if effective_exp_days is None:
+                        effective_exp_days = 14
+
+                    # Tìm username của sinh viên từ vm_name (định dạng: lab-{lab_id}-{username})
+                    student_username = "-".join(parts[2:]) if len(parts) > 2 else ""
+
+                    # Xác định deadline cơ sở: nếu sinh viên có gia hạn cá nhân, dùng deadline gia hạn
+                    base_deadline = lab.deadline
+                    if student_username and lab.individual_extensions and student_username in lab.individual_extensions:
+                        try:
+                            ext_str = lab.individual_extensions[student_username]
+                            ext_dt = datetime.fromisoformat(ext_str)
+                            if ext_dt.tzinfo is not None:
+                                ext_dt = ext_dt.replace(tzinfo=None)
+                            if ext_dt > base_deadline:
+                                base_deadline = ext_dt
+                        except Exception:
+                            pass
+
+                    # Thời điểm VM hết hạn
+                    vm_cutoff = base_deadline + timedelta(days=effective_exp_days)
+                    if now > vm_cutoff:
                         try:
                             logger.info(
-                                f"[EXPIRED_VM_CLEANUP] VM {vmid} ('{vm_name}') belongs to Lab {lab_id} "
-                                f"('{lab_info['title']}') which expired on {lab_info['deadline']}. Purging..."
+                                f"[EXPIRED_VM_CLEANUP] VM {vmid} ('{vm_name}') of Lab {lab_id} "
+                                f"('{lab.title}') passed cutoff {vm_cutoff.strftime('%Y-%m-%d %H:%M:%S')}. Purging..."
                             )
                             res_control = control_student_vm(vmid, "purge")
                             if res_control.get("success"):
@@ -934,8 +954,10 @@ def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[st
                                     "vmid": vmid,
                                     "name": vm_name,
                                     "lab_id": lab_id,
-                                    "lab_title": lab_info["title"],
-                                    "deadline": lab_info["deadline"].isoformat() if lab_info["deadline"] else None
+                                    "student": student_username,
+                                    "lab_title": lab.title,
+                                    "deadline": base_deadline.isoformat(),
+                                    "cutoff": vm_cutoff.isoformat()
                                 })
                             else:
                                 failed.append({
@@ -948,7 +970,7 @@ def purge_expired_lab_vms(db_session=None, expiration_days: int = 14) -> Dict[st
 
         return {
             "success": True,
-            "message": f"Đã dọn dẹp thành công {len(purged)} máy ảo của các bài lab hết hạn quá {expiration_days} ngày.",
+            "message": f"Đã dọn dẹp thành công {len(purged)} máy ảo sinh viên đã quá thời hạn cho phép.",
             "purged_count": len(purged),
             "purged": purged,
             "failed": failed

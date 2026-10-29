@@ -33,6 +33,8 @@ for i in range(5):
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS is_exam_mode BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS cpu_cores INTEGER;"))
             conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS ram_mb INTEGER;"))
+            conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS vm_expiration_days INTEGER DEFAULT 14;"))
+            conn.execute(text("UPDATE labs SET vm_expiration_days = 14 WHERE vm_expiration_days IS NULL;"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS semester VARCHAR DEFAULT 'unknown';"))
             conn.execute(text("ALTER TABLE classes ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("UPDATE classes SET semester = 'unknown' WHERE semester IS NULL;"))
@@ -203,22 +205,33 @@ def read_root():
 
 async def _periodic_expired_vms_cleanup():
     """
-    Tiến trình chạy nền định kỳ mỗi 6 tiếng một lần:
+    Tiến trình chạy nền định kỳ mỗi ngày 1 lần vào lúc rạng sáng (03:30 AM):
     Tự động quét và xóa hoàn toàn các máy ảo sinh viên thuộc các bài Lab
-    đã hết hạn (deadline) quá 14 ngày (2 tuần).
+    đã hết hạn (deadline) quá số ngày quy định của bài lab đó (vm_expiration_days).
     """
+    from datetime import datetime, timedelta
     from app.services.vm_service import purge_expired_lab_vms
-    # Chờ 60 giây sau khi backend khởi động ổn định trước khi quét lần đầu
+    # Chờ 60 giây sau khi backend khởi động ổn định trước khi vào vòng lặp
     await asyncio.sleep(60)
     while True:
         try:
-            logger.info("[BACKGROUND_CLEANUP] Starting periodic expired lab VMs cleanup (threshold: 14 days)...")
-            res = purge_expired_lab_vms(expiration_days=14)
+            now = datetime.now()
+            # Tính thời gian đến 03:30 AM tiếp theo
+            target_time = now.replace(hour=3, minute=30, second=0, microsecond=0)
+            if now >= target_time:
+                target_time += timedelta(days=1)
+            seconds_until_target = (target_time - now).total_seconds()
+            logger.info(f"[BACKGROUND_CLEANUP] Scheduled next VM cleanup at {target_time.strftime('%Y-%m-%d %H:%M:%S')} (in {int(seconds_until_target)}s)")
+            await asyncio.sleep(seconds_until_target)
+
+            logger.info("[BACKGROUND_CLEANUP] Starting daily early-morning expired lab VMs cleanup...")
+            res = purge_expired_lab_vms()
             logger.info(f"[BACKGROUND_CLEANUP] Result: {res.get('message')} (Purged: {res.get('purged_count', 0)})")
+        except asyncio.CancelledError:
+            break
         except Exception as exc:
             logger.error(f"[BACKGROUND_CLEANUP] Error during periodic expired VM cleanup: {exc}", exc_info=True)
-        # Chạy lại sau mỗi 6 tiếng
-        await asyncio.sleep(6 * 3600)
+            await asyncio.sleep(3600)  # Nếu gặp lỗi thì thử lại sau 1 giờ
 
 
 @app.on_event("startup")

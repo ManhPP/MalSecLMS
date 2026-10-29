@@ -195,6 +195,7 @@ export default function InstructorDashboard() {
   const [isExamMode, setIsExamMode] = useState(false)
   const [cpuCores, setCpuCores] = useState('')
   const [ramGb, setRamGb] = useState('')
+  const [vmExpirationDays, setVmExpirationDays] = useState('14')
   const [runtimeConfig, setRuntimeConfig] = useState(null)
   const [templateVmid, setTemplateVmid] = useState('')
   const [isLinkedClone, setIsLinkedClone] = useState(true)
@@ -1692,7 +1693,8 @@ export default function InstructorDashboard() {
         disable_vm_paste: disableVmPaste,
         is_exam_mode: isExamMode,
         cpu_cores: cpuCores ? parseInt(cpuCores) : null,
-        ram_mb: ramGb ? Math.round(parseFloat(ramGb) * 1024) : null
+        ram_mb: ramGb ? Math.round(parseFloat(ramGb) * 1024) : null,
+        vm_expiration_days: vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 14
       }
       if (enableVm) {
         payload.template_vmid = parseInt(templateVmid)
@@ -1706,6 +1708,7 @@ export default function InstructorDashboard() {
         payload.is_exam_mode = isExamMode
         payload.cpu_cores = cpuCores ? parseInt(cpuCores) : null
         payload.ram_mb = ramGb ? Math.round(parseFloat(ramGb) * 1024) : null
+        payload.vm_expiration_days = vmExpirationDays !== '' ? parseInt(vmExpirationDays) : 14
       }
 
       let res
@@ -1779,6 +1782,7 @@ export default function InstructorDashboard() {
     setIsExamMode(false)
     setCpuCores('')
     setRamGb('')
+    setVmExpirationDays('14')
     setIsLinkedClone(true)
 
     const defaultProto = runtimeConfig?.vm?.default_protocol || 'rdp'
@@ -1824,6 +1828,7 @@ export default function InstructorDashboard() {
     setIsExamMode(Boolean(lab.is_exam_mode))
     setCpuCores(lab.cpu_cores ? String(lab.cpu_cores) : '')
     setRamGb(lab.ram_mb ? String(Math.round(lab.ram_mb / 1024)) : '')
+    setVmExpirationDays(lab.vm_expiration_days !== undefined && lab.vm_expiration_days !== null ? String(lab.vm_expiration_days) : '14')
     setIsLinkedClone(lab.is_linked_clone !== false)
     setVmDriveMode(lab.vm_drive_mode || 'default')
     setVmDriveFiles(Array.isArray(lab.vm_drive_files) ? lab.vm_drive_files : [])
@@ -6956,6 +6961,35 @@ export default function InstructorDashboard() {
                           </p>
                         </div>
                       </label>
+                    </div>
+
+                    {/* VM Access Expiration Setting */}
+                    <div style={{ marginTop: '14px', marginBottom: '14px', padding: '14px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          ⏳ VM Access Expiration (Days After Deadline)
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(242, 112, 36, 0.1)', color: '#ea580c', border: '1px solid rgba(242, 112, 36, 0.2)', fontSize: '11px', fontWeight: '600' }}>
+                          Auto-Cleanup & Sandbox Lock
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                        Number of days after the lab deadline when student VM access will be locked and automatically purged during early-morning maintenance to reclaim server storage. Students can still view their submitted reports and request extensions.
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="90"
+                          className="form-input"
+                          style={{ width: '130px', fontSize: '13px' }}
+                          value={vmExpirationDays}
+                          onChange={(e) => setVmExpirationDays(e.target.value)}
+                          placeholder="Default: 14"
+                        />
+                        <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500' }}>days after deadline</span>
+                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>(Standard recommendation: 14 days = 2 weeks)</span>
+                      </div>
                     </div>
 
                     {/* Clipboard Isolation Options */}

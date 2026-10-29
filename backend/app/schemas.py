@@ -221,6 +221,7 @@ class LabBase(BaseModel):
     is_exam_mode: Optional[bool] = False
     cpu_cores: Optional[int] = None
     ram_mb: Optional[int] = None
+    vm_expiration_days: Optional[int] = 14
     class_id: int
 
 class LabCreate(LabBase):
@@ -250,6 +251,7 @@ class LabUpdate(BaseModel):
     is_exam_mode: Optional[bool] = None
     cpu_cores: Optional[int] = None
     ram_mb: Optional[int] = None
+    vm_expiration_days: Optional[int] = None
     class_id: Optional[int] = None
 
 class LabClone(BaseModel):

@@ -107,9 +107,7 @@ def save_draft(
         if submission.status == "graded":
             raise HTTPException(status_code=400, detail="Bài làm đã được giảng viên chấm điểm, không thể chỉnh sửa")
         
-        if submission.status == "submitted":
-            # Đang trước hạn: cho phép sinh viên chỉnh sửa nội dung bài làm
-            submission.status = "draft"
+        # Không hạ status về draft khi lưu nháp. Sinh viên đã nộp vẫn giữ submitted.
 
         submission.answers = answers
         submission.updated_at = now
@@ -173,8 +171,6 @@ def upload_submission_file(
         db.add(submission)
         db.commit()
         db.refresh(submission)
-    elif submission.status == "submitted" and now <= effective_deadline:
-        submission.status = "draft"
 
     # Cập nhật danh sách file đính kèm (cho phép đính kèm nhiều file trên cùng 1 trường)
     current_attachments = list(submission.file_attachments or [])
@@ -263,8 +259,6 @@ def delete_submission_attachment(
         current_answers.pop(field_id, None)
     submission.answers = current_answers
 
-    if submission.status == "submitted" and now <= effective_deadline:
-        submission.status = "draft"
 
     db.commit()
     db.refresh(submission)
