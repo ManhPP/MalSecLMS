@@ -95,7 +95,7 @@ def get_lab_detail(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
         
-    # Nếu sinh viên xem, kiểm tra quyền lớp học
+    # Kiểm tra quyền lớp học đối với sinh viên và giảng viên
     if current_user.role == "student":
         belongs = db.query(Class).filter(
             Class.id == lab.class_id, 
@@ -104,6 +104,13 @@ def get_lab_detail(
         if not belongs:
             raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
         return _filter_lab_attachments_for_user(lab, current_user)
+    elif current_user.role == "lecturer":
+        belongs = db.query(Class).filter(
+            Class.id == lab.class_id,
+            Class.users.any(id=current_user.id)
+        ).first()
+        if not belongs:
+            raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
             
     return lab
 
@@ -543,6 +550,13 @@ def update_individual_extensions(
         student = db.query(User).filter(User.username == student_username, User.role == "student").first()
         if not student:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy sinh viên có tên đăng nhập '{student_username}'")
+
+        class_obj = lab.class_ or db.query(Class).filter(Class.id == lab.class_id).first()
+        if class_obj and student not in class_obj.users:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sinh viên '{student_username}' không thuộc lớp học phần chứa bài lab này"
+            )
             
         current_extensions[student_username] = deadline_str
         
@@ -1219,7 +1233,27 @@ def control_lab_vm(
             )
         )
 
-    from app.services.vm_service import control_student_vm
+    # Chống IDOR: Xác thực máy ảo VMID này thực sự thuộc về bài lab được chỉ định
+    from app.services.vm_service import get_pve_client, control_student_vm
+    proxmox = get_pve_client()
+    if not proxmox:
+        raise HTTPException(status_code=503, detail="Không thể kết nối máy chủ Proxmox VE")
+
+    try:
+        resources = proxmox.cluster.resources.get(type="vm")
+        target_vm = next((r for r in resources if int(r.get("vmid", -1)) == vmid), None)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Lỗi kiểm tra máy ảo Proxmox: {str(exc)}")
+
+    if not target_vm:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy máy ảo VMID {vmid} trên Proxmox")
+
+    vm_name = target_vm.get("name", "")
+    if vm_name != f"lab-{lab.id}" and not vm_name.startswith(f"lab-{lab.id}-"):
+        raise HTTPException(
+            status_code=403,
+            detail="Truy cập bị từ chối: Máy ảo này không thuộc về bài lab được chỉ định (IDOR Prevention)"
+        )
 
     result = control_student_vm(vmid, action)
     if not result["success"]:

@@ -514,6 +514,8 @@ def grade_submission(
         class_exists = db.query(Class).filter(Class.id == lab.class_id).first()
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài nộp này")
+        if submission.student and submission.student not in class_exists.users:
+            raise HTTPException(status_code=400, detail="Sinh viên này không thuộc lớp học phần chứa bài lab")
 
     if grading.request_resubmit:
         submission.status = "re_submit_requested"
@@ -570,10 +572,13 @@ def export_grades_csv(
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
 
+    # CHỈ xuất bảng điểm cho sinh viên thực tế thuộc lớp học phần này
+    enrolled_student_ids = [u.id for u in lab.class_.users if u.role == "student"] if lab.class_ else []
     submissions = db.query(Submission).filter(
         Submission.lab_id == lab_id,
+        Submission.student_id.in_(enrolled_student_ids),
         Submission.status.in_(["submitted", "graded"])
-    ).all()
+    ).all() if enrolled_student_ids else []
 
     # Dựng file CSV trong RAM
     f = StringIO()
@@ -624,10 +629,13 @@ def bulk_download_submissions(
         if not class_exists or current_user not in class_exists.users:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học phần chứa bài lab này")
 
+    # CHỈ xuất bảng điểm cho sinh viên thực tế thuộc lớp học phần này
+    enrolled_student_ids = [u.id for u in lab.class_.users if u.role == "student"] if lab.class_ else []
     submissions = db.query(Submission).filter(
         Submission.lab_id == lab_id,
+        Submission.student_id.in_(enrolled_student_ids),
         Submission.status.in_(["submitted", "graded"])
-    ).all()
+    ).all() if enrolled_student_ids else []
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -698,7 +706,7 @@ def get_submission_file(
         )
         
     # 2. Kiểm tra sự tồn tại của tệp
-    if not os.path.exists(normalized_path):
+    if not os.path.exists(normalized_path) or not os.path.isfile(normalized_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tệp tin không tồn tại trên hệ thống"
