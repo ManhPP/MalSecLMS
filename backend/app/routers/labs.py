@@ -822,6 +822,12 @@ def get_or_create_vm_session(
     if not lab.enable_vm:
         raise HTTPException(status_code=400, detail="Bài lab này không yêu cầu máy ảo thực hành")
 
+    # Kiểm tra quyền truy cập lớp học phần đối với sinh viên (Chống IDOR)
+    if current_user.role == "student":
+        student_class_ids = [c.id for c in current_user.classes]
+        if lab.class_id not in student_class_ids:
+            raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
+
     # Kiểm tra thời hạn được phép mở / tạo máy ảo cho sinh viên
     if current_user.role == "student":
         from datetime import datetime, timedelta
@@ -922,6 +928,11 @@ def rollback_vm_session(
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "student":
+        student_class_ids = [c.id for c in current_user.classes]
+        if lab.class_id not in student_class_ids:
+            raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
         
     from app.services.vm_service import VMProvisionError, rollback_student_vm
     try:
@@ -948,6 +959,12 @@ def take_vm_screenshot(
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "student":
+        student_class_ids = [c.id for c in current_user.classes]
+        if lab.class_id not in student_class_ids:
+            raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
+
     if not lab.enable_vm:
         raise HTTPException(status_code=400, detail="Bài lab này không kích hoạt máy ảo")
 
@@ -990,6 +1007,12 @@ def submit_exam_from_vm(
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    if current_user.role == "student":
+        student_class_ids = [c.id for c in current_user.classes]
+        if lab.class_id not in student_class_ids:
+            raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học phần chứa bài lab này")
+
     if not lab.enable_vm:
         raise HTTPException(status_code=400, detail="This lab does not have a virtual machine enabled")
 

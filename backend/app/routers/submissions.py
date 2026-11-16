@@ -24,6 +24,19 @@ from app.logging_config import logger
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
 
+def _check_student_class_membership(lab: Lab, user: User, db: Session):
+    """Kiểm tra sinh viên có thuộc lớp học phần chứa bài lab hay không (Chống IDOR / Broken Access Control)"""
+    if user.role == "student":
+        belongs = db.query(Class).filter(
+            Class.id == lab.class_id,
+            Class.users.any(id=user.id)
+        ).first()
+        if not belongs:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không thuộc lớp học phần chứa bài lab này"
+            )
+
 @router.get("/lab/{lab_id}/my", response_model=Optional[SubmissionOut])
 def get_my_submission(
     lab_id: int,
@@ -31,6 +44,11 @@ def get_my_submission(
     current_user: User = Depends(require_student)
 ):
     """API Sinh viên lấy bài làm hiện tại của mình (bao gồm cả Bản nháp)"""
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+    _check_student_class_membership(lab, current_user, db)
+
     return db.query(Submission).filter(
         Submission.lab_id == lab_id,
         Submission.student_id == current_user.id
@@ -76,6 +94,8 @@ def save_draft(
     lab = db.query(Lab).filter(Lab.id == lab_id, Lab.is_active == True).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab hoặc bài lab đã đóng")
+
+    _check_student_class_membership(lab, current_user, db)
 
     # Tìm xem đã có bản ghi nào chưa, nếu chưa thì tạo mới, nếu có rồi thì cập nhật
     submission = db.query(Submission).filter(
@@ -128,6 +148,8 @@ def upload_submission_file(
     lab = db.query(Lab).filter(Lab.id == lab_id, Lab.is_active == True).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    _check_student_class_membership(lab, current_user, db)
 
     # Xác thực field_id có trong thiết kế Form hay không
     field_config = next((f for f in lab.form_fields if f.get("id") == field_id), None)
@@ -223,6 +245,8 @@ def delete_submission_attachment(
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
 
+    _check_student_class_membership(lab, current_user, db)
+
     now = datetime.now()
     effective_deadline = _get_student_lab_deadline(lab, current_user.username)
 
@@ -279,6 +303,8 @@ def submit_lab(
     lab = db.query(Lab).filter(Lab.id == lab_id, Lab.is_active == True).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài lab")
+
+    _check_student_class_membership(lab, current_user, db)
 
     submission = db.query(Submission).filter(
         Submission.lab_id == lab_id,
@@ -383,8 +409,12 @@ def get_all_submissions_for_lab(
     if new_stubs:
         db.commit()
 
-    # Trả về toàn bộ danh sách sinh viên: ưu tiên các bài đã nộp/đã chấm lên trước, sắp xếp theo tên sinh viên
-    all_subs = db.query(Submission).filter(Submission.lab_id == lab_id).all()
+    # Trả về toàn bộ danh sách sinh viên: CHỈ lấy các submission của sinh viên thực sự thuộc lớp
+    enrolled_student_ids = {s.id for s in enrolled_students}
+    all_subs = db.query(Submission).filter(
+        Submission.lab_id == lab_id,
+        Submission.student_id.in_(enrolled_student_ids)
+    ).all() if enrolled_student_ids else []
     # Sắp xếp có thứ tự ổn định: submitted/graded lên đầu, hoặc theo tên
     all_subs.sort(key=lambda s: (
         0 if s.status in ['submitted', 'graded'] else 1,
